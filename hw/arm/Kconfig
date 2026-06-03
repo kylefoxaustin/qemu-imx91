@@ -622,6 +622,8 @@ config FSL_IMX93
     bool
     select ARM_GIC
     select ARM_GICV3
+    select FSL_IMX93_ANATOP
+    select FSL_IMX93_CCM
     select IMX_LPUART
     select UNIMP
 

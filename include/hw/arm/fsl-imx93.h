@@ -23,6 +23,8 @@
 #include "target/arm/cpu.h"
 #include "hw/char/imx_lpuart.h"
 #include "hw/intc/arm_gicv3_common.h"
+#include "hw/misc/imx93_ccm.h"
+#include "hw/misc/imx93_anatop.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
 #include "qemu/units.h"
@@ -63,6 +65,8 @@ struct FslImx93State {
     ARMCPU          cpu[FSL_IMX93_NUM_A55_CPUS];
     GICv3State      gic;
     IMXLPUARTState  lpuart[FSL_IMX93_NUM_MODELED_LPUARTS];
+    IMX93CCMState   ccm;
+    IMX93AnatopState anatop;
     MemoryRegion    ocram;
 };
 

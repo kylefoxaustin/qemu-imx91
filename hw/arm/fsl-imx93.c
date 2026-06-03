@@ -95,7 +95,7 @@ static const struct {
 static void fsl_imx93_install_unimplemented(FslImx93State *s)
 {
     static const int unimplemented_regions[] = {
-        FSL_IMX93_CCM, FSL_IMX93_ANATOP, FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
+        FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_MU1, FSL_IMX93_SYSCTR,
@@ -244,6 +244,22 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         }
     }
 
+    /*
+     * Clock infrastructure. The i.MX 93 has no System Manager, so these are
+     * functionally modeled (not SCMI-stubbed): Linux programs them directly.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ccm), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ccm), 0,
+                    fsl_imx93_memmap[FSL_IMX93_CCM].addr);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->anatop), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->anatop), 0,
+                    fsl_imx93_memmap[FSL_IMX93_ANATOP].addr);
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -254,6 +270,8 @@ static void fsl_imx93_init(Object *obj)
     int i;
 
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
+    object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
+    object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);
