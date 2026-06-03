@@ -21,6 +21,7 @@
 #define FSL_IMX93_H
 
 #include "target/arm/cpu.h"
+#include "hw/char/imx_lpuart.h"
 #include "hw/intc/arm_gicv3_common.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -50,11 +51,18 @@ enum FslImx93Configuration {
     FSL_IMX93_NUM_IRQS      = 320,  /* GICv3 SPI budget for v0.0.1 */
 };
 
+/*
+ * Number of LPUART instances modeled so far. Silicon has eight; v0.0.2
+ * wires the console block (LPUART1-3), with LPUART1 as the EVK console.
+ */
+#define FSL_IMX93_NUM_MODELED_LPUARTS   3
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
     ARMCPU          cpu[FSL_IMX93_NUM_A55_CPUS];
     GICv3State      gic;
+    IMXLPUARTState  lpuart[FSL_IMX93_NUM_MODELED_LPUARTS];
     MemoryRegion    ocram;
 };
 

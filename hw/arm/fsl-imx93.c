@@ -30,6 +30,7 @@
 #include "hw/intc/arm_gicv3.h"
 #include "hw/misc/unimp.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/core/qdev-properties-system.h"
 #include "system/kvm.h"
 #include "target/arm/cpu.h"
 #include "target/arm/cpu-qom.h"
@@ -94,7 +95,6 @@ static const struct {
 static void fsl_imx93_install_unimplemented(FslImx93State *s)
 {
     static const int unimplemented_regions[] = {
-        FSL_IMX93_LPUART1, FSL_IMX93_LPUART2, FSL_IMX93_LPUART3,
         FSL_IMX93_CCM, FSL_IMX93_ANATOP, FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
@@ -219,6 +219,31 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                                 fsl_imx93_memmap[FSL_IMX93_OCRAM].addr,
                                 &s->ocram);
 
+    /* LPUARTs. LPUART1 is the 11x11 EVK console (stdout-path = &lpuart1). */
+    {
+        static const struct {
+            int region;
+            int irq;
+        } lpuart_table[FSL_IMX93_NUM_MODELED_LPUARTS] = {
+            { FSL_IMX93_LPUART1, FSL_IMX93_LPUART1_IRQ },
+            { FSL_IMX93_LPUART2, FSL_IMX93_LPUART2_IRQ },
+            { FSL_IMX93_LPUART3, FSL_IMX93_LPUART3_IRQ },
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpuart[i]);
+
+            qdev_prop_set_chr(DEVICE(&s->lpuart[i]), "chardev", serial_hd(i));
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0,
+                            fsl_imx93_memmap[lpuart_table[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, lpuart_table[i].irq));
+        }
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -226,8 +251,14 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 static void fsl_imx93_init(Object *obj)
 {
     FslImx93State *s = FSL_IMX93(obj);
+    int i;
 
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
+
+    for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
+        g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);
+        object_initialize_child(obj, name, &s->lpuart[i], TYPE_IMX_LPUART);
+    }
 }
 
 static void fsl_imx93_class_init(ObjectClass *oc, const void *data)
