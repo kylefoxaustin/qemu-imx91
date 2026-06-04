@@ -26,6 +26,7 @@
 #include "hw/misc/imx93_ccm.h"
 #include "hw/misc/imx93_anatop.h"
 #include "hw/misc/imx93_pxp.h"
+#include "hw/net/imx_fec.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -76,6 +77,7 @@ struct FslImx93State {
     IMX93AnatopState anatop;
     IMX93PxpState   pxp;
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
+    IMXFECState     fec;
     MemoryRegion    ocram;
 };
 
@@ -114,6 +116,10 @@ enum FslImx93MemoryRegions {
     FSL_IMX93_BLK_CTRL_WAKEUPMIX,
     FSL_IMX93_BLK_CTRL_DDRMIX,
 
+    /* Ethernet: FEC (modeled) + eQOS dwmac (stubbed - no upstream model) */
+    FSL_IMX93_FEC,
+    FSL_IMX93_EQOS,
+
     /* eDMA controllers (edma1 AONMIX, edma2 WAKEUPMIX) */
     FSL_IMX93_EDMA1,
     FSL_IMX93_EDMA2,
@@ -121,6 +127,11 @@ enum FslImx93MemoryRegions {
     /* Cortex-M33 remoteproc resource table (in M33 SRAM); reads as 0 so the
      * imx_rproc driver treats it as no valid table and backs off cleanly. */
     FSL_IMX93_RSC_TABLE,
+
+    /* OCOTP/efuse syscon: provides the FEC MAC-address nvmem cells. Mapping
+     * it (reads 0 -> zero MAC -> FEC falls back to a random MAC) lets the
+     * ethernet drivers bind instead of deferring on a missing MAC supplier. */
+    FSL_IMX93_OCOTP,
 
     /* Messaging Units: MU1 (AONMIX), MU2 (WAKEUPMIX), and the ELE/Sentinel
      * S4 MU. All enabled on the 11x11 EVK; unmapped MMIO here faults the
@@ -203,6 +214,12 @@ enum FslImx93Irqs {
     FSL_IMX93_USDHC1_IRQ    = 86,
     FSL_IMX93_USDHC2_IRQ    = 87,
     FSL_IMX93_USDHC3_IRQ    = 205,
+    FSL_IMX93_FEC_IRQ       = 179,  /* FEC MAC (int0) */
+    FSL_IMX93_FEC_TIMER_IRQ = 182,  /* FEC 1588 timer */
+    FSL_IMX93_EQOS_IRQ      = 184,
 };
+
+/* FEC RGMII PHY MDIO address on the 11x11 EVK (ethphy2, reg = <2>). */
+#define FSL_IMX93_FEC_PHY_NUM   2
 
 #endif /* FSL_IMX93_H */

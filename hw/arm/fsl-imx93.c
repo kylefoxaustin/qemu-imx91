@@ -78,12 +78,19 @@ static const struct {
     [FSL_IMX93_BLK_CTRL_WAKEUPMIX]   = { 0x42420000, 4 * KiB,    "blk_ctrl_wakeupmix" },
     [FSL_IMX93_BLK_CTRL_DDRMIX]      = { 0x4e010000, 64 * KiB,   "blk_ctrl_ddrmix" },
 
+    /* Ethernet: FEC (real imx.enet) + eQOS dwmac (stub). */
+    [FSL_IMX93_FEC]                  = { 0x42890000, 64 * KiB,   "fec" },
+    [FSL_IMX93_EQOS]                 = { 0x428a0000, 64 * KiB,   "eqos" },
+
     /* eDMA controllers (edma1 AONMIX, edma2 WAKEUPMIX). */
     [FSL_IMX93_EDMA1]                = { 0x44000000, 0x200000,   "edma1" },
     [FSL_IMX93_EDMA2]                = { 0x42000000, 0x210000,   "edma2" },
 
     /* Cortex-M33 remoteproc resource table region (M33 SRAM). */
     [FSL_IMX93_RSC_TABLE]            = { 0x2021e000, 4 * KiB,    "m33_rsc_table" },
+
+    /* OCOTP / efuse syscon (FEC MAC-address nvmem cells live here). */
+    [FSL_IMX93_OCOTP]                = { 0x47510000, 64 * KiB,   "ocotp" },
 
     /* Messaging Units (AONMIX MU1, WAKEUPMIX MU2, ELE/Sentinel S4 MU). */
     [FSL_IMX93_MU1]                  = { 0x44230000, 64 * KiB,   "mu1" },
@@ -177,7 +184,8 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE,
+        FSL_IMX93_EQOS,
+        FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
         FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_ELE_MU, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
@@ -409,6 +417,22 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         }
     }
 
+    /* FEC ethernet (the eQOS dwmac has no upstream model yet; it stays a
+     * stub). The internal PHY answers at the 11x11 EVK's MDIO address 2. */
+    object_property_set_uint(OBJECT(&s->fec), "phy-num",
+                             FSL_IMX93_FEC_PHY_NUM, &error_abort);
+    object_property_set_uint(OBJECT(&s->fec), "tx-ring-num", 3, &error_abort);
+    qemu_configure_nic_device(DEVICE(&s->fec), true, NULL);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->fec), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->fec), 0,
+                    fsl_imx93_memmap[FSL_IMX93_FEC].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->fec), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_FEC_IRQ));
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->fec), 1,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_FEC_TIMER_IRQ));
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -427,6 +451,8 @@ static void fsl_imx93_init(Object *obj)
         g_autofree char *name = g_strdup_printf("usdhc%d", i + 1);
         object_initialize_child(obj, name, &s->usdhc[i], TYPE_IMX_USDHC);
     }
+
+    object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);
