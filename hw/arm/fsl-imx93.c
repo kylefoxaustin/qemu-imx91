@@ -182,7 +182,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
         FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
-        FSL_IMX93_USDHC1, FSL_IMX93_USDHC2, FSL_IMX93_USDHC3,
         FSL_IMX93_MEDIA_BLK_CTRL, FSL_IMX93_MIPI_CSI, FSL_IMX93_DSI,
         FSL_IMX93_LCDIF, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
@@ -380,6 +379,36 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pxp), 0,
                     fsl_imx93_memmap[FSL_IMX93_PXP].addr);
 
+    /*
+     * uSDHC controllers. Real imx-usdhc model (carries the
+     * SDHCI_QUIRK_SDCLK_AUTO_GATE fix) so the sdhci-esdhc-imx driver's
+     * commands complete and, critically, device_shutdown() does not wedge
+     * the way it would against a logging stub - which is what lets a guest
+     * poweroff reach PSCI SYSTEM_OFF.
+     */
+    {
+        static const struct {
+            int region;
+            int irq;
+        } usdhc_table[FSL_IMX93_NUM_USDHCS] = {
+            { FSL_IMX93_USDHC1, FSL_IMX93_USDHC1_IRQ },
+            { FSL_IMX93_USDHC2, FSL_IMX93_USDHC2_IRQ },
+            { FSL_IMX93_USDHC3, FSL_IMX93_USDHC3_IRQ },
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->usdhc[i]);
+
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0,
+                            fsl_imx93_memmap[usdhc_table[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, usdhc_table[i].irq));
+        }
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -393,6 +422,11 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
+
+    for (i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
+        g_autofree char *name = g_strdup_printf("usdhc%d", i + 1);
+        object_initialize_child(obj, name, &s->usdhc[i], TYPE_IMX_USDHC);
+    }
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);

@@ -26,6 +26,7 @@
 #include "hw/misc/imx93_ccm.h"
 #include "hw/misc/imx93_anatop.h"
 #include "hw/misc/imx93_pxp.h"
+#include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
 #include "qemu/units.h"
@@ -62,6 +63,9 @@ enum FslImx93Configuration {
  */
 #define FSL_IMX93_NUM_MODELED_LPUARTS   8
 
+/* uSDHC controllers modeled with the real imx-usdhc device. */
+#define FSL_IMX93_NUM_USDHCS            3
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
@@ -71,6 +75,7 @@ struct FslImx93State {
     IMX93CCMState   ccm;
     IMX93AnatopState anatop;
     IMX93PxpState   pxp;
+    SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     MemoryRegion    ocram;
 };
 
@@ -195,6 +200,9 @@ enum FslImx93Irqs {
     FSL_IMX93_LPUART6_IRQ   = 71,
     FSL_IMX93_LPUART7_IRQ   = 210,
     FSL_IMX93_LPUART8_IRQ   = 211,
+    FSL_IMX93_USDHC1_IRQ    = 86,
+    FSL_IMX93_USDHC2_IRQ    = 87,
+    FSL_IMX93_USDHC3_IRQ    = 205,
 };
 
 #endif /* FSL_IMX93_H */

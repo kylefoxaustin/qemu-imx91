@@ -626,6 +626,7 @@ config FSL_IMX93
     select FSL_IMX93_CCM
     select FSL_IMX93_PXP
     select IMX_LPUART
+    select SDHCI
     select UNIMP
 
 config FSL_IMX93_EVK
