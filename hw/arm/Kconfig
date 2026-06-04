@@ -624,6 +624,7 @@ config FSL_IMX93
     select ARM_GICV3
     select FSL_IMX93_ANATOP
     select FSL_IMX93_CCM
+    select FSL_IMX93_ELE
     select FSL_IMX93_PXP
     select IMX_FEC
     select IMX_LPUART

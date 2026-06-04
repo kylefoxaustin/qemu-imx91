@@ -186,7 +186,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_EQOS,
         FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
-        FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_ELE_MU, FSL_IMX93_SYSCTR,
+        FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
         FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
@@ -388,6 +388,22 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                     fsl_imx93_memmap[FSL_IMX93_PXP].addr);
 
     /*
+     * ELE (EdgeLock Enclave) s4muap MU + success responder. Lets the fsl-se
+     * driver probe (se_soc_info no longer times out), which in turn lets the
+     * OCOTP driver register the FEC/eQOS MAC nvmem cells. "tx"/"rx" IRQs are
+     * SPI 31/30.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ele), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ele), 0,
+                    fsl_imx93_memmap[FSL_IMX93_ELE_MU].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->ele), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_ELE_TX_IRQ));
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->ele), 1,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_ELE_RX_IRQ));
+
+    /*
      * uSDHC controllers. Real imx-usdhc model (carries the
      * SDHCI_QUIRK_SDCLK_AUTO_GATE fix) so the sdhci-esdhc-imx driver's
      * commands complete and, critically, device_shutdown() does not wedge
@@ -446,6 +462,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
+    object_initialize_child(obj, "ele", &s->ele, TYPE_IMX93_ELE);
 
     for (i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
         g_autofree char *name = g_strdup_printf("usdhc%d", i + 1);

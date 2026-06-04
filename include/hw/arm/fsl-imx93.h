@@ -26,6 +26,7 @@
 #include "hw/misc/imx93_ccm.h"
 #include "hw/misc/imx93_anatop.h"
 #include "hw/misc/imx93_pxp.h"
+#include "hw/misc/imx93_ele.h"
 #include "hw/net/imx_fec.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
@@ -76,6 +77,7 @@ struct FslImx93State {
     IMX93CCMState   ccm;
     IMX93AnatopState anatop;
     IMX93PxpState   pxp;
+    IMX93EleState   ele;
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     IMXFECState     fec;
     MemoryRegion    ocram;
@@ -217,6 +219,8 @@ enum FslImx93Irqs {
     FSL_IMX93_FEC_IRQ       = 179,  /* FEC MAC (int0) */
     FSL_IMX93_FEC_TIMER_IRQ = 182,  /* FEC 1588 timer */
     FSL_IMX93_EQOS_IRQ      = 184,
+    FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
+    FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
 };
 
 /* FEC RGMII PHY MDIO address on the 11x11 EVK (ethphy2, reg = <2>). */

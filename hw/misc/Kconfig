@@ -110,6 +110,9 @@ config FSL_IMX93_ANATOP
 config FSL_IMX93_PXP
     bool
 
+config FSL_IMX93_ELE
+    bool
+
 config STM32_RCC
     bool
 
