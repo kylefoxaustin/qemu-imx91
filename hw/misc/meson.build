@@ -61,6 +61,7 @@ system_ss.add(when: 'CONFIG_FSL_IMX8MP_ANALOG', if_true: files('imx8mp_analog.c'
 system_ss.add(when: 'CONFIG_FSL_IMX8MP_CCM', if_true: files('imx8mp_ccm.c'))
 system_ss.add(when: 'CONFIG_FSL_IMX93_CCM', if_true: files('imx93_ccm.c'))
 system_ss.add(when: 'CONFIG_FSL_IMX93_ANATOP', if_true: files('imx93_anatop.c'))
+system_ss.add(when: 'CONFIG_FSL_IMX93_PXP', if_true: files('imx93_pxp.c'))
 system_ss.add(when: 'CONFIG_IMX', if_true: files(
   'imx25_ccm.c',
   'imx31_ccm.c',

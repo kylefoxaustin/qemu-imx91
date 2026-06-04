@@ -78,6 +78,13 @@ static const struct {
     [FSL_IMX93_BLK_CTRL_WAKEUPMIX]   = { 0x42420000, 4 * KiB,    "blk_ctrl_wakeupmix" },
     [FSL_IMX93_BLK_CTRL_DDRMIX]      = { 0x4e010000, 64 * KiB,   "blk_ctrl_ddrmix" },
 
+    /* eDMA controllers (edma1 AONMIX, edma2 WAKEUPMIX). */
+    [FSL_IMX93_EDMA1]                = { 0x44000000, 0x200000,   "edma1" },
+    [FSL_IMX93_EDMA2]                = { 0x42000000, 0x210000,   "edma2" },
+
+    /* Cortex-M33 remoteproc resource table region (M33 SRAM). */
+    [FSL_IMX93_RSC_TABLE]            = { 0x2021e000, 4 * KiB,    "m33_rsc_table" },
+
     /* Messaging Units (AONMIX MU1, WAKEUPMIX MU2, ELE/Sentinel S4 MU). */
     [FSL_IMX93_MU1]                  = { 0x44230000, 64 * KiB,   "mu1" },
     [FSL_IMX93_MU2]                  = { 0x42440000, 64 * KiB,   "mu2" },
@@ -86,12 +93,77 @@ static const struct {
     /* System counter. */
     [FSL_IMX93_SYSCTR]               = { 0x44290000, 192 * KiB,  "sysctr" },
 
-    /* Watchdogs. */
-    [FSL_IMX93_WDOG3]                = { 0x442d0000, 64 * KiB,   "wdog3" },
-    [FSL_IMX93_WDOG4]                = { 0x442e0000, 64 * KiB,   "wdog4" },
+    /* Watchdogs (wdog1/2 AONMIX, wdog3/4/5 WAKEUPMIX). */
+    [FSL_IMX93_WDOG1]                = { 0x442d0000, 64 * KiB,   "wdog1" },
+    [FSL_IMX93_WDOG2]                = { 0x442e0000, 64 * KiB,   "wdog2" },
+    [FSL_IMX93_WDOG3]                = { 0x42490000, 64 * KiB,   "wdog3" },
+    [FSL_IMX93_WDOG4]                = { 0x424a0000, 64 * KiB,   "wdog4" },
+    [FSL_IMX93_WDOG5]                = { 0x424b0000, 64 * KiB,   "wdog5" },
 
     /* Trusted Resource Domain Controller. */
     [FSL_IMX93_TRDC]                 = { 0x44270000, 64 * KiB,   "trdc" },
+
+    /* Battery-Backed Non-Secure Module (RTC + power key). */
+    [FSL_IMX93_BBNSM]                = { 0x44440000, 64 * KiB,   "bbnsm" },
+
+    /* Thermal Management Unit. */
+    [FSL_IMX93_TMU]                  = { 0x44482000, 4 * KiB,    "tmu" },
+
+    /* ADC. */
+    [FSL_IMX93_ADC1]                 = { 0x44530000, 64 * KiB,   "adc1" },
+
+    /* uSDHC controllers (eMMC / SD / SDIO). */
+    [FSL_IMX93_USDHC1]               = { 0x42850000, 64 * KiB,   "usdhc1" },
+    [FSL_IMX93_USDHC2]               = { 0x42860000, 64 * KiB,   "usdhc2" },
+    [FSL_IMX93_USDHC3]               = { 0x428b0000, 64 * KiB,   "usdhc3" },
+
+    /* Low-speed I/O controllers (stubbed). */
+    [FSL_IMX93_TPM1]                 = { 0x44310000, 64 * KiB,   "tpm1" },
+    [FSL_IMX93_TPM2]                 = { 0x44320000, 64 * KiB,   "tpm2" },
+    [FSL_IMX93_TPM3]                 = { 0x424e0000, 64 * KiB,   "tpm3" },
+    [FSL_IMX93_TPM4]                 = { 0x424f0000, 64 * KiB,   "tpm4" },
+    [FSL_IMX93_TPM5]                 = { 0x42500000, 64 * KiB,   "tpm5" },
+    [FSL_IMX93_TPM6]                 = { 0x42510000, 64 * KiB,   "tpm6" },
+    [FSL_IMX93_I3C1]                 = { 0x44330000, 64 * KiB,   "i3c1" },
+    [FSL_IMX93_I3C2]                 = { 0x42520000, 64 * KiB,   "i3c2" },
+    [FSL_IMX93_LPI2C1]               = { 0x44340000, 64 * KiB,   "lpi2c1" },
+    [FSL_IMX93_LPI2C2]               = { 0x44350000, 64 * KiB,   "lpi2c2" },
+    [FSL_IMX93_LPI2C3]               = { 0x42530000, 64 * KiB,   "lpi2c3" },
+    [FSL_IMX93_LPI2C4]               = { 0x42540000, 64 * KiB,   "lpi2c4" },
+    [FSL_IMX93_LPI2C5]               = { 0x426b0000, 64 * KiB,   "lpi2c5" },
+    [FSL_IMX93_LPI2C6]               = { 0x426c0000, 64 * KiB,   "lpi2c6" },
+    [FSL_IMX93_LPI2C7]               = { 0x426d0000, 64 * KiB,   "lpi2c7" },
+    [FSL_IMX93_LPI2C8]               = { 0x426e0000, 64 * KiB,   "lpi2c8" },
+    [FSL_IMX93_LPSPI1]               = { 0x44360000, 64 * KiB,   "lpspi1" },
+    [FSL_IMX93_LPSPI2]               = { 0x44370000, 64 * KiB,   "lpspi2" },
+    [FSL_IMX93_LPSPI3]               = { 0x42550000, 64 * KiB,   "lpspi3" },
+    [FSL_IMX93_LPSPI4]               = { 0x42560000, 64 * KiB,   "lpspi4" },
+    [FSL_IMX93_LPSPI5]               = { 0x426f0000, 64 * KiB,   "lpspi5" },
+    [FSL_IMX93_LPSPI6]               = { 0x42700000, 64 * KiB,   "lpspi6" },
+    [FSL_IMX93_LPSPI7]               = { 0x42710000, 64 * KiB,   "lpspi7" },
+    [FSL_IMX93_LPSPI8]               = { 0x42720000, 64 * KiB,   "lpspi8" },
+    [FSL_IMX93_FLEXCAN1]             = { 0x443a0000, 64 * KiB,   "flexcan1" },
+    [FSL_IMX93_FLEXCAN2]             = { 0x425b0000, 64 * KiB,   "flexcan2" },
+    [FSL_IMX93_SAI1]                 = { 0x443b0000, 64 * KiB,   "sai1" },
+    [FSL_IMX93_SAI2]                 = { 0x42650000, 64 * KiB,   "sai2" },
+    [FSL_IMX93_SAI3]                 = { 0x42660000, 64 * KiB,   "sai3" },
+    [FSL_IMX93_MICFIL]               = { 0x44520000, 64 * KiB,   "micfil" },
+    [FSL_IMX93_FLEXSPI1]             = { 0x425e0000, 64 * KiB,   "flexspi1" },
+    [FSL_IMX93_XCVR]                 = { 0x42680000, 64 * KiB,   "xcvr" },
+    [FSL_IMX93_GPIO1]                = { 0x47400000, 64 * KiB,   "gpio1" },
+    [FSL_IMX93_GPIO2]                = { 0x43810000, 64 * KiB,   "gpio2" },
+    [FSL_IMX93_GPIO3]                = { 0x43820000, 64 * KiB,   "gpio3" },
+    [FSL_IMX93_GPIO4]                = { 0x43830000, 64 * KiB,   "gpio4" },
+    [FSL_IMX93_USBOTG1]              = { 0x4c100000, 64 * KiB,   "usbotg1" },
+    [FSL_IMX93_USBOTG2]              = { 0x4c200000, 64 * KiB,   "usbotg2" },
+
+    /* MEDIAMIX: block control + imaging cluster (csi/dsi/pxp/lcdif/isi). */
+    [FSL_IMX93_MEDIA_BLK_CTRL]       = { 0x4ac10000, 4 * KiB,    "media_blk_ctrl" },
+    [FSL_IMX93_MIPI_CSI]             = { 0x4ae00000, 64 * KiB,   "mipi_csi" },
+    [FSL_IMX93_DSI]                  = { 0x4ae10000, 64 * KiB,   "dsi" },
+    [FSL_IMX93_PXP]                  = { 0x4ae20000, 64 * KiB,   "pxp" },
+    [FSL_IMX93_LCDIF]                = { 0x4ae30000, 64 * KiB,   "lcdif" },
+    [FSL_IMX93_ISI]                  = { 0x4ae40000, 64 * KiB,   "isi" },
 };
 
 /*
@@ -105,8 +177,26 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
+        FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE,
         FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_ELE_MU, FSL_IMX93_SYSCTR,
-        FSL_IMX93_WDOG3, FSL_IMX93_WDOG4, FSL_IMX93_TRDC,
+        FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
+        FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
+        FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
+        FSL_IMX93_USDHC1, FSL_IMX93_USDHC2, FSL_IMX93_USDHC3,
+        FSL_IMX93_MEDIA_BLK_CTRL, FSL_IMX93_MIPI_CSI, FSL_IMX93_DSI,
+        FSL_IMX93_LCDIF, FSL_IMX93_ISI,
+        FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
+        FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
+        FSL_IMX93_I3C1, FSL_IMX93_I3C2,
+        FSL_IMX93_LPI2C1, FSL_IMX93_LPI2C2, FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
+        FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
+        FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
+        FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
+        FSL_IMX93_FLEXCAN1, FSL_IMX93_FLEXCAN2,
+        FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
+        FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
+        FSL_IMX93_GPIO1, FSL_IMX93_GPIO2, FSL_IMX93_GPIO3, FSL_IMX93_GPIO4,
+        FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
@@ -283,6 +373,13 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->anatop), 0,
                     fsl_imx93_memmap[FSL_IMX93_ANATOP].addr);
 
+    /* PXP: reset-only model so the driver's unbounded soft-reset poll ends. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->pxp), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pxp), 0,
+                    fsl_imx93_memmap[FSL_IMX93_PXP].addr);
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -295,6 +392,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
+    object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);

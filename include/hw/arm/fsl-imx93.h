@@ -25,6 +25,7 @@
 #include "hw/intc/arm_gicv3_common.h"
 #include "hw/misc/imx93_ccm.h"
 #include "hw/misc/imx93_anatop.h"
+#include "hw/misc/imx93_pxp.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
 #include "qemu/units.h"
@@ -69,6 +70,7 @@ struct FslImx93State {
     IMXLPUARTState  lpuart[FSL_IMX93_NUM_MODELED_LPUARTS];
     IMX93CCMState   ccm;
     IMX93AnatopState anatop;
+    IMX93PxpState   pxp;
     MemoryRegion    ocram;
 };
 
@@ -107,6 +109,14 @@ enum FslImx93MemoryRegions {
     FSL_IMX93_BLK_CTRL_WAKEUPMIX,
     FSL_IMX93_BLK_CTRL_DDRMIX,
 
+    /* eDMA controllers (edma1 AONMIX, edma2 WAKEUPMIX) */
+    FSL_IMX93_EDMA1,
+    FSL_IMX93_EDMA2,
+
+    /* Cortex-M33 remoteproc resource table (in M33 SRAM); reads as 0 so the
+     * imx_rproc driver treats it as no valid table and backs off cleanly. */
+    FSL_IMX93_RSC_TABLE,
+
     /* Messaging Units: MU1 (AONMIX), MU2 (WAKEUPMIX), and the ELE/Sentinel
      * S4 MU. All enabled on the 11x11 EVK; unmapped MMIO here faults the
      * imx-mailbox driver probe with a synchronous external abort. */
@@ -117,12 +127,56 @@ enum FslImx93MemoryRegions {
     /* System counter */
     FSL_IMX93_SYSCTR,
 
-    /* Watchdogs (WDOG3/WDOG4 in the A55 domain) */
+    /* Watchdogs: WDOG1/2 in AONMIX, WDOG3/4/5 in WAKEUPMIX. The 11x11 EVK
+     * enables wdog3 (0x42490000); the rest are mapped for completeness. */
+    FSL_IMX93_WDOG1,
+    FSL_IMX93_WDOG2,
     FSL_IMX93_WDOG3,
     FSL_IMX93_WDOG4,
+    FSL_IMX93_WDOG5,
 
     /* Trusted Resource Domain Controller (stubbed) */
     FSL_IMX93_TRDC,
+
+    /* Battery-Backed Non-Secure Module (RTC + power key), syscon */
+    FSL_IMX93_BBNSM,
+
+    /* Thermal Management Unit (qoriq-tmu) */
+    FSL_IMX93_TMU,
+
+    /* ADC */
+    FSL_IMX93_ADC1,
+
+    /* uSDHC (eMMC / SD / SDIO) */
+    FSL_IMX93_USDHC1,
+    FSL_IMX93_USDHC2,
+    FSL_IMX93_USDHC3,
+
+    /*
+     * Low-speed I/O controllers. All stubbed: they are board-enabled so an
+     * unmapped instance aborts its (often deferred) probe, which blocks
+     * wait_for_device_probe() and stalls the boot before init runs.
+     */
+    FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
+    FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
+    FSL_IMX93_I3C1, FSL_IMX93_I3C2,
+    FSL_IMX93_LPI2C1, FSL_IMX93_LPI2C2, FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
+    FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
+    FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
+    FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
+    FSL_IMX93_FLEXCAN1, FSL_IMX93_FLEXCAN2,
+    FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
+    FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
+    FSL_IMX93_GPIO1, FSL_IMX93_GPIO2, FSL_IMX93_GPIO3, FSL_IMX93_GPIO4,
+    FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
+
+    /* MEDIAMIX: block control + imaging cluster (all stubbed) */
+    FSL_IMX93_MEDIA_BLK_CTRL,
+    FSL_IMX93_MIPI_CSI,
+    FSL_IMX93_DSI,
+    FSL_IMX93_PXP,
+    FSL_IMX93_LCDIF,
+    FSL_IMX93_ISI,
 
     FSL_IMX93_NUM_REGIONS,
 };
