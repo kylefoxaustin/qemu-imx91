@@ -29,6 +29,7 @@
 #include "hw/misc/imx93_ele.h"
 #include "hw/net/imx_fec.h"
 #include "hw/i2c/imx_lpi2c.h"
+#include "hw/gpio/imx93_gpio.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -69,6 +70,9 @@ enum FslImx93Configuration {
 /* uSDHC controllers modeled with the real imx-usdhc device. */
 #define FSL_IMX93_NUM_USDHCS            3
 
+/* GPIO banks (gpio1..gpio4). */
+#define FSL_IMX93_NUM_GPIOS            4
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
@@ -82,6 +86,7 @@ struct FslImx93State {
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     IMXFECState     fec;
     IMXLPI2CState   lpi2c2;
+    IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
     MemoryRegion    ocram;
 };
 
@@ -224,6 +229,15 @@ enum FslImx93Irqs {
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_LPI2C2_IRQ    = 14,
+    /* GPIO banks: each has two GIC lines (the driver uses the first). */
+    FSL_IMX93_GPIO1_IRQ     = 10,
+    FSL_IMX93_GPIO1_IRQ_HI  = 11,
+    FSL_IMX93_GPIO2_IRQ     = 57,
+    FSL_IMX93_GPIO2_IRQ_HI  = 58,
+    FSL_IMX93_GPIO3_IRQ     = 59,
+    FSL_IMX93_GPIO3_IRQ_HI  = 60,
+    FSL_IMX93_GPIO4_IRQ     = 189,
+    FSL_IMX93_GPIO4_IRQ_HI  = 190,
 };
 
 /* Trivial register-file I2C slave used for the board's PMIC + GPIO expander. */

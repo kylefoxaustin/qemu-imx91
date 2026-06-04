@@ -34,6 +34,7 @@ struct IMX93I2CRegdevState {
     bool    have_ptr;
     uint8_t reg0;       /* reset value of register 0 (e.g. a device id) */
     bool    pca9450;    /* preset PCA9450/51 BUCK/LDO vsel registers */
+    bool    pcal6524;   /* preset PCAL6524 config regs to all-input */
 };
 
 static int imx93_i2c_regdev_event(I2CSlave *i2c, enum i2c_event event)
@@ -87,6 +88,21 @@ static void imx93_i2c_regdev_reset(DeviceState *dev)
         s->regs[0x1E] = 0x14;   /* BUCK6OUT: 1.100V  (DT 1.06-1.14V) */
         s->regs[0x21] = 0x01;   /* LDO1CTRL vsel: 1.7V (DT 1.62-1.98V) */
     }
+    if (s->pcal6524) {
+        /*
+         * PCAL6524 powers up with all pins configured as inputs (the
+         * pca953x DIRECTION registers default to 0xFF). Without this the
+         * pins read back as outputs and the pca953x driver refuses to use
+         * any of them as an IRQ ("tried to flag a GPIO set as output for
+         * IRQ"), which breaks the PMIC interrupt that hangs off line 11.
+         * Direction regs for a 24-pin part are at 0x0c/0x0d/0x0e; the pca953x
+         * driver accesses them with the auto-increment bit (0x80) set, so the
+         * I2C register pointer this slave sees is 0x8c/0x8d/0x8e. Preset both
+         * so the read returns all-input regardless of addressing mode.
+         */
+        s->regs[0x0c] = s->regs[0x0d] = s->regs[0x0e] = 0xff;
+        s->regs[0x8c] = s->regs[0x8d] = s->regs[0x8e] = 0xff;
+    }
     s->ptr = 0;
     s->have_ptr = false;
 }
@@ -94,6 +110,7 @@ static void imx93_i2c_regdev_reset(DeviceState *dev)
 static const Property imx93_i2c_regdev_props[] = {
     DEFINE_PROP_UINT8("reg0", IMX93I2CRegdevState, reg0, 0),
     DEFINE_PROP_BOOL("pca9450", IMX93I2CRegdevState, pca9450, false),
+    DEFINE_PROP_BOOL("pcal6524", IMX93I2CRegdevState, pcal6524, false),
 };
 
 static const VMStateDescription vmstate_imx93_i2c_regdev = {

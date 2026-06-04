@@ -202,7 +202,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_FLEXCAN1, FSL_IMX93_FLEXCAN2,
         FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
         FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
-        FSL_IMX93_GPIO1, FSL_IMX93_GPIO2, FSL_IMX93_GPIO3, FSL_IMX93_GPIO4,
         FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
     };
 
@@ -471,8 +470,37 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_bit(DEVICE(pmic), "pca9450", true);
         i2c_slave_realize_and_unref(pmic, s->lpi2c2.bus, &error_abort);
 
-        i2c_slave_create_simple(s->lpi2c2.bus, TYPE_IMX93_I2C_REGDEV,
-                                FSL_IMX93_PCAL6524_ADDR);
+        I2CSlave *expander = i2c_slave_new(TYPE_IMX93_I2C_REGDEV,
+                                           FSL_IMX93_PCAL6524_ADDR);
+        qdev_prop_set_bit(DEVICE(expander), "pcal6524", true);
+        i2c_slave_realize_and_unref(expander, s->lpi2c2.bus, &error_abort);
+    }
+
+    /* GPIO banks (gpio1..gpio4). Each exposes two GIC lines; the gpio-vf610
+     * driver uses the first. Real models so the gpiochip + irqchip register. */
+    {
+        static const struct {
+            int region, irq, irq_hi;
+        } gpio_table[FSL_IMX93_NUM_GPIOS] = {
+            { FSL_IMX93_GPIO1, FSL_IMX93_GPIO1_IRQ, FSL_IMX93_GPIO1_IRQ_HI },
+            { FSL_IMX93_GPIO2, FSL_IMX93_GPIO2_IRQ, FSL_IMX93_GPIO2_IRQ_HI },
+            { FSL_IMX93_GPIO3, FSL_IMX93_GPIO3_IRQ, FSL_IMX93_GPIO3_IRQ_HI },
+            { FSL_IMX93_GPIO4, FSL_IMX93_GPIO4_IRQ, FSL_IMX93_GPIO4_IRQ_HI },
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->gpio[i]);
+
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0,
+                            fsl_imx93_memmap[gpio_table[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, gpio_table[i].irq));
+            sysbus_connect_irq(sbd, 1,
+                qdev_get_gpio_in(gicdev, gpio_table[i].irq_hi));
+        }
     }
 
     /* All peripherals not yet modeled get logging stubs. */
@@ -497,6 +525,11 @@ static void fsl_imx93_init(Object *obj)
 
     object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
+
+    for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
+        g_autofree char *name = g_strdup_printf("gpio%d", i + 1);
+        object_initialize_child(obj, name, &s->gpio[i], TYPE_IMX93_GPIO);
+    }
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);
