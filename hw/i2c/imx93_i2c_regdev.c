@@ -33,6 +33,7 @@ struct IMX93I2CRegdevState {
     uint8_t ptr;
     bool    have_ptr;
     uint8_t reg0;       /* reset value of register 0 (e.g. a device id) */
+    bool    pca9450;    /* preset PCA9450/51 BUCK/LDO vsel registers */
 };
 
 static int imx93_i2c_regdev_event(I2CSlave *i2c, enum i2c_event event)
@@ -73,12 +74,26 @@ static void imx93_i2c_regdev_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[0] = s->reg0;
+    if (s->pca9450) {
+        /*
+         * Preset the BUCK/LDO voltage-select registers to selectors inside
+         * each rail's DT-constrained range. With the power-on default of 0
+         * (lowest voltage) the pca9450 driver fails to register the rails
+         * whose DT minimum is well above that (it returns on the first such
+         * failure), e.g. "Failed to register regulator(buck4): -22".
+         */
+        s->regs[0x1A] = 0x29;   /* BUCK4OUT: 1.625V  (DT 1.62-3.40V) */
+        s->regs[0x1C] = 0x29;   /* BUCK5OUT: 1.625V  (DT 1.62V+)     */
+        s->regs[0x1E] = 0x14;   /* BUCK6OUT: 1.100V  (DT 1.06-1.14V) */
+        s->regs[0x21] = 0x01;   /* LDO1CTRL vsel: 1.7V (DT 1.62-1.98V) */
+    }
     s->ptr = 0;
     s->have_ptr = false;
 }
 
 static const Property imx93_i2c_regdev_props[] = {
     DEFINE_PROP_UINT8("reg0", IMX93I2CRegdevState, reg0, 0),
+    DEFINE_PROP_BOOL("pca9450", IMX93I2CRegdevState, pca9450, false),
 };
 
 static const VMStateDescription vmstate_imx93_i2c_regdev = {

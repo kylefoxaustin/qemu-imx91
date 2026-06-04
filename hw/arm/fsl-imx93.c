@@ -468,6 +468,7 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 
         pmic = i2c_slave_new(TYPE_IMX93_I2C_REGDEV, FSL_IMX93_PCA9451_ADDR);
         qdev_prop_set_uint8(DEVICE(pmic), "reg0", FSL_IMX93_PCA9451_DEVID);
+        qdev_prop_set_bit(DEVICE(pmic), "pca9450", true);
         i2c_slave_realize_and_unref(pmic, s->lpi2c2.bus, &error_abort);
 
         i2c_slave_create_simple(s->lpi2c2.bus, TYPE_IMX93_I2C_REGDEV,
