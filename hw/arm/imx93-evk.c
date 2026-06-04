@@ -19,6 +19,9 @@
 #include "hw/arm/machines-qom.h"
 #include "hw/core/boards.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/core/qdev-properties-system.h"
+#include "hw/sd/sd.h"
+#include "system/blockdev.h"
 #include "system/kvm.h"
 #include "system/qtest.h"
 #include "qemu/error-report.h"
@@ -49,6 +52,23 @@ static void imx93_evk_init(MachineState *machine)
 
     memory_region_add_subregion(get_system_memory(), FSL_IMX93_RAM_START,
                                 machine->ram);
+
+    /* Attach an SD/MMC card to any uSDHC fed by a -drive if=sd,index=N. */
+    for (int i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
+        DriveInfo *di = drive_get(IF_SD, i, 0);
+        BlockBackend *blk;
+        DeviceState *carddev;
+        BusState *bus;
+
+        if (!di) {
+            continue;
+        }
+        blk = blk_by_legacy_dinfo(di);
+        bus = qdev_get_child_bus(DEVICE(&s->usdhc[i]), "sd-bus");
+        carddev = qdev_new(TYPE_SD_CARD);
+        qdev_prop_set_drive_err(carddev, "drive", blk, &error_fatal);
+        qdev_realize_and_unref(carddev, bus, &error_fatal);
+    }
 
     if (!qtest_enabled()) {
         arm_load_kernel(&s->cpu[0], machine, &boot_info);
