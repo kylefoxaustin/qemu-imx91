@@ -28,6 +28,7 @@
 #include "hw/misc/imx93_pxp.h"
 #include "hw/misc/imx93_ele.h"
 #include "hw/net/imx_fec.h"
+#include "hw/net/imx93_dwmac.h"
 #include "hw/i2c/imx_lpi2c.h"
 #include "hw/gpio/imx93_gpio.h"
 #include "hw/sd/sdhci.h"
@@ -85,6 +86,7 @@ struct FslImx93State {
     IMX93EleState   ele;
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     IMXFECState     fec;
+    IMX93DwmacState eqos;
     IMXLPI2CState   lpi2c2;
     IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
     MemoryRegion    ocram;

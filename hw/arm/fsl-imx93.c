@@ -184,7 +184,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_EQOS,
         FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
         FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
@@ -448,6 +447,16 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->fec), 1,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_FEC_TIMER_IRQ));
 
+    /* eQOS (dwmac4) ethernet - the board's second NIC. */
+    qemu_configure_nic_device(DEVICE(&s->eqos), true, NULL);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->eqos), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->eqos), 0,
+                    fsl_imx93_memmap[FSL_IMX93_EQOS].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->eqos), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_EQOS_IRQ));
+
     /*
      * LPI2C2: real controller with the board's PMIC (pca9451a @ 0x25) and
      * PCAL6524 GPIO expander (@ 0x22) attached. The expander provides the FEC
@@ -524,6 +533,7 @@ static void fsl_imx93_init(Object *obj)
     }
 
     object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
+    object_initialize_child(obj, "eqos", &s->eqos, TYPE_IMX93_DWMAC);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
 
     for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
