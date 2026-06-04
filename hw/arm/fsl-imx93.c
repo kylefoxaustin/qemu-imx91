@@ -61,6 +61,11 @@ static const struct {
     [FSL_IMX93_LPUART1]              = { 0x44380000, 64 * KiB,   "lpuart1" },
     [FSL_IMX93_LPUART2]              = { 0x44390000, 64 * KiB,   "lpuart2" },
     [FSL_IMX93_LPUART3]              = { 0x42570000, 64 * KiB,   "lpuart3" },
+    [FSL_IMX93_LPUART4]              = { 0x42580000, 64 * KiB,   "lpuart4" },
+    [FSL_IMX93_LPUART5]              = { 0x42590000, 64 * KiB,   "lpuart5" },
+    [FSL_IMX93_LPUART6]              = { 0x425a0000, 64 * KiB,   "lpuart6" },
+    [FSL_IMX93_LPUART7]              = { 0x42690000, 64 * KiB,   "lpuart7" },
+    [FSL_IMX93_LPUART8]              = { 0x426a0000, 64 * KiB,   "lpuart8" },
 
     /* Clock / reset / pinmux (direct register programming - no SM). */
     [FSL_IMX93_CCM]                  = { 0x44450000, 64 * KiB,   "ccm" },
@@ -73,8 +78,10 @@ static const struct {
     [FSL_IMX93_BLK_CTRL_WAKEUPMIX]   = { 0x42420000, 4 * KiB,    "blk_ctrl_wakeupmix" },
     [FSL_IMX93_BLK_CTRL_DDRMIX]      = { 0x4e010000, 64 * KiB,   "blk_ctrl_ddrmix" },
 
-    /* Messaging Unit (AONMIX MU1). */
+    /* Messaging Units (AONMIX MU1, WAKEUPMIX MU2, ELE/Sentinel S4 MU). */
     [FSL_IMX93_MU1]                  = { 0x44230000, 64 * KiB,   "mu1" },
+    [FSL_IMX93_MU2]                  = { 0x42440000, 64 * KiB,   "mu2" },
+    [FSL_IMX93_ELE_MU]               = { 0x47520000, 64 * KiB,   "ele_mu_s4" },
 
     /* System counter. */
     [FSL_IMX93_SYSCTR]               = { 0x44290000, 192 * KiB,  "sysctr" },
@@ -98,7 +105,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_MU1, FSL_IMX93_SYSCTR,
+        FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_ELE_MU, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG3, FSL_IMX93_WDOG4, FSL_IMX93_TRDC,
     };
 
@@ -239,6 +246,11 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
             { FSL_IMX93_LPUART1, FSL_IMX93_LPUART1_IRQ },
             { FSL_IMX93_LPUART2, FSL_IMX93_LPUART2_IRQ },
             { FSL_IMX93_LPUART3, FSL_IMX93_LPUART3_IRQ },
+            { FSL_IMX93_LPUART4, FSL_IMX93_LPUART4_IRQ },
+            { FSL_IMX93_LPUART5, FSL_IMX93_LPUART5_IRQ },
+            { FSL_IMX93_LPUART6, FSL_IMX93_LPUART6_IRQ },
+            { FSL_IMX93_LPUART7, FSL_IMX93_LPUART7_IRQ },
+            { FSL_IMX93_LPUART8, FSL_IMX93_LPUART8_IRQ },
         };
 
         for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {

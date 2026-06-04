@@ -54,10 +54,12 @@ enum FslImx93Configuration {
 };
 
 /*
- * Number of LPUART instances modeled so far. Silicon has eight; v0.0.2
- * wires the console block (LPUART1-3), with LPUART1 as the EVK console.
+ * All eight LPUART instances are modeled. LPUART1 is the 11x11 EVK console;
+ * the board also enables LPUART5, and modeling the full set means any stock
+ * board DT probes cleanly instead of taking an external abort on an unmapped
+ * instance.
  */
-#define FSL_IMX93_NUM_MODELED_LPUARTS   3
+#define FSL_IMX93_NUM_MODELED_LPUARTS   8
 
 struct FslImx93State {
     SysBusDevice    parent_obj;
@@ -84,10 +86,15 @@ enum FslImx93MemoryRegions {
     /* On-chip RAM */
     FSL_IMX93_OCRAM,
 
-    /* LPUART console block (AON + Wakeup domains) */
+    /* LPUART block (AON + Wakeup domains); all 8 instances modeled */
     FSL_IMX93_LPUART1,
     FSL_IMX93_LPUART2,
     FSL_IMX93_LPUART3,
+    FSL_IMX93_LPUART4,
+    FSL_IMX93_LPUART5,
+    FSL_IMX93_LPUART6,
+    FSL_IMX93_LPUART7,
+    FSL_IMX93_LPUART8,
 
     /* Clock / reset / pinmux infrastructure (stubbed as unimplemented) */
     FSL_IMX93_CCM,
@@ -100,8 +107,12 @@ enum FslImx93MemoryRegions {
     FSL_IMX93_BLK_CTRL_WAKEUPMIX,
     FSL_IMX93_BLK_CTRL_DDRMIX,
 
-    /* Messaging Unit (AONMIX MU1) */
+    /* Messaging Units: MU1 (AONMIX), MU2 (WAKEUPMIX), and the ELE/Sentinel
+     * S4 MU. All enabled on the 11x11 EVK; unmapped MMIO here faults the
+     * imx-mailbox driver probe with a synchronous external abort. */
     FSL_IMX93_MU1,
+    FSL_IMX93_MU2,
+    FSL_IMX93_ELE_MU,
 
     /* System counter */
     FSL_IMX93_SYSCTR,
@@ -125,6 +136,11 @@ enum FslImx93Irqs {
     FSL_IMX93_LPUART1_IRQ   = 19,
     FSL_IMX93_LPUART2_IRQ   = 20,
     FSL_IMX93_LPUART3_IRQ   = 68,
+    FSL_IMX93_LPUART4_IRQ   = 69,
+    FSL_IMX93_LPUART5_IRQ   = 70,
+    FSL_IMX93_LPUART6_IRQ   = 71,
+    FSL_IMX93_LPUART7_IRQ   = 210,
+    FSL_IMX93_LPUART8_IRQ   = 211,
 };
 
 #endif /* FSL_IMX93_H */
