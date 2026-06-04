@@ -28,6 +28,7 @@
 #include "hw/misc/imx93_pxp.h"
 #include "hw/misc/imx93_ele.h"
 #include "hw/net/imx_fec.h"
+#include "hw/i2c/imx_lpi2c.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -80,6 +81,7 @@ struct FslImx93State {
     IMX93EleState   ele;
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     IMXFECState     fec;
+    IMXLPI2CState   lpi2c2;
     MemoryRegion    ocram;
 };
 
@@ -221,7 +223,16 @@ enum FslImx93Irqs {
     FSL_IMX93_EQOS_IRQ      = 184,
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
+    FSL_IMX93_LPI2C2_IRQ    = 14,
 };
+
+/* Trivial register-file I2C slave used for the board's PMIC + GPIO expander. */
+#define TYPE_IMX93_I2C_REGDEV   "imx93.i2c-regdev"
+
+/* I2C addresses on lpi2c2: PMIC + GPIO expander. */
+#define FSL_IMX93_PCA9451_ADDR  0x25
+#define FSL_IMX93_PCA9451_DEVID 0x90    /* DEV_ID high nibble 0x9 = pca9451a */
+#define FSL_IMX93_PCAL6524_ADDR 0x22
 
 /* FEC RGMII PHY MDIO address on the 11x11 EVK (ethphy2, reg = <2>). */
 #define FSL_IMX93_FEC_PHY_NUM   2

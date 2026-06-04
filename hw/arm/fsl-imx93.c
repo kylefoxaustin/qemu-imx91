@@ -195,7 +195,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
         FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
-        FSL_IMX93_LPI2C1, FSL_IMX93_LPI2C2, FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
+        FSL_IMX93_LPI2C1, FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
         FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
@@ -449,6 +449,31 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->fec), 1,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_FEC_TIMER_IRQ));
 
+    /*
+     * LPI2C2: real controller with the board's PMIC (pca9451a @ 0x25) and
+     * PCAL6524 GPIO expander (@ 0x22) attached. The expander provides the FEC
+     * PHY reset-gpio; the PMIC's regulators unblock uSDHC and friends. Other
+     * LPI2C instances stay logging stubs.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c2);
+        I2CSlave *pmic;
+
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_LPI2C2].addr);
+        sysbus_connect_irq(sbd, 0,
+                           qdev_get_gpio_in(gicdev, FSL_IMX93_LPI2C2_IRQ));
+
+        pmic = i2c_slave_new(TYPE_IMX93_I2C_REGDEV, FSL_IMX93_PCA9451_ADDR);
+        qdev_prop_set_uint8(DEVICE(pmic), "reg0", FSL_IMX93_PCA9451_DEVID);
+        i2c_slave_realize_and_unref(pmic, s->lpi2c2.bus, &error_abort);
+
+        i2c_slave_create_simple(s->lpi2c2.bus, TYPE_IMX93_I2C_REGDEV,
+                                FSL_IMX93_PCAL6524_ADDR);
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -470,6 +495,7 @@ static void fsl_imx93_init(Object *obj)
     }
 
     object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
+    object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
 
     for (i = 0; i < FSL_IMX93_NUM_MODELED_LPUARTS; i++) {
         g_autofree char *name = g_strdup_printf("lpuart%d", i + 1);
