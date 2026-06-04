@@ -138,6 +138,17 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                                     &error_abort);
         }
 
+        /*
+         * MPIDR affinity must match the stock DT: imx93.dtsi places the two
+         * A55s at cpu@0 (Aff1.Aff0 = 0.0) and cpu@100 (Aff1.Aff0 = 1.0), i.e.
+         * each core in its own affinity-level-1 group. QEMU otherwise numbers
+         * secondaries in Aff0 (0x0, 0x1), so a PSCI CPU_ON targeting 0x100
+         * would find no matching CPU and fail with -EINVAL (the
+         * "psci: failed to boot CPU1 (-22)" seen on first bring-up).
+         */
+        object_property_set_int(OBJECT(&s->cpu[i]), "mp-affinity",
+                                (uint64_t)i << 8, &error_abort);
+
         /* i.MX 93 system counter runs at 24 MHz. */
         object_property_set_int(OBJECT(&s->cpu[i]), "cntfrq", 24000000,
                                 &error_abort);
