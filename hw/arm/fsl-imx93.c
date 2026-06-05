@@ -31,6 +31,9 @@
 #include "hw/misc/unimp.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/qdev-properties-system.h"
+#include "hw/display/adv7535.h"
+#include "hw/display/i2c-ddc.h"
+#include "hw/i2c/i2c.h"
 #include "system/kvm.h"
 #include "target/arm/cpu.h"
 #include "target/arm/cpu-qom.h"
@@ -165,6 +168,7 @@ static const struct {
     [FSL_IMX93_USBOTG2]              = { 0x4c200000, 64 * KiB,   "usbotg2" },
 
     /* MEDIAMIX: block control + imaging cluster (csi/dsi/pxp/lcdif/isi). */
+    [FSL_IMX93_MEDIAMIX_PD]          = { 0x44462400, 0x400,      "mediamix-pd" },
     [FSL_IMX93_MEDIA_BLK_CTRL]       = { 0x4ac10000, 4 * KiB,    "media_blk_ctrl" },
     [FSL_IMX93_MIPI_CSI]             = { 0x4ae00000, 64 * KiB,   "mipi_csi" },
     [FSL_IMX93_DSI]                  = { 0x4ae10000, 64 * KiB,   "dsi" },
@@ -184,17 +188,16 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_EDMA1, FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
+        FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
         FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
         FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
-        FSL_IMX93_MEDIA_BLK_CTRL, FSL_IMX93_MIPI_CSI, FSL_IMX93_DSI,
-        FSL_IMX93_LCDIF, FSL_IMX93_ISI,
+        FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
         FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
-        FSL_IMX93_LPI2C1, FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
+        FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
         FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
@@ -512,6 +515,99 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         }
     }
 
+    /*
+     * Display pipeline: LCDIFv3 -> MIPI DSI host -> ADV7535 HDMI bridge.
+     *
+     * The MEDIAMIX block control (GPR) carries the LCDIF/DSI/LDB output mux
+     * and the D-PHY PLL config; the SRC "mediamix" slice reports the media
+     * power domain as on so the imx93-pd genpd power-on poll completes.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->mediamix), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->mediamix), 0,
+                    fsl_imx93_memmap[FSL_IMX93_MEDIAMIX_PD].addr);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->media_blk_ctrl), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->media_blk_ctrl), 0,
+                    fsl_imx93_memmap[FSL_IMX93_MEDIA_BLK_CTRL].addr);
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->dsi), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->dsi), 0,
+                    fsl_imx93_memmap[FSL_IMX93_DSI].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->dsi), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_DSI_IRQ));
+
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->lcdif), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->lcdif), 0,
+                    fsl_imx93_memmap[FSL_IMX93_LCDIF].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->lcdif), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_LCDIF_IRQ));
+
+    /*
+     * eDMA1: the i.MX LPI2C driver moves any transfer >= 8 bytes (e.g. the
+     * 64-byte HDMI EDID block read) through eDMA, so a working DMA engine is
+     * required for the display I2C bus to read EDID. Channel N interrupts on
+     * GIC SPI (95 + N).
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->edma1);
+
+        object_property_set_uint(OBJECT(&s->edma1), "num-channels",
+                                 FSL_IMX93_EDMA1_CHANNELS, &error_abort);
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_EDMA1].addr);
+        for (i = 0; i < FSL_IMX93_EDMA1_CHANNELS; i++) {
+            sysbus_connect_irq(sbd, i,
+                qdev_get_gpio_in(gicdev, FSL_IMX93_EDMA1_IRQ_BASE + i));
+        }
+    }
+
+    /*
+     * LPI2C1: the display side I2C bus. Carries the ADV7535 DSI-to-HDMI
+     * bridge (main map @ 0x3d) plus its CEC (0x3b) and packet (0x38) maps,
+     * and an EDID-serving DDC slave at the bridge's EDID address (0x3f) so
+     * the adv7511 driver reads a valid monitor EDID and sets a mode.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c1);
+        I2CSlave *adv, *aux;
+        DeviceState *ddc;
+
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_LPI2C1].addr);
+        sysbus_connect_irq(sbd, 0,
+                           qdev_get_gpio_in(gicdev, FSL_IMX93_LPI2C1_IRQ));
+
+        adv = i2c_slave_new(TYPE_ADV7535, FSL_IMX93_ADV7535_MAIN_ADDR);
+        qdev_prop_set_bit(DEVICE(adv), "main", true);
+        i2c_slave_realize_and_unref(adv, s->lpi2c1.bus, &error_abort);
+
+        aux = i2c_slave_new(TYPE_ADV7535, FSL_IMX93_ADV7535_CEC_ADDR);
+        qdev_prop_set_bit(DEVICE(aux), "main", false);
+        i2c_slave_realize_and_unref(aux, s->lpi2c1.bus, &error_abort);
+
+        aux = i2c_slave_new(TYPE_ADV7535, FSL_IMX93_ADV7535_PKT_ADDR);
+        qdev_prop_set_bit(DEVICE(aux), "main", false);
+        i2c_slave_realize_and_unref(aux, s->lpi2c1.bus, &error_abort);
+
+        ddc = DEVICE(i2c_slave_new(TYPE_I2CDDC, FSL_IMX93_ADV7535_EDID_ADDR));
+        qdev_prop_set_uint32(ddc, "xres", 1024);
+        qdev_prop_set_uint32(ddc, "yres", 768);
+        i2c_slave_realize_and_unref(I2C_SLAVE(ddc), s->lpi2c1.bus,
+                                    &error_abort);
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -534,7 +630,14 @@ static void fsl_imx93_init(Object *obj)
 
     object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
     object_initialize_child(obj, "eqos", &s->eqos, TYPE_IMX93_DWMAC);
+    object_initialize_child(obj, "edma1", &s->edma1, TYPE_IMX93_EDMA);
+    object_initialize_child(obj, "lpi2c1", &s->lpi2c1, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
+    object_initialize_child(obj, "mediamix", &s->mediamix, TYPE_IMX93_SRC_SLICE);
+    object_initialize_child(obj, "media-blk-ctrl", &s->media_blk_ctrl,
+                            TYPE_IMX93_MEDIA_BLK_CTRL);
+    object_initialize_child(obj, "dsi", &s->dsi, TYPE_IMX93_DSI);
+    object_initialize_child(obj, "lcdif", &s->lcdif, TYPE_IMX93_LCDIF);
 
     for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i + 1);

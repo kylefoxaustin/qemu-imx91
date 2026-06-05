@@ -628,6 +628,12 @@ config FSL_IMX93
     select FSL_IMX93_GPIO
     select FSL_IMX93_PXP
     select FSL_IMX93_DWMAC
+    select FSL_IMX93_LCDIF
+    select FSL_IMX93_DSI
+    select FSL_IMX93_MEDIA_BLK
+    select FSL_IMX93_EDMA
+    select ADV7535
+    select DDC
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART

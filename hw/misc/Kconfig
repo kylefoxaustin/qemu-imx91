@@ -113,6 +113,9 @@ config FSL_IMX93_PXP
 config FSL_IMX93_ELE
     bool
 
+config FSL_IMX93_MEDIA_BLK
+    bool
+
 config STM32_RCC
     bool
 

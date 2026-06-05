@@ -31,6 +31,10 @@
 #include "hw/net/imx93_dwmac.h"
 #include "hw/i2c/imx_lpi2c.h"
 #include "hw/gpio/imx93_gpio.h"
+#include "hw/display/imx93_lcdif.h"
+#include "hw/display/imx93_dsi.h"
+#include "hw/misc/imx93_media_blk.h"
+#include "hw/dma/imx93_edma.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -87,8 +91,14 @@ struct FslImx93State {
     SDHCIState      usdhc[FSL_IMX93_NUM_USDHCS];
     IMXFECState     fec;
     IMX93DwmacState eqos;
+    IMX93EdmaState  edma1;
+    IMXLPI2CState   lpi2c1;
     IMXLPI2CState   lpi2c2;
     IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
+    IMX93MediaBlkCtrlState media_blk_ctrl;
+    IMX93SrcSliceState     mediamix;
+    IMX93DsiState   dsi;
+    IMX93LcdifState lcdif;
     MemoryRegion    ocram;
 };
 
@@ -197,7 +207,8 @@ enum FslImx93MemoryRegions {
     FSL_IMX93_GPIO1, FSL_IMX93_GPIO2, FSL_IMX93_GPIO3, FSL_IMX93_GPIO4,
     FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
 
-    /* MEDIAMIX: block control + imaging cluster (all stubbed) */
+    /* MEDIAMIX: block control + imaging cluster */
+    FSL_IMX93_MEDIAMIX_PD,      /* SRC power-domain slice (overlays SRC) */
     FSL_IMX93_MEDIA_BLK_CTRL,
     FSL_IMX93_MIPI_CSI,
     FSL_IMX93_DSI,
@@ -230,7 +241,13 @@ enum FslImx93Irqs {
     FSL_IMX93_EQOS_IRQ      = 184,
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
+    FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
+    /* eDMA1: channel N raises GIC SPI (EDMA1_IRQ_BASE + N). */
+    FSL_IMX93_EDMA1_IRQ_BASE = 95,
+    FSL_IMX93_EDMA1_CHANNELS = 31,
+    FSL_IMX93_DSI_IRQ       = 177,
+    FSL_IMX93_LCDIF_IRQ     = 176,
     /* GPIO banks: each has two GIC lines (the driver uses the first). */
     FSL_IMX93_GPIO1_IRQ     = 10,
     FSL_IMX93_GPIO1_IRQ_HI  = 11,
@@ -252,5 +269,15 @@ enum FslImx93Irqs {
 
 /* FEC RGMII PHY MDIO address on the 11x11 EVK (ethphy2, reg = <2>). */
 #define FSL_IMX93_FEC_PHY_NUM   2
+
+/*
+ * Display: ADV7535 DSI-to-HDMI bridge I2C addresses on lpi2c1. The adv7511
+ * driver derives the auxiliary maps from the main address: edid = main + 4,
+ * cec = main - 1 (overridden to 0x3b by adi,addr-cec), packet = main - 5.
+ */
+#define FSL_IMX93_ADV7535_MAIN_ADDR     0x3d
+#define FSL_IMX93_ADV7535_EDID_ADDR     0x3f
+#define FSL_IMX93_ADV7535_CEC_ADDR      0x3b
+#define FSL_IMX93_ADV7535_PKT_ADDR      0x38
 
 #endif /* FSL_IMX93_H */

@@ -215,8 +215,13 @@ static const MemoryRegionOps imx_lpi2c_ops = {
     .read = imx_lpi2c_read,
     .write = imx_lpi2c_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .impl = { .min_access_size = 4, .max_access_size = 4 },
-    .valid = { .min_access_size = 4, .max_access_size = 4 },
+    /*
+     * The eDMA drives the data registers with sub-word accesses (16-bit
+     * command words into MTDR, single bytes out of MRDR), so allow 1/2/4-byte
+     * access. PIO accesses from the CPU are always 32-bit.
+     */
+    .impl = { .min_access_size = 1, .max_access_size = 4 },
+    .valid = { .min_access_size = 1, .max_access_size = 4 },
 };
 
 static void imx_lpi2c_reset(DeviceState *dev)
