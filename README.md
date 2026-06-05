@@ -121,6 +121,14 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
   run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
   `tests/weston-imx93/run.sh`.
+- **Ethos-U65 microNPU — driver binds.** The `arm,ethosu` driver probes, takes
+  its reserved memory region, and registers `/dev/ethosu0`, with a clean
+  deferred-probe list. No model was needed: on the i.MX 93 the NPU is **not** a
+  Linux-mapped peripheral (its DT node has no `reg`) — it is driven by firmware
+  on the Cortex-M33 (`fsl,cm33-proc`), and Linux only ships inference jobs over
+  RPMsg. Running an actual inference would require Cortex-M33 firmware plus a
+  model of the NPU compute engine, both out of scope (see Roadmap). See
+  `tests/npu-imx93/run.sh`.
 
 ![Weston/Wayland desktop with a terminal on the emulated i.MX93 display](docs/images/weston-terminal.png)
 
@@ -129,18 +137,23 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 
 ## Roadmap
 
-Networking, storage, the full **display (HDMI + LVDS) + input** stack, **CAN**,
-**USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera capture
-pipeline**, and a **Weston/Wayland desktop** are **done** and described under
-"What runs today" above. What remains is forward-looking:
+Every peripheral on the EVK's roadmap is **done** and described under "What runs
+today" above: networking, storage, the full **display (HDMI + LVDS) + input**
+stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
+capture pipeline**, the **Ethos-U65** driver, and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| Ethos-U65 microNPU | A functional model to replace the probe-time stub | deferred |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
-None of the deferred rows is a fidelity compromise in the modelled hardware —
-they are unmodelled blocks that currently sit as logging stubs.
+Each modelled block is taken to the same bar — the Linux driver binds and the
+subsystem registers its devices — matching how QEMU SoC machines model
+controllers for driver bring-up rather than emulating end-to-end data paths to
+host audio/video/NPU sinks. Two intentional non-goals follow from that bar: the
+SAI/camera paths register their ALSA/V4L2 devices but do not pump real
+samples/frames, and the Ethos-U65 binds its driver but does not run inferences
+(that needs Cortex-M33 firmware + an NPU compute model — a firmware/accelerator
+emulation effort, not a SoC device model).
 
 ## Required artifacts
 
