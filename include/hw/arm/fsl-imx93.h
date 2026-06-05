@@ -21,6 +21,9 @@
 #define FSL_IMX93_H
 
 #include "target/arm/cpu.h"
+#include "hw/arm/armv7m.h"
+#include "hw/core/clock.h"
+#include "qemu/notify.h"
 #include "hw/char/imx_lpuart.h"
 #include "hw/intc/arm_gicv3_common.h"
 #include "hw/misc/imx93_ccm.h"
@@ -65,9 +68,32 @@ OBJECT_DECLARE_SIMPLE_TYPE(FslImx93State, FSL_IMX93)
  */
 enum FslImx93Configuration {
     FSL_IMX93_NUM_A55_CPUS  = 2,
+    FSL_IMX93_NUM_M33       = 1,    /* Cortex-M33 real-time core */
     FSL_IMX93_NUM_LPUARTS   = 8,    /* LPUART1..LPUART8 */
     FSL_IMX93_NUM_IRQS      = 320,  /* GICv3 SPI budget for v0.0.1 */
 };
+
+/*
+ * Cortex-M33 real-time core. The memory map follows the Linux imx_rproc
+ * imx_rproc_att_imx93 table: the M33 sees its 256 KiB ITCM (code) at
+ * 0x1FFC0000 (secure; 0x0FFC0000 non-secure) and its 256 KiB DTCM (data) at
+ * 0x20000000 (non-secure; 0x30000000 secure). The same TCM RAM is visible to
+ * the A55 system view at 0x201C0000 (ITCM) / 0x20200000 (DTCM) so a loader
+ * (Linux remoteproc, U-Boot, -device loader) can stage firmware. The M33's
+ * reset VTOR is the secure ITCM base - that is where its vector table sits.
+ * Unlike the i.MX 95, the i.MX 93 has no System Manager; this M33 is purely a
+ * real-time/remoteproc core.
+ */
+#define FSL_IMX93_M33_ITCM_MVIEW_S   0x1FFC0000ULL  /* M33 secure (VTOR) */
+#define FSL_IMX93_M33_ITCM_MVIEW_NS  0x0FFC0000ULL  /* M33 non-secure    */
+#define FSL_IMX93_M33_ITCM_SYSVIEW   0x201C0000ULL  /* A55 view of ITCM  */
+#define FSL_IMX93_M33_DTCM_MVIEW_NS  0x20000000ULL  /* M33 non-secure    */
+#define FSL_IMX93_M33_DTCM_MVIEW_S   0x30000000ULL  /* M33 secure        */
+#define FSL_IMX93_M33_DTCM_SYSVIEW   0x20200000ULL  /* A55 view of DTCM  */
+#define FSL_IMX93_M33_TCM_SIZE       (256 * KiB)
+#define FSL_IMX93_M33_SVTOR          FSL_IMX93_M33_ITCM_MVIEW_S
+#define FSL_IMX93_M33_NUM_IRQ        256
+#define FSL_IMX93_M33_CLK_HZ         200000000U     /* M33 ~200 MHz */
 
 /*
  * All eight LPUART instances are modeled. LPUART1 is the 11x11 EVK console;
@@ -97,6 +123,19 @@ struct FslImx93State {
 
     ARMCPU          cpu[FSL_IMX93_NUM_A55_CPUS];
     GICv3State      gic;
+
+    /* Cortex-M33 real-time core + its private TCM and address-space views. */
+    ARMv7MState     m33;
+    Clock           *m33_cpuclk;
+    MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
+    MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
+    MemoryRegion    m33_itcm;            /* ITCM backing RAM (M33 secure)    */
+    MemoryRegion    m33_itcm_alias_ns;   /* M33 non-secure ITCM alias        */
+    MemoryRegion    m33_itcm_sysview;    /* A55 view of ITCM                 */
+    MemoryRegion    m33_dtcm;            /* DTCM backing RAM (M33 ns)        */
+    MemoryRegion    m33_dtcm_alias_s;    /* M33 secure DTCM alias            */
+    MemoryRegion    m33_dtcm_sysview;    /* A55 view of DTCM                 */
+    Notifier        m33_machine_done;
     IMXLPUARTState  lpuart[FSL_IMX93_NUM_MODELED_LPUARTS];
     IMX93CCMState   ccm;
     IMX93AnatopState anatop;

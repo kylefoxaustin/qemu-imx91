@@ -31,6 +31,8 @@
 #include "hw/misc/unimp.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/qdev-properties-system.h"
+#include "hw/core/qdev-clock.h"
+#include "qemu/main-loop.h"
 #include "hw/display/adv7535.h"
 #include "hw/display/i2c-ddc.h"
 #include "hw/audio/wm8962.h"
@@ -213,28 +215,71 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
     }
 }
 
+/*
+ * Release the Cortex-M33 only once firmware has actually been staged into its
+ * ITCM. An M-profile reset vector starts with the initial stack pointer, so a
+ * non-zero first ITCM word means a vector table is present (loaded via
+ * "-device loader,...,cpu-num=2", U-Boot, or the guest's remoteproc into the
+ * A55-view ITCM alias). A zeroed ITCM (a plain Linux boot loads no M33 image)
+ * leaves the M33 powered off, so the A55 boot is undisturbed. Run at
+ * machine-done, by when the -device loader ROM blobs have been committed.
+ */
+static void fsl_imx93_m33_start_bh(void *opaque)
+{
+    FslImx93State *s = opaque;
+    const void *itcm = memory_region_get_ram_ptr(&s->m33_itcm);
+    uint32_t initial_sp = ldl_le_p(itcm);
+
+    if (initial_sp != 0 && s->m33.cpu) {
+        CPUState *cs = CPU(s->m33.cpu);
+
+        cs->halted = 0;
+        cpu_resume(cs);
+    }
+}
+
+static void fsl_imx93_machine_done(Notifier *notifier, void *data)
+{
+    FslImx93State *s = container_of(notifier, FslImx93State, m33_machine_done);
+
+    aio_bh_schedule_oneshot(qemu_get_aio_context(),
+                            fsl_imx93_m33_start_bh, s);
+}
+
 static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 {
     MachineState *ms = MACHINE(qdev_get_machine());
     FslImx93State *s = FSL_IMX93(dev);
     DeviceState *gicdev = DEVICE(&s->gic);
     const char *cpu_type = ms->cpu_type ?: ARM_CPU_TYPE_NAME("cortex-a55");
+    /*
+     * The A55 cluster is a fixed size. The Cortex-M33 is an additional,
+     * always-present vCPU that is not part of the cluster (it has its own
+     * NVIC, not the GIC), so the A55 wiring below is sized by n_a55, not
+     * ms->smp.cpus. TCG sizes its per-CPU context table from smp.max_cpus,
+     * which includes the M33, so the machine's default/max cpus is n_a55 + 1
+     * and -smp must match.
+     */
+    const unsigned n_a55 = FSL_IMX93_NUM_A55_CPUS;
     int i;
 
-    if (ms->smp.cpus > FSL_IMX93_NUM_A55_CPUS) {
-        error_setg(errp, "%s: only %d A55 CPUs are supported (%d requested)",
-                   TYPE_FSL_IMX93, FSL_IMX93_NUM_A55_CPUS, (int)ms->smp.cpus);
+    if (ms->smp.cpus != n_a55 + FSL_IMX93_NUM_M33) {
+        error_setg(errp,
+                   "%s: fixed topology is %u A55 + %d M33; run with -smp %u "
+                   "(the default) - %d requested",
+                   TYPE_FSL_IMX93, n_a55, FSL_IMX93_NUM_M33,
+                   n_a55 + FSL_IMX93_NUM_M33, (int)ms->smp.cpus);
         return;
     }
 
     /* Instantiate the A55 cluster. */
-    for (i = 0; i < ms->smp.cpus; i++) {
+    for (i = 0; i < n_a55; i++) {
         g_autofree char *name = g_strdup_printf("cpu%d", i);
         object_initialize_child(OBJECT(dev), name, &s->cpu[i], cpu_type);
     }
 
-    for (i = 0; i < ms->smp.cpus; i++) {
-        if (ms->smp.cpus > 1 &&
+    for (i = 0; i < n_a55; i++) {
+        if (n_a55 > 1 &&
             object_property_find(OBJECT(&s->cpu[i]), "reset-cbar")) {
             object_property_set_int(OBJECT(&s->cpu[i]), "reset-cbar",
                                     fsl_imx93_memmap[FSL_IMX93_GIC_DIST].addr,
@@ -281,12 +326,12 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         SysBusDevice *gicsbd = SYS_BUS_DEVICE(&s->gic);
         QList *redist_region_count;
 
-        qdev_prop_set_uint32(gicdev, "num-cpu", ms->smp.cpus);
+        qdev_prop_set_uint32(gicdev, "num-cpu", n_a55);
         qdev_prop_set_uint32(gicdev, "num-irq",
                              FSL_IMX93_NUM_IRQS + GIC_INTERNAL);
 
         redist_region_count = qlist_new();
-        qlist_append_int(redist_region_count, ms->smp.cpus);
+        qlist_append_int(redist_region_count, n_a55);
         qdev_prop_set_array(gicdev, "redist-region-count", redist_region_count);
 
         object_property_set_link(OBJECT(&s->gic), "sysmem",
@@ -298,7 +343,7 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         sysbus_mmio_map(gicsbd, 1, fsl_imx93_memmap[FSL_IMX93_GIC_REDIST].addr);
 
         /* Wire the per-CPU timer PPIs + IRQ/FIQ lines (same as 8MP). */
-        for (i = 0; i < ms->smp.cpus; i++) {
+        for (i = 0; i < n_a55; i++) {
             DeviceState *cpudev = DEVICE(&s->cpu[i]);
             int intidbase = FSL_IMX93_NUM_IRQS + i * GIC_INTERNAL;
             qemu_irq irq;
@@ -316,13 +361,83 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 
             sysbus_connect_irq(gicsbd, i,
                 qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
-            sysbus_connect_irq(gicsbd, i + ms->smp.cpus,
+            sysbus_connect_irq(gicsbd, i + n_a55,
                 qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
-            sysbus_connect_irq(gicsbd, i + 2 * ms->smp.cpus,
+            sysbus_connect_irq(gicsbd, i + 2 * n_a55,
                 qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));
-            sysbus_connect_irq(gicsbd, i + 3 * ms->smp.cpus,
+            sysbus_connect_irq(gicsbd, i + 3 * n_a55,
                 qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
         }
+    }
+
+    /*
+     * Cortex-M33 real-time core. Build its private address space: a
+     * low-priority alias of the A55 system memory (so the M33 sees every
+     * peripheral and DRAM) with the private ITCM/DTCM layered on top at the
+     * M33's view addresses. The same TCM RAM is also aliased into the A55
+     * system view so firmware can be staged from the A55 side. The core is
+     * held in reset until firmware is present (see fsl_imx93_m33_start_bh).
+     */
+    {
+        DeviceState *m33 = DEVICE(&s->m33);
+
+        memory_region_init(&s->m33_view, OBJECT(s), "imx93-m33-view", 4 * GiB);
+        memory_region_init_alias(&s->m33_sysmem_alias, OBJECT(s),
+                                 "imx93-m33-sysmem", get_system_memory(),
+                                 0, 4 * GiB);
+        memory_region_add_subregion_overlap(&s->m33_view, 0,
+                                            &s->m33_sysmem_alias, -1);
+
+        /* ITCM (code): secure view backs the RAM; NS + sys are aliases. */
+        memory_region_init_ram(&s->m33_itcm, OBJECT(s), "imx93-m33-itcm",
+                               FSL_IMX93_M33_TCM_SIZE, &error_fatal);
+        memory_region_add_subregion(&s->m33_view, FSL_IMX93_M33_ITCM_MVIEW_S,
+                                    &s->m33_itcm);
+        memory_region_init_alias(&s->m33_itcm_alias_ns, OBJECT(s),
+                                 "imx93-m33-itcm-ns", &s->m33_itcm, 0,
+                                 FSL_IMX93_M33_TCM_SIZE);
+        memory_region_add_subregion(&s->m33_view, FSL_IMX93_M33_ITCM_MVIEW_NS,
+                                    &s->m33_itcm_alias_ns);
+        memory_region_init_alias(&s->m33_itcm_sysview, OBJECT(s),
+                                 "imx93-m33-itcm-sys", &s->m33_itcm, 0,
+                                 FSL_IMX93_M33_TCM_SIZE);
+        memory_region_add_subregion(get_system_memory(),
+                                    FSL_IMX93_M33_ITCM_SYSVIEW,
+                                    &s->m33_itcm_sysview);
+
+        /* DTCM (data): NS view backs the RAM; secure + sys are aliases. */
+        memory_region_init_ram(&s->m33_dtcm, OBJECT(s), "imx93-m33-dtcm",
+                               FSL_IMX93_M33_TCM_SIZE, &error_fatal);
+        memory_region_add_subregion(&s->m33_view, FSL_IMX93_M33_DTCM_MVIEW_NS,
+                                    &s->m33_dtcm);
+        memory_region_init_alias(&s->m33_dtcm_alias_s, OBJECT(s),
+                                 "imx93-m33-dtcm-s", &s->m33_dtcm, 0,
+                                 FSL_IMX93_M33_TCM_SIZE);
+        memory_region_add_subregion(&s->m33_view, FSL_IMX93_M33_DTCM_MVIEW_S,
+                                    &s->m33_dtcm_alias_s);
+        memory_region_init_alias(&s->m33_dtcm_sysview, OBJECT(s),
+                                 "imx93-m33-dtcm-sys", &s->m33_dtcm, 0,
+                                 FSL_IMX93_M33_TCM_SIZE);
+        memory_region_add_subregion(get_system_memory(),
+                                    FSL_IMX93_M33_DTCM_SYSVIEW,
+                                    &s->m33_dtcm_sysview);
+
+        s->m33_cpuclk = clock_new(OBJECT(s), "m33-cpuclk");
+        clock_set_hz(s->m33_cpuclk, FSL_IMX93_M33_CLK_HZ);
+
+        qdev_prop_set_string(m33, "cpu-type", ARM_CPU_TYPE_NAME("cortex-m33"));
+        qdev_prop_set_uint32(m33, "num-irq", FSL_IMX93_M33_NUM_IRQ);
+        qdev_prop_set_uint32(m33, "init-svtor", FSL_IMX93_M33_SVTOR);
+        qdev_prop_set_bit(m33, "start-powered-off", true);
+        qdev_connect_clock_in(m33, "cpuclk", s->m33_cpuclk);
+        object_property_set_link(OBJECT(&s->m33), "memory",
+                                 OBJECT(&s->m33_view), &error_abort);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->m33), errp)) {
+            return;
+        }
+
+        s->m33_machine_done.notify = fsl_imx93_machine_done;
+        qemu_add_machine_init_done_notifier(&s->m33_machine_done);
     }
 
     /* On-chip RAM. */
@@ -806,6 +921,7 @@ static void fsl_imx93_init(Object *obj)
     int i;
 
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
+    object_initialize_child(obj, "m33", &s->m33, TYPE_ARMV7M);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

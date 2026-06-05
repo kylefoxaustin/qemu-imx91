@@ -640,6 +640,7 @@ config FSL_IMX93
     select IMX93_SAI
     select IMX93_MICFIL
     select WM8962
+    select ARM_V7M
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART

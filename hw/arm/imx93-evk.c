@@ -137,8 +137,14 @@ static void imx93_11x11_evk_machine_init(MachineClass *mc)
 {
     mc->desc                  = "NXP i.MX 93 11x11 EVK (LPDDR4X)";
     mc->init                  = imx93_evk_init;
-    mc->default_cpus          = FSL_IMX93_NUM_A55_CPUS;
-    mc->max_cpus              = FSL_IMX93_NUM_A55_CPUS;
+    /*
+     * The A55 cluster plus the always-present Cortex-M33 real-time core. TCG
+     * sizes its per-CPU context table from smp.max_cpus, so both the default
+     * and the max must count the M33 or the M33's tcg_register_thread()
+     * asserts. The SoC fixes the A55 cluster size regardless of -smp.
+     */
+    mc->default_cpus          = FSL_IMX93_NUM_A55_CPUS + FSL_IMX93_NUM_M33;
+    mc->max_cpus              = FSL_IMX93_NUM_A55_CPUS + FSL_IMX93_NUM_M33;
     mc->default_ram_id        = "imx93-11x11-evk.ram";
     mc->default_ram_size      = 2 * GiB;   /* 11x11 EVK: 2 GiB LPDDR4X */
     mc->get_default_cpu_type  = imx93_evk_get_default_cpu_type;
