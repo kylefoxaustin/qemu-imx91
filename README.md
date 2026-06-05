@@ -103,6 +103,11 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   binds as a HID input and `-device usb-storage,drive=…` attaches as a SCSI
   disk (`sda`). The stock EVK device tree's Type-C role switch is unmodelled,
   but the controller falls back to host mode, so no DT override is needed.
+- **Audio — SAI + MICFIL.** The SAI (I2S) and MICFIL (PDM mic) front-ends are
+  modelled, so the ASoC stack registers ALSA cards: a SAI1 card with
+  playback+capture PCMs and a MICFIL PDM capture card (their FIFOs ride the
+  eDMA3 datapath). See `tests/audio-imx93/run.sh`. The wm8962 speaker/headphone
+  card (SAI3) additionally needs eDMA2 + a modelled wm8962 codec — see Roadmap.
 - **Wayland desktop.** A `core-image-weston` rootfs boots to the Weston
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
@@ -118,13 +123,14 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 ## Roadmap
 
 Networking, storage, the full **display (HDMI + LVDS) + input** stack, **CAN**,
-**USB host**, and a **Weston/Wayland desktop** are **done** and described under
-"What runs today" above. What remains is forward-looking:
+**USB host**, **audio (SAI + MICFIL)**, and a **Weston/Wayland desktop** are
+**done** and described under "What runs today" above. What remains is
+forward-looking:
 
 | Feature | What | Target |
 |---|---|---|
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
-| Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
+| wm8962 audio codec | eDMA2 + a wm8962 codec model for the SAI3 speaker card | deferred |
 | Ethos-U65 microNPU | A functional model to replace the probe-time stub | deferred |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
