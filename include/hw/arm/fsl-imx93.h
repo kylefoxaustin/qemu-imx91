@@ -37,6 +37,7 @@
 #include "hw/display/imx93_dsi.h"
 #include "hw/misc/imx93_media_blk.h"
 #include "hw/dma/imx93_edma.h"
+#include "hw/usb/chipidea.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -83,6 +84,9 @@ enum FslImx93Configuration {
 /* FlexCAN controllers (flexcan1, flexcan2). */
 #define FSL_IMX93_NUM_FLEXCAN         2
 
+/* USB OTG controllers (ChipIdea), usbotg1/usbotg2. */
+#define FSL_IMX93_NUM_USBS            2
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
@@ -106,6 +110,7 @@ struct FslImx93State {
     IMX93LcdifState lcdif;
     FlexCanState    flexcan[FSL_IMX93_NUM_FLEXCAN];
     CanBusState     *canbus[FSL_IMX93_NUM_FLEXCAN];
+    ChipideaState   usb[FSL_IMX93_NUM_USBS];
     MemoryRegion    ocram;
 };
 
@@ -260,6 +265,8 @@ enum FslImx93Irqs {
     FSL_IMX93_LPI2C2_IRQ    = 14,
     FSL_IMX93_FLEXCAN1_IRQ  = 8,
     FSL_IMX93_FLEXCAN2_IRQ  = 51,
+    FSL_IMX93_USB1_IRQ      = 187,
+    FSL_IMX93_USB2_IRQ      = 188,
     /* eDMA1: channel N raises GIC SPI (EDMA1_IRQ_BASE + N). */
     FSL_IMX93_EDMA1_IRQ_BASE = 95,
     FSL_IMX93_EDMA1_CHANNELS = 31,

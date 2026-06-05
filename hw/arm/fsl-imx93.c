@@ -203,7 +203,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
         FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
         FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
-        FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
@@ -674,6 +673,35 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         }
     }
 
+    /*
+     * USB OTG1/2 - ChipIdea controllers (EHCI host core). The USBNC "usbmisc"
+     * glue at +0x200 stays a stub, as on i.MX7. Attach USB devices with e.g.
+     * "-device usb-kbd"; note the stock EVK DT sets dr_mode=otg with a Type-C
+     * role switch, so host mode depends on the (unmodelled) Type-C controller.
+     */
+    {
+        static const struct {
+            int region, irq;
+        } usb_table[FSL_IMX93_NUM_USBS] = {
+            { FSL_IMX93_USBOTG1, FSL_IMX93_USB1_IRQ },
+            { FSL_IMX93_USBOTG2, FSL_IMX93_USB2_IRQ },
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_USBS; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->usb[i]);
+            hwaddr base = fsl_imx93_memmap[usb_table[i].region].addr;
+            g_autofree char *misc = g_strdup_printf("usbmisc%d", i + 1);
+
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0, base);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, usb_table[i].irq));
+            create_unimplemented_device(misc, base + 0x200, 0x200);
+        }
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -709,6 +737,11 @@ static void fsl_imx93_init(Object *obj)
     for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
         g_autofree char *name = g_strdup_printf("flexcan%d", i + 1);
         object_initialize_child(obj, name, &s->flexcan[i], TYPE_FLEXCAN);
+    }
+
+    for (i = 0; i < FSL_IMX93_NUM_USBS; i++) {
+        g_autofree char *name = g_strdup_printf("usb%d", i + 1);
+        object_initialize_child(obj, name, &s->usb[i], TYPE_CHIPIDEA);
     }
 
     for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
