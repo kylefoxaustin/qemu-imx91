@@ -29,6 +29,8 @@
 #include "hw/misc/imx93_ele.h"
 #include "hw/net/imx_fec.h"
 #include "hw/net/imx93_dwmac.h"
+#include "hw/net/flexcan.h"
+#include "net/can_emu.h"
 #include "hw/i2c/imx_lpi2c.h"
 #include "hw/gpio/imx93_gpio.h"
 #include "hw/display/imx93_lcdif.h"
@@ -78,6 +80,9 @@ enum FslImx93Configuration {
 /* GPIO banks (gpio1..gpio4). */
 #define FSL_IMX93_NUM_GPIOS            4
 
+/* FlexCAN controllers (flexcan1, flexcan2). */
+#define FSL_IMX93_NUM_FLEXCAN         2
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
@@ -99,6 +104,8 @@ struct FslImx93State {
     IMX93SrcSliceState     mediamix;
     IMX93DsiState   dsi;
     IMX93LcdifState lcdif;
+    FlexCanState    flexcan[FSL_IMX93_NUM_FLEXCAN];
+    CanBusState     *canbus[FSL_IMX93_NUM_FLEXCAN];
     MemoryRegion    ocram;
 };
 
@@ -243,6 +250,8 @@ enum FslImx93Irqs {
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
+    FSL_IMX93_FLEXCAN1_IRQ  = 8,
+    FSL_IMX93_FLEXCAN2_IRQ  = 51,
     /* eDMA1: channel N raises GIC SPI (EDMA1_IRQ_BASE + N). */
     FSL_IMX93_EDMA1_IRQ_BASE = 95,
     FSL_IMX93_EDMA1_CHANNELS = 31,

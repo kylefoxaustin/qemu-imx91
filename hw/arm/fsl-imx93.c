@@ -201,7 +201,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
         FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
-        FSL_IMX93_FLEXCAN1, FSL_IMX93_FLEXCAN2,
         FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
         FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
         FSL_IMX93_USBOTG1, FSL_IMX93_USBOTG2,
@@ -640,6 +639,37 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
             qdev_get_gpio_in(gicdev, FSL_IMX93_VIRTIO_MMIO_IRQ + i));
     }
 
+    /*
+     * FlexCAN1/2. Real controllers (hw/net/can/flexcan.c) on QEMU's CAN bus
+     * subsystem; each is wired to a user-supplied CAN bus via the board's
+     * canbus0/canbus1 links (NULL = register-only, frames dropped). The stock
+     * NXP EVK DT enables flexcan2; the Linux flexcan driver binds and brings up
+     * the canN netdev.
+     */
+    {
+        static const struct {
+            int region, irq;
+        } flexcan_table[FSL_IMX93_NUM_FLEXCAN] = {
+            { FSL_IMX93_FLEXCAN1, FSL_IMX93_FLEXCAN1_IRQ },
+            { FSL_IMX93_FLEXCAN2, FSL_IMX93_FLEXCAN2_IRQ },
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->flexcan[i]);
+
+            if (s->canbus[i]) {
+                object_property_set_link(OBJECT(&s->flexcan[i]), "canbus",
+                                         OBJECT(s->canbus[i]), &error_abort);
+            }
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[flexcan_table[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, flexcan_table[i].irq));
+        }
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -671,6 +701,11 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "dsi", &s->dsi, TYPE_IMX93_DSI);
     object_initialize_child(obj, "lcdif", &s->lcdif, TYPE_IMX93_LCDIF);
 
+    for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
+        g_autofree char *name = g_strdup_printf("flexcan%d", i + 1);
+        object_initialize_child(obj, name, &s->flexcan[i], TYPE_FLEXCAN);
+    }
+
     for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i + 1);
         object_initialize_child(obj, name, &s->gpio[i], TYPE_IMX93_GPIO);
@@ -682,11 +717,19 @@ static void fsl_imx93_init(Object *obj)
     }
 }
 
+static const Property fsl_imx93_properties[] = {
+    DEFINE_PROP_LINK("canbus0", FslImx93State, canbus[0], TYPE_CAN_BUS,
+                     CanBusState *),
+    DEFINE_PROP_LINK("canbus1", FslImx93State, canbus[1], TYPE_CAN_BUS,
+                     CanBusState *),
+};
+
 static void fsl_imx93_class_init(ObjectClass *oc, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
 
     dc->realize = fsl_imx93_realize;
+    device_class_set_props(dc, fsl_imx93_properties);
     /* This is an SoC, not user-creatable. */
     dc->user_creatable = false;
 }

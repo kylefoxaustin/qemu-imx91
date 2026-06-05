@@ -27,6 +27,17 @@
 #include "system/qtest.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+#include "net/can_emu.h"
+
+#define TYPE_IMX93_EVK_MACHINE MACHINE_TYPE_NAME("imx93-11x11-evk")
+OBJECT_DECLARE_SIMPLE_TYPE(Imx93EvkMachineState, IMX93_EVK_MACHINE)
+
+struct Imx93EvkMachineState {
+    MachineState parent_obj;
+
+    /* Optional CAN buses, attached via -machine canbus0=...,canbus1=... */
+    CanBusState *canbus[FSL_IMX93_NUM_FLEXCAN];
+};
 
 /*
  * Inject device-tree nodes for the virtio-mmio transports the SoC instantiates
@@ -54,8 +65,10 @@ static void imx93_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
 
 static void imx93_evk_init(MachineState *machine)
 {
+    Imx93EvkMachineState *m = IMX93_EVK_MACHINE(machine);
     static struct arm_boot_info boot_info;
     FslImx93State *s;
+    int i;
 
     if (machine->ram_size > FSL_IMX93_RAM_SIZE_MAX) {
         error_report("RAM size " RAM_ADDR_FMT
@@ -74,13 +87,23 @@ static void imx93_evk_init(MachineState *machine)
 
     s = FSL_IMX93(object_new(TYPE_FSL_IMX93));
     object_property_add_child(OBJECT(machine), "soc", OBJECT(s));
+
+    /* Forward any user-attached CAN buses to the SoC's FlexCAN controllers. */
+    for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
+        if (m->canbus[i]) {
+            g_autofree char *name = g_strdup_printf("canbus%d", i);
+            object_property_set_link(OBJECT(s), name, OBJECT(m->canbus[i]),
+                                     &error_abort);
+        }
+    }
+
     sysbus_realize_and_unref(SYS_BUS_DEVICE(s), &error_fatal);
 
     memory_region_add_subregion(get_system_memory(), FSL_IMX93_RAM_START,
                                 machine->ram);
 
     /* Attach an SD/MMC card to any uSDHC fed by a -drive if=sd,index=N. */
-    for (int i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
+    for (i = 0; i < FSL_IMX93_NUM_USDHCS; i++) {
         DriveInfo *di = drive_get(IF_SD, i, 0);
         BlockBackend *blk;
         DeviceState *carddev;
@@ -120,4 +143,37 @@ static void imx93_11x11_evk_machine_init(MachineClass *mc)
     mc->get_default_cpu_type  = imx93_evk_get_default_cpu_type;
 }
 
-DEFINE_MACHINE_AARCH64("imx93-11x11-evk", imx93_11x11_evk_machine_init)
+static void imx93_evk_machine_instance_init(Object *obj)
+{
+    int i;
+
+    /*
+     * Per-FlexCAN CAN-bus links, settable from the command line, e.g.
+     *   -object can-bus,id=canbus0 -machine canbus0=canbus0
+     * The machine forwards each to the matching SoC FlexCAN controller.
+     */
+    for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
+        g_autofree char *name = g_strdup_printf("canbus%d", i);
+        object_property_add_link(obj, name, TYPE_CAN_BUS,
+                                 (Object **)&IMX93_EVK_MACHINE(obj)->canbus[i],
+                                 object_property_allow_set_link, 0);
+    }
+}
+
+static void imx93_11x11_evk_class_init(ObjectClass *oc, const void *data)
+{
+    imx93_11x11_evk_machine_init(MACHINE_CLASS(oc));
+}
+
+static const TypeInfo imx93_11x11_evk_machine_types[] = {
+    {
+        .name          = TYPE_IMX93_EVK_MACHINE,
+        .parent        = TYPE_MACHINE,
+        .instance_size = sizeof(Imx93EvkMachineState),
+        .instance_init = imx93_evk_machine_instance_init,
+        .class_init    = imx93_11x11_evk_class_init,
+        .interfaces    = aarch64_machine_interfaces,
+    },
+};
+
+DEFINE_TYPES(imx93_11x11_evk_machine_types)
