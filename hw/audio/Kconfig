@@ -61,3 +61,7 @@ config IMX93_SAI
 
 config IMX93_MICFIL
     bool
+
+config WM8962
+    bool
+    depends on I2C

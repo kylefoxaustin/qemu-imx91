@@ -33,6 +33,7 @@
 #include "hw/core/qdev-properties-system.h"
 #include "hw/display/adv7535.h"
 #include "hw/display/i2c-ddc.h"
+#include "hw/audio/wm8962.h"
 #include "hw/i2c/i2c.h"
 #include "system/kvm.h"
 #include "target/arm/cpu.h"
@@ -188,7 +189,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_EDMA2, FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
+        FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
         FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
@@ -582,6 +583,29 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     }
 
     /*
+     * eDMA2 (WAKEUPMIX) is the "edma4" variant: 64 channels at a 0x8000 page
+     * stride, with channel interrupts paired so channel N raises GIC SPI
+     * (128 + N/2). It serves the WAKEUPMIX peripherals - notably sai2/sai3, so
+     * the SAI3 + wm8962 audio card can request its DMA channels.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->edma2);
+
+        object_property_set_uint(OBJECT(&s->edma2), "num-channels",
+                                 FSL_IMX93_EDMA2_CHANNELS, &error_abort);
+        object_property_set_uint(OBJECT(&s->edma2), "chan-stride",
+                                 FSL_IMX93_EDMA2_CHAN_STRIDE, &error_abort);
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_EDMA2].addr);
+        for (i = 0; i < FSL_IMX93_EDMA2_CHANNELS; i++) {
+            sysbus_connect_irq(sbd, i,
+                qdev_get_gpio_in(gicdev, FSL_IMX93_EDMA2_IRQ_BASE + i / 2));
+        }
+    }
+
+    /*
      * LPI2C1: the display side I2C bus. Carries the ADV7535 DSI-to-HDMI
      * bridge (main map @ 0x3d) plus its CEC (0x3b) and packet (0x38) maps,
      * and an EDID-serving DDC slave at the bridge's EDID address (0x3f) so
@@ -616,6 +640,11 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_uint32(ddc, "yres", 768);
         i2c_slave_realize_and_unref(I2C_SLAVE(ddc), s->lpi2c1.bus,
                                     &error_abort);
+
+        /* WM8962 audio codec @ 0x1a (the SAI3 speaker/headphone/mic card). */
+        i2c_slave_realize_and_unref(
+            i2c_slave_new(TYPE_WM8962, FSL_IMX93_WM8962_ADDR),
+            s->lpi2c1.bus, &error_abort);
     }
 
     /*
@@ -765,6 +794,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "fec", &s->fec, TYPE_IMX_ENET);
     object_initialize_child(obj, "eqos", &s->eqos, TYPE_IMX93_DWMAC);
     object_initialize_child(obj, "edma1", &s->edma1, TYPE_IMX93_EDMA);
+    object_initialize_child(obj, "edma2", &s->edma2, TYPE_IMX93_EDMA);
     object_initialize_child(obj, "lpi2c1", &s->lpi2c1, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "mediamix", &s->mediamix,

@@ -173,18 +173,18 @@ static void edma_trigger(IMX93EdmaState *s, int ch)
     }
 }
 
-static int edma_channel_of(hwaddr offset)
+static int edma_channel_of(IMX93EdmaState *s, hwaddr offset)
 {
     if (offset < IMX93_EDMA_CHAN_OFFSET) {
         return -1;
     }
-    return (offset - IMX93_EDMA_CHAN_OFFSET) / IMX93_EDMA_CHAN_STRIDE;
+    return (offset - IMX93_EDMA_CHAN_OFFSET) / s->chan_stride;
 }
 
 static uint64_t imx93_edma_read(void *opaque, hwaddr offset, unsigned size)
 {
     IMX93EdmaState *s = opaque;
-    int ch = edma_channel_of(offset);
+    int ch = edma_channel_of(s, offset);
     uint64_t val = 0;
 
     if (ch < 0) {
@@ -195,7 +195,7 @@ static uint64_t imx93_edma_read(void *opaque, hwaddr offset, unsigned size)
         return 0;
     }
 
-    hwaddr coff = (offset - IMX93_EDMA_CHAN_OFFSET) % IMX93_EDMA_CHAN_STRIDE;
+    hwaddr coff = (offset - IMX93_EDMA_CHAN_OFFSET) % s->chan_stride;
     if (coff + size <= IMX93_EDMA_CHAN_REGS_SZ) {
         for (unsigned i = 0; i < size; i++) {
             val |= (uint64_t)s->chan[ch].regs[coff + i] << (8 * i);
@@ -208,7 +208,7 @@ static void imx93_edma_write(void *opaque, hwaddr offset, uint64_t value,
                              unsigned size)
 {
     IMX93EdmaState *s = opaque;
-    int ch = edma_channel_of(offset);
+    int ch = edma_channel_of(s, offset);
 
     if (ch < 0) {
         uint32_t idx = offset >> 2;
@@ -221,7 +221,7 @@ static void imx93_edma_write(void *opaque, hwaddr offset, uint64_t value,
         return;
     }
 
-    hwaddr coff = (offset - IMX93_EDMA_CHAN_OFFSET) % IMX93_EDMA_CHAN_STRIDE;
+    hwaddr coff = (offset - IMX93_EDMA_CHAN_OFFSET) % s->chan_stride;
     if (coff + size > IMX93_EDMA_CHAN_REGS_SZ) {
         return;
     }
@@ -281,8 +281,14 @@ static void imx93_edma_realize(DeviceState *dev, Error **errp)
         return;
     }
 
+    if (s->chan_stride < IMX93_EDMA_CHAN_REGS_SZ) {
+        error_setg(errp, "imx93.edma3: invalid chan-stride 0x%x",
+                   s->chan_stride);
+        return;
+    }
+
     region_sz = IMX93_EDMA_CHAN_OFFSET +
-                (uint64_t)s->num_channels * IMX93_EDMA_CHAN_STRIDE;
+                (uint64_t)s->num_channels * s->chan_stride;
     memory_region_init_io(&s->iomem, OBJECT(dev), &imx93_edma_ops, s,
                           TYPE_IMX93_EDMA, region_sz);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
@@ -294,6 +300,8 @@ static void imx93_edma_realize(DeviceState *dev, Error **errp)
 
 static const Property imx93_edma_properties[] = {
     DEFINE_PROP_UINT32("num-channels", IMX93EdmaState, num_channels, 31),
+    DEFINE_PROP_UINT32("chan-stride", IMX93EdmaState, chan_stride,
+                       IMX93_EDMA_CHAN_STRIDE),
 };
 
 static const VMStateDescription vmstate_imx93_edma_chan = {

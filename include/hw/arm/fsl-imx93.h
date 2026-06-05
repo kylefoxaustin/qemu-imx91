@@ -106,6 +106,7 @@ struct FslImx93State {
     IMXFECState     fec;
     IMX93DwmacState eqos;
     IMX93EdmaState  edma1;
+    IMX93EdmaState  edma2;
     IMXLPI2CState   lpi2c1;
     IMXLPI2CState   lpi2c2;
     IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
@@ -285,6 +286,10 @@ enum FslImx93Irqs {
     /* eDMA1: channel N raises GIC SPI (EDMA1_IRQ_BASE + N). */
     FSL_IMX93_EDMA1_IRQ_BASE = 95,
     FSL_IMX93_EDMA1_CHANNELS = 31,
+    /* eDMA2 (edma4): 64 channels, paired - channel N -> GIC SPI (128 + N/2). */
+    FSL_IMX93_EDMA2_IRQ_BASE = 128,
+    FSL_IMX93_EDMA2_CHANNELS = 64,
+    FSL_IMX93_EDMA2_CHAN_STRIDE = 0x8000,
     FSL_IMX93_DSI_IRQ       = 177,
     FSL_IMX93_LCDIF_IRQ     = 176,
     /* GPIO banks: each has two GIC lines (the driver uses the first). */
@@ -336,5 +341,8 @@ enum FslImx93Irqs {
 #define FSL_IMX93_ADV7535_EDID_ADDR     0x3f
 #define FSL_IMX93_ADV7535_CEC_ADDR      0x3b
 #define FSL_IMX93_ADV7535_PKT_ADDR      0x38
+
+/* WM8962 audio codec on LPI2C1. */
+#define FSL_IMX93_WM8962_ADDR           0x1a
 
 #endif /* FSL_IMX93_H */

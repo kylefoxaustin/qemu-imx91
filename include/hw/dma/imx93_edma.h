@@ -23,7 +23,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93EdmaState, IMX93_EDMA)
 
 #define IMX93_EDMA_MAX_CHANNELS     64
 #define IMX93_EDMA_CHAN_OFFSET      0x10000     /* first channel page */
-#define IMX93_EDMA_CHAN_STRIDE      0x10000     /* per-channel page size */
+#define IMX93_EDMA_CHAN_STRIDE      0x10000     /* default page size (edma3) */
 #define IMX93_EDMA_CHAN_REGS_SZ     0x40        /* control regs + TCD */
 #define IMX93_EDMA_MGMT_REGS        0x40        /* mgmt words 0x0..0xff */
 
@@ -37,6 +37,7 @@ struct IMX93EdmaState {
 
     MemoryRegion iomem;
     uint32_t     num_channels;
+    uint32_t     chan_stride;   /* page size: edma3 0x10000, edma4 0x8000 */
 
     uint32_t     mgmt[IMX93_EDMA_MGMT_REGS];
     IMX93EdmaChan chan[IMX93_EDMA_MAX_CHANNELS];
