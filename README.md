@@ -98,21 +98,26 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   binds and `can0` brings up; real frame TX/RX between the two controllers is
   covered by a kernel-free qtest. Attach a bus with
   `-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`.
+- **Wayland desktop.** A `core-image-weston` rootfs boots to the Weston
+  compositor on the emulated display — desktop, panel/clock, and apps
+  (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
+  rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
+  run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
+  `tests/weston-imx93/run.sh`.
 
-![Interactive login + uname on the emulated HDMI console](docs/images/hdmi-login.png)
+![Weston/Wayland desktop with a terminal on the emulated i.MX93 display](docs/images/weston-terminal.png)
 
-*Logging in as `root` and running `uname -a` — typed on the keyboard, rendered
-on the emulated display.*
+*Weston compositor on the emulated HDMI output — textured background, top panel
+with clock, and a `weston-terminal` window, all software-rendered.*
 
 ## Roadmap
 
-The networking, storage, and the full **display (HDMI + LVDS) + input** stack
-are **done** and described under "What runs today" above. What remains is
-forward-looking:
+Networking, storage, the full **display (HDMI + LVDS) + input** stack, **CAN**,
+and a **Weston/Wayland desktop** are **done** and described under "What runs
+today" above. What remains is forward-looking:
 
 | Feature | What | Target |
 |---|---|---|
-| **Wayland desktop** | Weston on the display output (keyboard + tablet are already wired); software/pixman render, as the i.MX 93 has no 3D GPU | **next** |
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
 | USB host | ChipIdea USB host so real USB devices (incl. HID) attach | deferred |
@@ -223,6 +228,7 @@ behaviour.
 | `tests/hello-imx93/`        | bare-metal LPUART hello (no artifacts needed) |
 | `tests/boot-imx93/run.sh`   | boot Linux to the serial console |
 | `tests/login-imx93/run.sh`  | interactive login on the emulated HDMI display |
+| `tests/weston-imx93/run.sh` | Weston/Wayland desktop on the emulated display |
 | `tests/poweroff-imx93/`     | static PSCI power-off helper |
 
 ## Building
