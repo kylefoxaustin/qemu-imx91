@@ -109,7 +109,6 @@ forward-looking:
 | Feature | What | Target |
 |---|---|---|
 | **Wayland desktop** | Weston on the display output (keyboard + tablet are already wired); software/pixman render, as the i.MX 93 has no 3D GPU | **next** |
-| ELE MU full handshake | Complete the EdgeLock Enclave mailbox so the secure-enclave probe doesn't sit out its ~10 s timeout (today a minimal responder) | polish |
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
 | FlexCAN | FlexCAN controllers on QEMU's CAN bus (a from-scratch model exists in the i.MX 95 tree to port) | deferred |
@@ -161,9 +160,14 @@ card with `-drive if=sd,file=disk.img,format=raw`.
 
 ## Known limitations
 
-- **ELE secure-enclave probe takes a ~10 s timeout.** The ELE MU responder is
-  minimal (enough for OCOTP/nvmem to resolve); the full handshake is a roadmap
-  polish item.
+- **`fsl-se … Failed to read tamper status` is benign.** The ELE itself
+  registers fine (`ele-trng`, `hsm0` configured). The tamper read is an NXP SiP
+  SMC (`IMX_SIP_BBSM`) normally serviced by TF-A; a `-kernel` boot has no secure
+  firmware, so it returns an error. Cosmetic only — not an ELE MU defect.
+- **First-boot time is dominated by initramfs decompression under TCG.** A
+  ~430 MB rootfs unpacks to ~1.3 GB tmpfs (~12 s on this host, logged as the
+  gap before `Freeing initrd memory`); a small busybox initramfs boots far
+  faster. Not a hang.
 - **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU; the
   **Ethos-U65 microNPU** is a probe-time stub. A Wayland desktop will use
   software rendering.
