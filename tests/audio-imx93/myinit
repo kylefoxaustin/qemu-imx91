@@ -1,0 +1,25 @@
+#!/bin/sh
+# Audio bring-up check: load the (modular) ASoC drivers, then dump the
+# registered ALSA cards / PCMs. Proves the SAI + MICFIL models let the
+# fsl-sai / fsl-micfil drivers probe and their cards register.
+PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+
+echo "=== AUDIO TEST: loading SAI/MICFIL drivers ==="
+for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
+         snd-soc-dmic snd-soc-imx-card snd-soc-fsl-asoc-card \
+         snd-soc-simple-card snd-soc-simple-card-utils; do
+    /sbin/modprobe "$m" 2>&1 | sed "s/^/modprobe $m: /"
+done
+sleep 3
+
+echo "=== /proc/asound/cards ==="
+cat /proc/asound/cards 2>/dev/null
+echo "=== /proc/asound/pcm ==="
+cat /proc/asound/pcm 2>/dev/null
+echo "=== deferred probe ==="
+cat /sys/kernel/debug/devices_deferred 2>/dev/null
+echo "=== AUDIO TEST DONE ==="
+while true; do sleep 5; done

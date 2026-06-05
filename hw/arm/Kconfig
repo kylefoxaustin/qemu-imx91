@@ -637,6 +637,8 @@ config FSL_IMX93
     select VIRTIO_MMIO
     select FLEXCAN
     select USB_CHIPIDEA
+    select IMX93_SAI
+    select IMX93_MICFIL
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART

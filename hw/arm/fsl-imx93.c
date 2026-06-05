@@ -201,8 +201,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
         FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
-        FSL_IMX93_SAI1, FSL_IMX93_SAI2, FSL_IMX93_SAI3,
-        FSL_IMX93_MICFIL, FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
+        FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
@@ -702,6 +701,47 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         }
     }
 
+    /*
+     * Audio front-ends. SAI1/3 and MICFIL are the EVK's active codecs; their
+     * FIFOs are serviced by eDMA3 (sai1 + micfil on edma1, sai3 on edma2). The
+     * models carry the register file the fsl-sai/fsl-micfil drivers probe so
+     * the ASoC cards register; sample movement rides the eDMA datapath.
+     */
+    {
+        static const struct {
+            int region, irq;
+        } sai_table[FSL_IMX93_NUM_SAIS] = {
+            { FSL_IMX93_SAI1, FSL_IMX93_SAI1_IRQ },
+            { FSL_IMX93_SAI2, FSL_IMX93_SAI2_IRQ },
+            { FSL_IMX93_SAI3, FSL_IMX93_SAI3_IRQ },
+        };
+        static const int micfil_irqs[IMX93_MICFIL_IRQS] = {
+            FSL_IMX93_MICFIL_IRQ0, FSL_IMX93_MICFIL_IRQ1,
+            FSL_IMX93_MICFIL_IRQ2, FSL_IMX93_MICFIL_IRQ3,
+        };
+
+        for (i = 0; i < FSL_IMX93_NUM_SAIS; i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->sai[i]);
+
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[sai_table[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, sai_table[i].irq));
+        }
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->micfil), 0,
+                        fsl_imx93_memmap[FSL_IMX93_MICFIL].addr);
+        for (i = 0; i < IMX93_MICFIL_IRQS; i++) {
+            sysbus_connect_irq(SYS_BUS_DEVICE(&s->micfil), i,
+                               qdev_get_gpio_in(gicdev, micfil_irqs[i]));
+        }
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }
@@ -743,6 +783,13 @@ static void fsl_imx93_init(Object *obj)
         g_autofree char *name = g_strdup_printf("usb%d", i + 1);
         object_initialize_child(obj, name, &s->usb[i], TYPE_CHIPIDEA);
     }
+
+    for (i = 0; i < FSL_IMX93_NUM_SAIS; i++) {
+        g_autofree char *name = g_strdup_printf("sai%d", i + 1);
+        object_initialize_child(obj, name, &s->sai[i], TYPE_IMX93_SAI);
+    }
+
+    object_initialize_child(obj, "micfil", &s->micfil, TYPE_IMX93_MICFIL);
 
     for (i = 0; i < FSL_IMX93_NUM_GPIOS; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i + 1);

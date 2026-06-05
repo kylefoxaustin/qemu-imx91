@@ -38,6 +38,8 @@
 #include "hw/misc/imx93_media_blk.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
+#include "hw/audio/imx93_sai.h"
+#include "hw/audio/imx93_micfil.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -87,6 +89,9 @@ enum FslImx93Configuration {
 /* USB OTG controllers (ChipIdea), usbotg1/usbotg2. */
 #define FSL_IMX93_NUM_USBS            2
 
+/* SAI audio interfaces (sai1, sai2, sai3). */
+#define FSL_IMX93_NUM_SAIS            3
+
 struct FslImx93State {
     SysBusDevice    parent_obj;
 
@@ -111,6 +116,8 @@ struct FslImx93State {
     FlexCanState    flexcan[FSL_IMX93_NUM_FLEXCAN];
     CanBusState     *canbus[FSL_IMX93_NUM_FLEXCAN];
     ChipideaState   usb[FSL_IMX93_NUM_USBS];
+    IMX93SaiState   sai[FSL_IMX93_NUM_SAIS];
+    IMX93MicfilState micfil;
     MemoryRegion    ocram;
 };
 
@@ -267,6 +274,14 @@ enum FslImx93Irqs {
     FSL_IMX93_FLEXCAN2_IRQ  = 51,
     FSL_IMX93_USB1_IRQ      = 187,
     FSL_IMX93_USB2_IRQ      = 188,
+    FSL_IMX93_SAI1_IRQ      = 45,
+    FSL_IMX93_SAI2_IRQ      = 170,
+    FSL_IMX93_SAI3_IRQ      = 171,
+    /* MICFIL has four lines (error, stream, VAD events). */
+    FSL_IMX93_MICFIL_IRQ0   = 202,
+    FSL_IMX93_MICFIL_IRQ1   = 201,
+    FSL_IMX93_MICFIL_IRQ2   = 200,
+    FSL_IMX93_MICFIL_IRQ3   = 199,
     /* eDMA1: channel N raises GIC SPI (EDMA1_IRQ_BASE + N). */
     FSL_IMX93_EDMA1_IRQ_BASE = 95,
     FSL_IMX93_EDMA1_CHANNELS = 31,
