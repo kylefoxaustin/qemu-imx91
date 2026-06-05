@@ -199,7 +199,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
-        FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C8,
+        FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
         FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
         FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
         FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
@@ -648,6 +648,31 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     }
 
     /*
+     * LPI2C8: the camera control bus on the mt9m114 device-tree variant. It
+     * carries the MT9M114 sensor (0x48) plus a PCA9538 I/O expander (0x70)
+     * that gates the sensor's power rails. With these the camera pipeline
+     * (mt9m114 -> parallel-CSI -> ISI) binds and the V4L2 graph links.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c8);
+        I2CSlave *pca;
+
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_LPI2C8].addr);
+        sysbus_connect_irq(sbd, 0,
+                           qdev_get_gpio_in(gicdev, FSL_IMX93_LPI2C8_IRQ));
+
+        pca = i2c_slave_new(TYPE_IMX93_I2C_REGDEV, FSL_IMX93_PCA9538_ADDR);
+        i2c_slave_realize_and_unref(pca, s->lpi2c8.bus, &error_abort);
+
+        i2c_slave_realize_and_unref(
+            i2c_slave_new(TYPE_MT9M114, FSL_IMX93_MT9M114_ADDR),
+            s->lpi2c8.bus, &error_abort);
+    }
+
+    /*
      * virtio-mmio transports (not real i.MX93 hardware). These give the guest
      * a place to attach virtio devices - notably a virtio-keyboard so the
      * emulated HDMI/LCDIF console gets real keyboard input. Matching DTB nodes
@@ -797,6 +822,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "edma2", &s->edma2, TYPE_IMX93_EDMA);
     object_initialize_child(obj, "lpi2c1", &s->lpi2c1, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
+    object_initialize_child(obj, "lpi2c8", &s->lpi2c8, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "mediamix", &s->mediamix,
                             TYPE_IMX93_SRC_SLICE);
     object_initialize_child(obj, "media-blk-ctrl", &s->media_blk_ctrl,

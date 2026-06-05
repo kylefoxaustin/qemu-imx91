@@ -109,6 +109,7 @@ struct FslImx93State {
     IMX93EdmaState  edma2;
     IMXLPI2CState   lpi2c1;
     IMXLPI2CState   lpi2c2;
+    IMXLPI2CState   lpi2c8;
     IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
     IMX93MediaBlkCtrlState media_blk_ctrl;
     IMX93SrcSliceState     mediamix;
@@ -271,6 +272,7 @@ enum FslImx93Irqs {
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
+    FSL_IMX93_LPI2C8_IRQ    = 198,
     FSL_IMX93_FLEXCAN1_IRQ  = 8,
     FSL_IMX93_FLEXCAN2_IRQ  = 51,
     FSL_IMX93_USB1_IRQ      = 187,
@@ -305,6 +307,9 @@ enum FslImx93Irqs {
 
 /* Trivial register-file I2C slave used for the board's PMIC + GPIO expander. */
 #define TYPE_IMX93_I2C_REGDEV   "imx93.i2c-regdev"
+
+/* MT9M114 camera sensor I2C slave (mt9m114 device-tree variant). */
+#define TYPE_MT9M114            "mt9m114"
 
 /* I2C addresses on lpi2c2: PMIC + GPIO expander. */
 #define FSL_IMX93_PCA9451_ADDR  0x25
@@ -344,5 +349,9 @@ enum FslImx93Irqs {
 
 /* WM8962 audio codec on LPI2C1. */
 #define FSL_IMX93_WM8962_ADDR           0x1a
+
+/* Camera (mt9m114 device-tree variant) on LPI2C8. */
+#define FSL_IMX93_MT9M114_ADDR          0x48
+#define FSL_IMX93_PCA9538_ADDR          0x70
 
 #endif /* FSL_IMX93_H */
