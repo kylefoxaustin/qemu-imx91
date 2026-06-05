@@ -22,10 +22,35 @@
 #include "hw/core/qdev-properties-system.h"
 #include "hw/sd/sd.h"
 #include "system/blockdev.h"
+#include "system/device_tree.h"
 #include "system/kvm.h"
 #include "system/qtest.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
+
+/*
+ * Inject device-tree nodes for the virtio-mmio transports the SoC instantiates
+ * (see fsl-imx93.c). The kernel's CONFIG_VIRTIO_MMIO_CMDLINE_DEVICES is off, so
+ * it only binds these via DT. The stock DTB root carries interrupt-parent =
+ * <&gic> and #address-cells/#size-cells = <2>, so a root-level node inherits
+ * the GIC and uses 2-cell addresses. interrupts = <SPI N LEVEL_HIGH>.
+ */
+static void imx93_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
+{
+    for (int i = FSL_IMX93_NUM_VIRTIO_MMIO - 1; i >= 0; i--) {
+        hwaddr base = FSL_IMX93_VIRTIO_MMIO_BASE + i * FSL_IMX93_VIRTIO_MMIO_SIZE;
+        int irq = FSL_IMX93_VIRTIO_MMIO_IRQ + i;
+        g_autofree char *node = g_strdup_printf("/virtio_mmio@%" PRIx64, base);
+
+        qemu_fdt_add_subnode(fdt, node);
+        qemu_fdt_setprop_string(fdt, node, "compatible", "virtio,mmio");
+        qemu_fdt_setprop_cells(fdt, node, "reg",
+                               0, base, 0, FSL_IMX93_VIRTIO_MMIO_SIZE);
+        /* GIC_FDT_IRQ_TYPE_SPI = 0, IRQ_TYPE_LEVEL_HIGH = 4 */
+        qemu_fdt_setprop_cells(fdt, node, "interrupts", 0, irq, 4);
+        qemu_fdt_setprop(fdt, node, "dma-coherent", NULL, 0);
+    }
+}
 
 static void imx93_evk_init(MachineState *machine)
 {
@@ -44,6 +69,7 @@ static void imx93_evk_init(MachineState *machine)
         .board_id     = -1,
         .ram_size     = machine->ram_size,
         .psci_conduit = QEMU_PSCI_CONDUIT_SMC,
+        .modify_dtb   = imx93_evk_modify_dtb,
     };
 
     s = FSL_IMX93(object_new(TYPE_FSL_IMX93));

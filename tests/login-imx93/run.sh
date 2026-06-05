@@ -9,12 +9,12 @@
 # empty password (the BSP image ships pam_unix nullok + tty1/ttyLP0 in
 # securetty), so at "imx93evk login:" just type:  root  <Enter>.
 #
-# Where you type vs. where you watch:
-#   - The i.MX93 EVK has no emulated keyboard input device (no USB-HID / no
-#     virtio-input, and the DTB is fixed), so the guest can only receive
-#     keystrokes on the SERIAL port. Type in THIS terminal (-serial mon:stdio).
-#   - The GUI window (-display gtk) shows the live HDMI framebuffer — the same
-#     console output, plus the boot logos. It's view-only.
+# Two ways to interact:
+#   - Type directly in the GUI window (-display gtk): a virtio-keyboard feeds
+#     tty1, so keystrokes land on the HDMI framebuffer console. (The board adds
+#     virtio-mmio transports + DTB nodes; the kernel's virtio_input binds the
+#     "-device virtio-keyboard-device" below.)
+#   - Or type in THIS terminal (-serial mon:stdio) for the serial console.
 #
 # Override any path via env:  KERNEL=/path/Image DTB=/path.dtb BASE_INITRD=...
 set -u
@@ -49,4 +49,5 @@ set -x
 exec "$QEMU" -M imx93-11x11-evk -m 4G -display "$DISPLAY_BACKEND" \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/combined.cpio.gz" \
     -append "console=tty0 console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit quiet loglevel=3" \
+    -device virtio-keyboard-device -device virtio-tablet-device \
     -serial mon:stdio -serial null

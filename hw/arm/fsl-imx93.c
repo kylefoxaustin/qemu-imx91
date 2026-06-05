@@ -608,6 +608,26 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                                     &error_abort);
     }
 
+    /*
+     * virtio-mmio transports (not real i.MX93 hardware). These give the guest
+     * a place to attach virtio devices - notably a virtio-keyboard so the
+     * emulated HDMI/LCDIF console gets real keyboard input. Matching DTB nodes
+     * are injected by the board (imx93-evk.c). SPIs 230.. are unused.
+     */
+    for (i = 0; i < FSL_IMX93_NUM_VIRTIO_MMIO; i++) {
+        DeviceState *vmmio = qdev_new("virtio-mmio");
+        SysBusDevice *sbd = SYS_BUS_DEVICE(vmmio);
+
+        /* Modern (virtio 1.0) transport; the legacy default fails feature
+         * negotiation with the modern guest virtio_mmio driver. */
+        qdev_prop_set_bit(vmmio, "force-legacy", false);
+        sysbus_realize_and_unref(sbd, &error_fatal);
+        sysbus_mmio_map(sbd, 0,
+            FSL_IMX93_VIRTIO_MMIO_BASE + i * FSL_IMX93_VIRTIO_MMIO_SIZE);
+        sysbus_connect_irq(sbd, 0,
+            qdev_get_gpio_in(gicdev, FSL_IMX93_VIRTIO_MMIO_IRQ + i));
+    }
+
     /* All peripherals not yet modeled get logging stubs. */
     fsl_imx93_install_unimplemented(s);
 }

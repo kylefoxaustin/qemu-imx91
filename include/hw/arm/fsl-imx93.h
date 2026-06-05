@@ -271,6 +271,18 @@ enum FslImx93Irqs {
 #define FSL_IMX93_FEC_PHY_NUM   2
 
 /*
+ * virtio-mmio transports. Not present on real i.MX93 silicon; we add a few
+ * slots in an unused hole of the memory map and inject matching device-tree
+ * nodes (see imx93-evk.c) so a guest can bind e.g. a virtio-keyboard, giving
+ * the emulated HDMI/LCDIF console real keyboard input. SPIs 230.. are unused
+ * by the SoC; the GIC is configured with 320 SPIs.
+ */
+#define FSL_IMX93_VIRTIO_MMIO_BASE  0x70000000
+#define FSL_IMX93_VIRTIO_MMIO_SIZE  0x200
+#define FSL_IMX93_NUM_VIRTIO_MMIO   4
+#define FSL_IMX93_VIRTIO_MMIO_IRQ   230     /* first SPI; one per transport */
+
+/*
  * Display: ADV7535 DSI-to-HDMI bridge I2C addresses on lpi2c1. The adv7511
  * driver derives the auxiliary maps from the main address: edid = main + 4,
  * cec = main - 1 (overridden to 0x3b by adi,addr-cec), packet = main - 5.
