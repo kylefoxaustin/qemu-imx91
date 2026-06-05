@@ -276,10 +276,9 @@ before the EDID could be read and a mode set.
 
 ## License & credits
 
-GPL-2.0-or-later, same as QEMU. Device models were developed with assistance
-from Claude (Anthropic) — individual commits carry co-authorship trailers.
-Based on upstream QEMU; see [`README.rst`](README.rst) and `LICENSE` for QEMU's
-own authorship and licensing.
+GPL-2.0-or-later, same as QEMU. Based on upstream QEMU; see
+[`README.rst`](README.rst) and `LICENSE` for QEMU's own authorship and
+licensing.
 
 ---
 
