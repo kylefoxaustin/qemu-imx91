@@ -266,6 +266,10 @@ enum FslImx93Irqs {
 #define FSL_IMX93_PCA9451_ADDR  0x25
 #define FSL_IMX93_PCA9451_DEVID 0x90    /* DEV_ID high nibble 0x9 = pca9451a */
 #define FSL_IMX93_PCAL6524_ADDR 0x22
+/* ADP5585 I/O expander (io-expander@34): MFD whose GPIO+PWM drive the LVDS
+ * panel's pwm-backlight. ID reg 0x00 high nibble must read 0x2 to probe. */
+#define FSL_IMX93_ADP5585_ADDR  0x34
+#define FSL_IMX93_ADP5585_ID    0x20    /* ADP5585_MAN_ID_VALUE, bits [7:4] */
 
 /* FEC RGMII PHY MDIO address on the 11x11 EVK (ethphy2, reg = <2>). */
 #define FSL_IMX93_FEC_PHY_NUM   2

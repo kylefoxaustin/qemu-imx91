@@ -486,6 +486,18 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                                            FSL_IMX93_PCAL6524_ADDR);
         qdev_prop_set_bit(DEVICE(expander), "pcal6524", true);
         i2c_slave_realize_and_unref(expander, s->lpi2c2.bus, &error_abort);
+
+        /*
+         * ADP5585 I/O expander (io-expander@34). Its adp5585 MFD driver only
+         * checks the ID register, then registers the GPIO + PWM sub-devices
+         * the board's pwm-backlight (and audio/CAN rails) depend on - which is
+         * what lets the LVDS panel's backlight, and thus the whole LVDS
+         * display pipeline, come out of deferred probe.
+         */
+        I2CSlave *adp = i2c_slave_new(TYPE_IMX93_I2C_REGDEV,
+                                      FSL_IMX93_ADP5585_ADDR);
+        qdev_prop_set_uint8(DEVICE(adp), "reg0", FSL_IMX93_ADP5585_ID);
+        i2c_slave_realize_and_unref(adp, s->lpi2c2.bus, &error_abort);
     }
 
     /* GPIO banks (gpio1..gpio4). Each exposes two GIC lines; the gpio-vf610
