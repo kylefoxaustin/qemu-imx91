@@ -94,6 +94,10 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   (and tablet) let you **type in the QEMU window** onto the HDMI console; root
   logs in (the BSP image's root has no password) on both the framebuffer
   console and serial.
+- **CAN — FlexCAN1/2** on QEMU's CAN bus subsystem. The Linux `flexcan` driver
+  binds and `can0` brings up; real frame TX/RX between the two controllers is
+  covered by a kernel-free qtest. Attach a bus with
+  `-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`.
 
 ![Interactive login + uname on the emulated HDMI console](docs/images/hdmi-login.png)
 
@@ -111,7 +115,6 @@ forward-looking:
 | **Wayland desktop** | Weston on the display output (keyboard + tablet are already wired); software/pixman render, as the i.MX 93 has no 3D GPU | **next** |
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
-| FlexCAN | FlexCAN controllers on QEMU's CAN bus (a from-scratch model exists in the i.MX 95 tree to port) | deferred |
 | USB host | ChipIdea USB host so real USB devices (incl. HID) attach | deferred |
 | Ethos-U65 microNPU | A functional model to replace the probe-time stub | deferred |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
@@ -211,10 +214,12 @@ behaviour.
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
 | `hw/net/imx93_dwmac.c`      | eQOS dwmac4 Ethernet (from scratch) |
+| `hw/net/can/flexcan.c`      | FlexCAN controller (QEMU CAN bus) |
 | `hw/dma/imx93_edma.c`       | eDMA3 controller (TCD execution) |
 | `hw/display/imx93_lcdif.c`  | LCDIFv3 display controller + framebuffer scanout |
 | `hw/display/imx93_dsi.c`    | MIPI-DSI host (dw-mipi-dsi core) |
 | `hw/display/adv7535.c`      | ADV7535 DSI-to-HDMI bridge (I²C) |
+| `tests/qtest/flexcan-test.c` | kernel-free FlexCAN model qtest (frame TX/RX) |
 | `tests/hello-imx93/`        | bare-metal LPUART hello (no artifacts needed) |
 | `tests/boot-imx93/run.sh`   | boot Linux to the serial console |
 | `tests/login-imx93/run.sh`  | interactive login on the emulated HDMI display |
