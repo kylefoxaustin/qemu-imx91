@@ -98,6 +98,11 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   binds and `can0` brings up; real frame TX/RX between the two controllers is
   covered by a kernel-free qtest. Attach a bus with
   `-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`.
+- **USB host — ChipIdea USB OTG1/2.** The `ci_hdrc` driver brings up both
+  EHCI host controllers and real USB devices enumerate: `-device usb-kbd`
+  binds as a HID input and `-device usb-storage,drive=…` attaches as a SCSI
+  disk (`sda`). The stock EVK device tree's Type-C role switch is unmodelled,
+  but the controller falls back to host mode, so no DT override is needed.
 - **Wayland desktop.** A `core-image-weston` rootfs boots to the Weston
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
@@ -113,14 +118,13 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 ## Roadmap
 
 Networking, storage, the full **display (HDMI + LVDS) + input** stack, **CAN**,
-and a **Weston/Wayland desktop** are **done** and described under "What runs
-today" above. What remains is forward-looking:
+**USB host**, and a **Weston/Wayland desktop** are **done** and described under
+"What runs today" above. What remains is forward-looking:
 
 | Feature | What | Target |
 |---|---|---|
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
-| USB host | ChipIdea USB host so real USB devices (incl. HID) attach | deferred |
 | Ethos-U65 microNPU | A functional model to replace the probe-time stub | deferred |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
@@ -179,7 +183,6 @@ card with `-drive if=sd,file=disk.img,format=raw`.
 - **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU; the
   **Ethos-U65 microNPU** is a probe-time stub. A Wayland desktop will use
   software rendering.
-- **USB is a logging stub** — no host controller, so no USB devices yet.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
 - On the framebuffer console, the shell prints a cosmetic
