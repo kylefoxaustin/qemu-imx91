@@ -109,6 +109,12 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   and the **WM8962** headphone/speaker/mic card on SAI3 (playback+capture, via
   a modelled WM8962 codec on LPI2C1 and the WAKEUPMIX eDMA4). Their FIFOs ride
   the eDMA datapath. See `tests/audio-imx93/run.sh`.
+- **Camera capture pipeline.** Booting the `…-mt9m114` DTB, the parallel
+  camera path binds end to end — MT9M114 sensor → parallel-CSI → ISI — and the
+  V4L2 media graph registers `/dev/media0`, four subdevs, and the two ISI
+  `/dev/video*` capture nodes (modelled MT9M114 sensor + PCA9538 expander on
+  LPI2C8). See `tests/camera-imx93/run.sh`. No frames are captured (no V4L2
+  capture backend) — the pipeline binds and the graph registers.
 - **Wayland desktop.** A `core-image-weston` rootfs boots to the Weston
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
@@ -124,13 +130,12 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 ## Roadmap
 
 Networking, storage, the full **display (HDMI + LVDS) + input** stack, **CAN**,
-**USB host**, **audio (SAI + MICFIL + WM8962)**, and a **Weston/Wayland
-desktop** are **done** and described under "What runs today" above. What
-remains is forward-looking:
+**USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera capture
+pipeline**, and a **Weston/Wayland desktop** are **done** and described under
+"What runs today" above. What remains is forward-looking:
 
 | Feature | What | Target |
 |---|---|---|
-| Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Ethos-U65 microNPU | A functional model to replace the probe-time stub | deferred |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
