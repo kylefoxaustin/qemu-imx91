@@ -63,7 +63,7 @@ static void imx_lpi2c_update_irq(IMXLPI2CState *s)
     if (s->rx_count) {
         status |= MSR_RDF;
     }
-    status |= MSR_TDF;                  /* tx FIFO is never full in this model */
+    status |= MSR_TDF;                  /* tx FIFO never full in this model */
     qemu_set_irq(s->irq, !!(status & s->mier));
 }
 
@@ -157,7 +157,7 @@ static uint64_t imx_lpi2c_read(void *opaque, hwaddr offset, unsigned size)
     case LPI2C_MCFGR1:
         return s->mcfgr1;
     case LPI2C_MFSR:
-        /* rx-count in [16:0..], tx-count 0; coarse but enough for the driver. */
+        /* rx-count in bits [23:16], tx-count 0; coarse but enough. */
         return (s->rx_count & 0xff) << 16;
     case LPI2C_MRDR:
         if (s->rx_count == 0) {

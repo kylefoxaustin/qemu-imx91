@@ -91,8 +91,10 @@ static void imx93_ele_process(IMX93EleState *s)
     unsigned words = imx93_ele_rsp_words(command);
     unsigned i;
 
-    /* Header: rsp_tag, size, command, ver. Word 1 carries the success status;
-     * any further words are zero. */
+    /*
+     * Header: rsp_tag, size, command, ver. Word 1 carries the success status;
+     * any further words are zero.
+     */
     s->rr[0] = ((uint32_t)ELE_RSP_TAG << 24) | ((uint32_t)command << 16) |
                ((uint32_t)words << 8) | ver;
     s->rr[1] = ELE_SUCCESS_IND;

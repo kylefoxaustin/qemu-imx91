@@ -49,7 +49,8 @@ struct Imx93EvkMachineState {
 static void imx93_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
 {
     for (int i = FSL_IMX93_NUM_VIRTIO_MMIO - 1; i >= 0; i--) {
-        hwaddr base = FSL_IMX93_VIRTIO_MMIO_BASE + i * FSL_IMX93_VIRTIO_MMIO_SIZE;
+        hwaddr base = FSL_IMX93_VIRTIO_MMIO_BASE +
+                      i * FSL_IMX93_VIRTIO_MMIO_SIZE;
         int irq = FSL_IMX93_VIRTIO_MMIO_IRQ + i;
         g_autofree char *node = g_strdup_printf("/virtio_mmio@%" PRIx64, base);
 
@@ -139,7 +140,7 @@ static void imx93_11x11_evk_machine_init(MachineClass *mc)
     mc->default_cpus          = FSL_IMX93_NUM_A55_CPUS;
     mc->max_cpus              = FSL_IMX93_NUM_A55_CPUS;
     mc->default_ram_id        = "imx93-11x11-evk.ram";
-    mc->default_ram_size      = 2 * GiB;   /* 11x11 EVK ships with 2 GiB LPDDR4X */
+    mc->default_ram_size      = 2 * GiB;   /* 11x11 EVK: 2 GiB LPDDR4X */
     mc->get_default_cpu_type  = imx93_evk_get_default_cpu_type;
 }
 

@@ -25,11 +25,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93EdmaState, IMX93_EDMA)
 #define IMX93_EDMA_CHAN_OFFSET      0x10000     /* first channel page */
 #define IMX93_EDMA_CHAN_STRIDE      0x10000     /* per-channel page size */
 #define IMX93_EDMA_CHAN_REGS_SZ     0x40        /* control regs + TCD */
-#define IMX93_EDMA_MGMT_REGS        0x40        /* management words (0x0..0xff) */
+#define IMX93_EDMA_MGMT_REGS        0x40        /* mgmt words 0x0..0xff */
 
 typedef struct IMX93EdmaChan {
     uint8_t  regs[IMX93_EDMA_CHAN_REGS_SZ];     /* byte-addressable page head */
-    bool     armed;                             /* dev->mem deferred until data */
+    bool     armed;             /* dev->mem deferred until data */
 } IMX93EdmaChan;
 
 struct IMX93EdmaState {

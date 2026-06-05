@@ -152,18 +152,24 @@ enum FslImx93MemoryRegions {
     FSL_IMX93_EDMA1,
     FSL_IMX93_EDMA2,
 
-    /* Cortex-M33 remoteproc resource table (in M33 SRAM); reads as 0 so the
-     * imx_rproc driver treats it as no valid table and backs off cleanly. */
+    /*
+     * Cortex-M33 remoteproc resource table (in M33 SRAM); reads as 0 so the
+     * imx_rproc driver treats it as no valid table and backs off cleanly.
+     */
     FSL_IMX93_RSC_TABLE,
 
-    /* OCOTP/efuse syscon: provides the FEC MAC-address nvmem cells. Mapping
+    /*
+     * OCOTP/efuse syscon: provides the FEC MAC-address nvmem cells. Mapping
      * it (reads 0 -> zero MAC -> FEC falls back to a random MAC) lets the
-     * ethernet drivers bind instead of deferring on a missing MAC supplier. */
+     * ethernet drivers bind instead of deferring on a missing MAC supplier.
+     */
     FSL_IMX93_OCOTP,
 
-    /* Messaging Units: MU1 (AONMIX), MU2 (WAKEUPMIX), and the ELE/Sentinel
+    /*
+     * Messaging Units: MU1 (AONMIX), MU2 (WAKEUPMIX), and the ELE/Sentinel
      * S4 MU. All enabled on the 11x11 EVK; unmapped MMIO here faults the
-     * imx-mailbox driver probe with a synchronous external abort. */
+     * imx-mailbox driver probe with a synchronous external abort.
+     */
     FSL_IMX93_MU1,
     FSL_IMX93_MU2,
     FSL_IMX93_ELE_MU,
@@ -171,8 +177,10 @@ enum FslImx93MemoryRegions {
     /* System counter */
     FSL_IMX93_SYSCTR,
 
-    /* Watchdogs: WDOG1/2 in AONMIX, WDOG3/4/5 in WAKEUPMIX. The 11x11 EVK
-     * enables wdog3 (0x42490000); the rest are mapped for completeness. */
+    /*
+     * Watchdogs: WDOG1/2 in AONMIX, WDOG3/4/5 in WAKEUPMIX. The 11x11 EVK
+     * enables wdog3 (0x42490000); the rest are mapped for completeness.
+     */
     FSL_IMX93_WDOG1,
     FSL_IMX93_WDOG2,
     FSL_IMX93_WDOG3,
@@ -275,8 +283,10 @@ enum FslImx93Irqs {
 #define FSL_IMX93_PCA9451_ADDR  0x25
 #define FSL_IMX93_PCA9451_DEVID 0x90    /* DEV_ID high nibble 0x9 = pca9451a */
 #define FSL_IMX93_PCAL6524_ADDR 0x22
-/* ADP5585 I/O expander (io-expander@34): MFD whose GPIO+PWM drive the LVDS
- * panel's pwm-backlight. ID reg 0x00 high nibble must read 0x2 to probe. */
+/*
+ * ADP5585 I/O expander (io-expander@34): MFD whose GPIO+PWM drive the LVDS
+ * panel's pwm-backlight. ID reg 0x00 high nibble must read 0x2 to probe.
+ */
 #define FSL_IMX93_ADP5585_ADDR  0x34
 #define FSL_IMX93_ADP5585_ID    0x20    /* ADP5585_MAN_ID_VALUE, bits [7:4] */
 

@@ -200,7 +200,8 @@ static ssize_t imx93_dwmac_receive(NetClientState *nc, const uint8_t *buf,
      * does not enable ACS), so advertise size + 4; the 4 notional CRC bytes
      * past the frame are never read after the strip.
      */
-    d[3] = RDES3_FD | RDES3_LD | ((size + 4) & RDES3_PL_MASK);  /* OWN cleared */
+    /* OWN cleared: hand the descriptor back to the driver. */
+    d[3] = RDES3_FD | RDES3_LD | ((size + 4) & RDES3_PL_MASK);
     dma_memory_write(&address_space_memory, s->cur_rx_desc, d, sizeof(d),
                      MEMTXATTRS_UNSPECIFIED);
 
@@ -219,7 +220,7 @@ static uint64_t imx93_dwmac_read(void *opaque, hwaddr offset, unsigned size)
     IMX93DwmacState *s = opaque;
 
     switch (offset) {
-    case GMAC_VERSION:      return 0x00003251;   /* user 0x32, snps 0x51 (5.10a) */
+    case GMAC_VERSION:      return 0x00003251;   /* snps 5.10a */
     case GMAC_HW_FEATURE0:  return 0x00000023;   /* MII | GMII | MDIO(SMA) */
     case GMAC_HW_FEATURE1:  return 0x00000145;   /* 4 KiB tx/rx FIFO */
     case GMAC_HW_FEATURE2:  return 0x00000000;   /* 1 queue, 1 channel each */
@@ -256,11 +257,21 @@ static void imx93_dwmac_write(void *opaque, hwaddr offset, uint64_t value,
     IMX93DwmacState *s = opaque;
 
     switch (offset) {
-    case GMAC_CONFIG:       s->mac_config = value; break;
-    case GMAC_INT_EN:       s->mac_int_en = value; break;
-    case GMAC_ADDR_HIGH:    s->addr_hi = value; break;
-    case GMAC_ADDR_LOW:     s->addr_lo = value; break;
-    case GMAC_MDIO_DATA:    s->mdio_data = value; break;
+    case GMAC_CONFIG:
+        s->mac_config = value;
+        break;
+    case GMAC_INT_EN:
+        s->mac_int_en = value;
+        break;
+    case GMAC_ADDR_HIGH:
+        s->addr_hi = value;
+        break;
+    case GMAC_ADDR_LOW:
+        s->addr_lo = value;
+        break;
+    case GMAC_MDIO_DATA:
+        s->mdio_data = value;
+        break;
     case GMAC_MDIO_ADDR:
         if (value & MDIO_BUSY) {
             imx93_dwmac_mdio(s, value);
@@ -271,16 +282,28 @@ static void imx93_dwmac_write(void *opaque, hwaddr offset, uint64_t value,
     case DMA_BUS_MODE:
         s->dma_bus_mode = value & ~DMA_BUS_MODE_SWR;   /* reset self-clears */
         break;
-    case DMA_SYS_BUS_MODE:  s->dma_sysbus_mode = value; break;
-    case DMA_CH0_CONTROL:   s->ch_control = value; break;
-    case DMA_CH0_TX_CONTROL: s->tx_control = value; break;
-    case DMA_CH0_RX_CONTROL: s->rx_control = value; break;
-    case DMA_CH0_TX_BASE_HI: s->tx_base_hi = value; break;
+    case DMA_SYS_BUS_MODE:
+        s->dma_sysbus_mode = value;
+        break;
+    case DMA_CH0_CONTROL:
+        s->ch_control = value;
+        break;
+    case DMA_CH0_TX_CONTROL:
+        s->tx_control = value;
+        break;
+    case DMA_CH0_RX_CONTROL:
+        s->rx_control = value;
+        break;
+    case DMA_CH0_TX_BASE_HI:
+        s->tx_base_hi = value;
+        break;
     case DMA_CH0_TX_BASE:
         s->tx_base = value;
         s->cur_tx_desc = value;
         break;
-    case DMA_CH0_RX_BASE_HI: s->rx_base_hi = value; break;
+    case DMA_CH0_RX_BASE_HI:
+        s->rx_base_hi = value;
+        break;
     case DMA_CH0_RX_BASE:
         s->rx_base = value;
         s->cur_rx_desc = value;
@@ -293,8 +316,12 @@ static void imx93_dwmac_write(void *opaque, hwaddr offset, uint64_t value,
         s->rx_tail = value;
         qemu_flush_queued_packets(qemu_get_queue(s->nic));
         break;
-    case DMA_CH0_TX_RING_LEN: s->tx_ring_len = value; break;
-    case DMA_CH0_RX_RING_LEN: s->rx_ring_len = value; break;
+    case DMA_CH0_TX_RING_LEN:
+        s->tx_ring_len = value;
+        break;
+    case DMA_CH0_RX_RING_LEN:
+        s->rx_ring_len = value;
+        break;
     case DMA_CH0_INTR_ENA:
         s->ch_intr_ena = value;
         imx93_dwmac_update_irq(s);

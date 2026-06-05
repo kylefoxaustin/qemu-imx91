@@ -60,7 +60,8 @@ static bool ccm_is_status(hwaddr offset)
 
 static bool ccm_is_authen(hwaddr offset)
 {
-    uint32_t stride = offset < CCM_GATE_BASE ? CCM_ROOT_STRIDE : CCM_GATE_STRIDE;
+    uint32_t stride = offset < CCM_GATE_BASE ?
+                      CCM_ROOT_STRIDE : CCM_GATE_STRIDE;
     return (offset & (stride - 1)) == CCM_AUTHEN_OFFSET;
 }
 
