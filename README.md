@@ -129,6 +129,16 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   RPMsg. Running an actual inference would require Cortex-M33 firmware plus a
   model of the NPU compute engine, both out of scope (see Roadmap). See
   `tests/npu-imx93/run.sh`.
+- **Cortex-M33 real-time core.** The M33 is instantiated as a heterogeneous
+  core alongside the A55 cluster, with its own ARMv7-M context, a private
+  address space (a window onto the A55 system memory plus its 256 KiB ITCM /
+  DTCM at the `imx_rproc` view addresses), and the TCM aliased into the A55
+  view for firmware staging. It is held in reset until firmware is staged into
+  its ITCM, so a plain Linux boot is unaffected; with a blob loaded it boots
+  from ITCM and runs concurrently with the A55s (verified by the heartbeat it
+  writes to DTCM, read back at 0x20200000). See `tests/m33-boot/`. A55↔M33
+  RPMsg over the MU (which would make remoteproc + the NPU path live) is the
+  next step — see Roadmap.
 
 ![Weston/Wayland desktop with a terminal on the emulated i.MX93 display](docs/images/weston-terminal.png)
 
@@ -140,10 +150,12 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 Every peripheral on the EVK's roadmap is **done** and described under "What runs
 today" above: networking, storage, the full **display (HDMI + LVDS) + input**
 stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
-capture pipeline**, the **Ethos-U65** driver, and a **Weston/Wayland desktop**.
+capture pipeline**, the **Ethos-U65** driver, the **Cortex-M33** core, and a
+**Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
+| A55↔M33 RPMsg | MU doorbell + virtio-rpmsg so remoteproc talks to M33 firmware (enables the NPU inference path) | next |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
