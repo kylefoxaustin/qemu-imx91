@@ -86,6 +86,10 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   generated EDID served over I²C-DDC) satisfy the DRM stack, which sets a
   1920×1080 mode and brings up `/dev/fb0`. fbcon renders the console on the
   emulated display.
+- **Display — LVDS panel too.** Booting the `…-boe-wxga-lvds-panel` DTB lights
+  the second display path, LCDIFv3 → LDB → LVDS-PHY → a fixed `boe` panel at
+  1280×800 (no EDID; the panel mode is fixed). Needs the adp5585 I/O expander
+  (modelled) for the panel's backlight.
 - **Input + interactive login.** virtio-mmio transports + a virtio-keyboard
   (and tablet) let you **type in the QEMU window** onto the HDMI console; root
   logs in (the BSP image's root has no password) on both the framebuffer
@@ -98,14 +102,13 @@ on the emulated display.*
 
 ## Roadmap
 
-The networking, storage, and the full HDMI **display + input** stack are
-**done** and described under "What runs today" above. What remains is
+The networking, storage, and the full **display (HDMI + LVDS) + input** stack
+are **done** and described under "What runs today" above. What remains is
 forward-looking:
 
 | Feature | What | Target |
 |---|---|---|
-| **LVDS display path** | LCDIFv3 → LDB → fixed `simple-panel` (the boe LVDS EVK DTB) — a second, EDID-free display path alongside the HDMI one | **next** |
-| **Wayland desktop** | Weston on the HDMI output (keyboard + tablet are already wired); software/pixman render, as the i.MX 93 has no 3D GPU | after LVDS |
+| **Wayland desktop** | Weston on the display output (keyboard + tablet are already wired); software/pixman render, as the i.MX 93 has no 3D GPU | **next** |
 | ELE MU full handshake | Complete the EdgeLock Enclave mailbox so the secure-enclave probe doesn't sit out its ~10 s timeout (today a minimal responder) | polish |
 | Camera capture | MIPI CSI + ISI as a V4L2 source | deferred |
 | Audio | SAI / MICFIL (PDM mic) datapaths | deferred |
