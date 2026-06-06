@@ -193,7 +193,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_OCOTP,
         FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
-        FSL_IMX93_TRDC, FSL_IMX93_TMU, FSL_IMX93_ADC1,
+        FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
         FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
@@ -1069,6 +1069,22 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                         fsl_imx93_memmap[FSL_IMX93_WDOG1 + i].addr);
     }
 
+    /* TMU: thermal monitor (temperature is polled; alarm IRQ not modelled). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->tmu), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->tmu), 0,
+                    fsl_imx93_memmap[FSL_IMX93_TMU].addr);
+
+    /* SAR-ADC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->adc1), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->adc1), 0,
+                    fsl_imx93_memmap[FSL_IMX93_ADC1].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc1), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_ADC1_IRQ));
+
     fsl_imx93_install_unimplemented(s);
 }
 
@@ -1087,6 +1103,8 @@ static void fsl_imx93_init(Object *obj)
         g_autofree char *name = g_strdup_printf("wdog%d", i + 1);
         object_initialize_child(obj, name, &s->wdog[i], TYPE_IMX93_WDOG);
     }
+    object_initialize_child(obj, "tmu", &s->tmu, TYPE_IMX93_TMU);
+    object_initialize_child(obj, "adc1", &s->adc1, TYPE_IMX93_ADC);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

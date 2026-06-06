@@ -276,3 +276,6 @@ config XLNX_VERSAL_TRNG
     bool
 
 source macio/Kconfig
+
+config IMX93_TMU
+    bool
