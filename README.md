@@ -136,9 +136,13 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   all satisfied), comes up (`Initialize Arm Ethos-U / RPMSG_LITE is link up`),
   and brings up `rpmsg-ethosu-channel`, which Linux creates and binds — cleanly,
   no kernel oops. See `tests/ethosu-rpmsg/run.sh` (and `tests/npu-imx93/run.sh`
-  for the plain driver-bind without firmware). Running an *actual inference* on
-  top additionally needs a model of the NPU command-stream compute engine — see
-  Roadmap.
+  for the plain driver-bind without firmware). The full A55→M33→NPU round-trip
+  is exercised by `tests/ethosu-caps/` — a tiny guest tool (`ethosu_caps`) opens
+  `/dev/ethosu0` and issues `CAPABILITIES_REQ`; the request crosses MU/rpmsg to
+  the M33, whose firmware reads the modelled NPU's ID/CONFIG registers and
+  replies, and the tool prints them back (Ethos-U65, 8 MACs/cc, cmd-stream v1).
+  Running an *actual inference* on top additionally needs a model of the NPU
+  command-stream compute engine — see Roadmap.
 - **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
   ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
@@ -296,6 +300,7 @@ behaviour.
 | `tests/camera-imx93/run.sh` | V4L2 camera pipeline (MT9M114 → CSI → ISI) |
 | `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check (no firmware) |
 | `tests/ethosu-rpmsg/run.sh` | Ethos-U65: Linux boots the M33 on demand, channel up |
+| `tests/ethosu-caps/run.sh`  | Ethos-U65: A55→M33→NPU capabilities round-trip (fork demo) |
 | `tests/poweroff-imx93/`     | static PSCI power-off helper |
 
 ## Building
