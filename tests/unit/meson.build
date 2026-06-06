@@ -22,6 +22,7 @@ tests = {
   'test-visitor-serialization': [testqapi],
   'test-bitmap': [],
   'test-resv-mem': [],
+  'test-ethos-u-cmdstream': [files('../../hw/npu/ethos_u_cmdstream.c')],
   # all code tested by test-x86-topo is inside topology.h
   'test-x86-topo': [],
   'test-cutils': [],
