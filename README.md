@@ -134,9 +134,12 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   (0x4a900000) satisfies the firmware's device init (product check, soft reset,
   access-state) so the firmware initialises the NPU, comes up
   (`Initialize Arm Ethos-U / RPMSG_LITE is link up`), and brings up
-  `rpmsg-ethosu-channel`, which Linux creates and binds. Running an *actual
-  inference* additionally needs a model of the NPU command-stream compute
-  engine — see Roadmap.
+  `rpmsg-ethosu-channel`, which Linux's `virtio_rpmsg_bus` creates. Completing
+  the ethosu handshake on top of that needs Linux to boot the M33 *on demand*
+  (the driver does `rproc_boot` + `init_completion` when `/dev/ethosu0` is
+  opened); the current pre-loaded-firmware path runs the M33 from reset instead,
+  so that completion race and a real inference are the remaining work — see
+  Roadmap.
 - **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
   ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
@@ -166,7 +169,8 @@ and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility under research) | research |
+| On-demand M33 boot | Let Linux boot/stop the M33 via remoteproc (the i.MX SIP `RPROC` SMC) instead of the pre-loaded-firmware path, so the ethosu driver's `rproc_boot`/`init_completion` ordering holds and its RPMsg handshake completes | next |
+| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility researched: achievable from the open Vela assets) | later |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
