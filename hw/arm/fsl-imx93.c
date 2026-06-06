@@ -191,11 +191,8 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_MU2,
         FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
-        FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
-        FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
@@ -1110,6 +1107,24 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->sysctr), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_SYSCTR_IRQ));
 
+    /* TPM1-6: timer / PWM modules. */
+    for (i = 0; i < 6; i++) {
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->tpm[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->tpm[i]), 0,
+                        fsl_imx93_memmap[FSL_IMX93_TPM1 + i].addr);
+    }
+
+    /* MU2 messaging unit (no peer wired; disabled on the EVK). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->mu2), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->mu2), 0,
+                    fsl_imx93_memmap[FSL_IMX93_MU2].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->mu2), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_MU2_IRQ));
+
     /* LPSPI1-8: SPI masters (each exposes an SSI bus for slaves). */
     {
         static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
@@ -1151,6 +1166,11 @@ static void fsl_imx93_init(Object *obj)
     }
     object_initialize_child(obj, "ocotp", &s->ocotp, TYPE_IMX93_OCOTP);
     object_initialize_child(obj, "sysctr", &s->sysctr, TYPE_IMX93_SYSCTR);
+    for (i = 0; i < 6; i++) {
+        g_autofree char *name = g_strdup_printf("tpm%d", i + 1);
+        object_initialize_child(obj, name, &s->tpm[i], TYPE_IMX93_TPM);
+    }
+    object_initialize_child(obj, "mu2", &s->mu2, TYPE_IMX_MU);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

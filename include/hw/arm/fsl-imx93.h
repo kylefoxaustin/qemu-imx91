@@ -48,6 +48,7 @@
 #include "hw/ssi/imx93_lpspi.h"
 #include "hw/nvram/imx93_ocotp.h"
 #include "hw/timer/imx93_sysctr.h"
+#include "hw/timer/imx93_tpm.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -155,6 +156,8 @@ struct FslImx93State {
     IMX93LpspiState lpspi[8];            /* LPSPI1-8                        */
     IMX93OcotpState ocotp;               /* OCOTP fuses @ 0x47510000        */
     IMX93SysctrState sysctr;             /* system counter @ 0x44290000     */
+    IMX93TpmState tpm[6];                /* TPM1-6 (timer/PWM)              */
+    IMXMUState mu2;                       /* MU2 @ 0x42440000                */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */
@@ -340,6 +343,7 @@ enum FslImx93Irqs {
     FSL_IMX93_TMU_IRQ       = 83,    /* TMU temp alarm */
     FSL_IMX93_ADC1_IRQ      = 219,   /* SAR-ADC conversion (driver irq idx 2) */
     FSL_IMX93_SYSCTR_IRQ    = 74,    /* system counter compare */
+    FSL_IMX93_MU2_IRQ       = 23,    /* MU2 -> A55 GIC SPI */
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_MU1_IRQ       = 22,   /* MU1_MUB -> A55 GIC SPI */
