@@ -65,6 +65,7 @@ system_ss.add(when: 'CONFIG_FSL_IMX93_PXP', if_true: files('imx93_pxp.c'))
 system_ss.add(when: 'CONFIG_FSL_IMX93_ELE', if_true: files('imx93_ele.c'))
 system_ss.add(when: 'CONFIG_FSL_IMX93_MEDIA_BLK', if_true: files('imx93_media_blk.c'))
 system_ss.add(when: 'CONFIG_IMX_MU', if_true: files('imx_mu.c'))
+system_ss.add(when: 'CONFIG_FSL_IMX93_ETHOSU', if_true: files('imx93_ethosu.c'))
 system_ss.add(when: 'CONFIG_IMX', if_true: files(
   'imx25_ccm.c',
   'imx31_ccm.c',

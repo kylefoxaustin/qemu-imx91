@@ -958,6 +958,23 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     }
 
     /* All peripherals not yet modeled get logging stubs. */
+    /*
+     * Ethos-U65 microNPU @ 0x4a900000, driven by the M33 ethos firmware. The
+     * surrounding NPU-mix GPR/clock blocks (0x4a880000/0x4a8c0000/0x4a8d0000)
+     * the firmware also touches stay logging stubs.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->ethosu);
+
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, FSL_IMX93_ETHOSU_ADDR);
+        create_unimplemented_device("npumix-gpr", 0x4a880000, 0x10000);
+        create_unimplemented_device("npumix-blk1", 0x4a8c0000, 0x10000);
+        create_unimplemented_device("npumix-blk2", 0x4a8d0000, 0x10000);
+    }
+
     fsl_imx93_install_unimplemented(s);
 }
 
@@ -970,6 +987,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "m33", &s->m33, TYPE_ARMV7M);
     object_initialize_child(obj, "mu1", &s->mu1, TYPE_IMX_MU);
     object_initialize_child(obj, "mu1_a", &s->mu1_a, TYPE_IMX_MU);
+    object_initialize_child(obj, "ethosu", &s->ethosu, TYPE_IMX93_ETHOSU);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

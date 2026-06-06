@@ -40,6 +40,7 @@
 #include "hw/display/imx93_dsi.h"
 #include "hw/misc/imx93_media_blk.h"
 #include "hw/misc/imx_mu.h"
+#include "hw/misc/imx93_ethosu.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -138,6 +139,7 @@ struct FslImx93State {
     Clock           *m33_cpuclk;
     IMXMUState      mu1;                  /* MU1_MUB @ 0x44230000, A55 side  */
     IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
+    IMX93EthosuState ethosu;             /* Ethos-U65 NPU @ 0x4a900000      */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */
@@ -405,6 +407,9 @@ enum FslImx93Irqs {
 
 /* MU1_MUA: the M33 side of MU1 (the A55 side, MU1_MUB, is FSL_IMX93_MU1). */
 #define FSL_IMX93_MU1_MUA_ADDR          0x44220000
+
+/* Ethos-U65 NPU APB block (driven by the M33 ethos firmware). */
+#define FSL_IMX93_ETHOSU_ADDR           0x4a900000
 
 /* Camera (mt9m114 device-tree variant) on LPI2C8. */
 #define FSL_IMX93_MT9M114_ADDR          0x48

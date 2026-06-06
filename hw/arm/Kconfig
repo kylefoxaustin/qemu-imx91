@@ -642,6 +642,7 @@ config FSL_IMX93
     select WM8962
     select ARM_V7M
     select IMX_MU
+    select FSL_IMX93_ETHOSU
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART
