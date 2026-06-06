@@ -648,6 +648,7 @@ config FSL_IMX93
     select IMX93_WDOG
     select IMX93_TMU
     select IMX93_ADC
+    select IMX93_LPSPI
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART

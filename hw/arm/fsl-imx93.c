@@ -200,8 +200,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
-        FSL_IMX93_LPSPI1, FSL_IMX93_LPSPI2, FSL_IMX93_LPSPI3, FSL_IMX93_LPSPI4,
-        FSL_IMX93_LPSPI5, FSL_IMX93_LPSPI6, FSL_IMX93_LPSPI7, FSL_IMX93_LPSPI8,
         FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
     };
 
@@ -1085,6 +1083,21 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc1), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_ADC1_IRQ));
 
+    /* LPSPI1-8: SPI masters (each exposes an SSI bus for slaves). */
+    {
+        static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
+
+        for (i = 0; i < 8; i++) {
+            if (!sysbus_realize(SYS_BUS_DEVICE(&s->lpspi[i]), errp)) {
+                return;
+            }
+            sysbus_mmio_map(SYS_BUS_DEVICE(&s->lpspi[i]), 0,
+                            fsl_imx93_memmap[FSL_IMX93_LPSPI1 + i].addr);
+            sysbus_connect_irq(SYS_BUS_DEVICE(&s->lpspi[i]), 0,
+                               qdev_get_gpio_in(gicdev, lpspi_irq[i]));
+        }
+    }
+
     fsl_imx93_install_unimplemented(s);
 }
 
@@ -1105,6 +1118,10 @@ static void fsl_imx93_init(Object *obj)
     }
     object_initialize_child(obj, "tmu", &s->tmu, TYPE_IMX93_TMU);
     object_initialize_child(obj, "adc1", &s->adc1, TYPE_IMX93_ADC);
+    for (i = 0; i < 8; i++) {
+        g_autofree char *name = g_strdup_printf("lpspi%d", i + 1);
+        object_initialize_child(obj, name, &s->lpspi[i], TYPE_IMX93_LPSPI);
+    }
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
