@@ -42,6 +42,7 @@
 #include "hw/misc/imx_mu.h"
 #include "hw/misc/imx93_ethosu.h"
 #include "hw/rtc/imx93_bbnsm.h"
+#include "hw/watchdog/imx93_wdog.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -143,6 +144,7 @@ struct FslImx93State {
     IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
     IMX93EthosuState ethosu;             /* Ethos-U65 NPU @ 0x4a900000      */
     IMX93BbnsmState bbnsm;               /* BBNSM RTC @ 0x44440000          */
+    IMX93WdogState wdog[5];              /* WDOG1-5                         */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */

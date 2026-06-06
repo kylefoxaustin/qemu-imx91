@@ -193,8 +193,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_OCOTP,
         FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
-        FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
-        FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
         FSL_IMX93_TRDC, FSL_IMX93_TMU, FSL_IMX93_ADC1,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
@@ -1062,6 +1060,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->bbnsm), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_BBNSM_IRQ));
 
+    /* WDOG1-5: watchdog timers. */
+    for (i = 0; i < 5; i++) {
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->wdog[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->wdog[i]), 0,
+                        fsl_imx93_memmap[FSL_IMX93_WDOG1 + i].addr);
+    }
+
     fsl_imx93_install_unimplemented(s);
 }
 
@@ -1076,6 +1083,10 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "mu1_a", &s->mu1_a, TYPE_IMX_MU);
     object_initialize_child(obj, "ethosu", &s->ethosu, TYPE_IMX93_ETHOSU);
     object_initialize_child(obj, "bbnsm", &s->bbnsm, TYPE_IMX93_BBNSM);
+    for (i = 0; i < 5; i++) {
+        g_autofree char *name = g_strdup_printf("wdog%d", i + 1);
+        object_initialize_child(obj, name, &s->wdog[i], TYPE_IMX93_WDOG);
+    }
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
