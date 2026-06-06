@@ -2663,6 +2663,16 @@ void arm_register_pre_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook,
 void arm_register_el_change_hook(ARMCPU *cpu, ARMELChangeHookFn *hook, void
         *opaque);
 
+/*
+ * Machine-registered handler for non-PSCI SiP SMC calls (fork addition; used
+ * by the i.MX 93 SoC for the i.MX SiP RPROC calls that boot/stop the M33).
+ * Returns true if it handled the call, writing the SMC return value to *ret.
+ */
+typedef bool (*ARMSIPHandler)(uint64_t fid, uint64_t a1, uint64_t a2,
+                              uint64_t a3, uint64_t *ret);
+extern ARMSIPHandler arm_sip_handler;
+void arm_register_sip_handler(ARMSIPHandler handler);
+
 /**
  * arm_rebuild_hflags:
  * Rebuild the cached TBFLAGS for arbitrary changed processor state.

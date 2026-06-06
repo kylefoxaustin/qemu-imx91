@@ -137,6 +137,7 @@ struct FslImx93State {
     /* Cortex-M33 real-time core + its private TCM and address-space views. */
     ARMv7MState     m33;
     Clock           *m33_cpuclk;
+    bool            m33_started;          /* SiP RPROC start/stop state */
     IMXMUState      mu1;                  /* MU1_MUB @ 0x44230000, A55 side  */
     IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
     IMX93EthosuState ethosu;             /* Ethos-U65 NPU @ 0x4a900000      */

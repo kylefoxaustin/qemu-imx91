@@ -236,6 +236,72 @@ static void fsl_imx93_m33_start_bh(void *opaque)
 
         cs->halted = 0;
         cpu_resume(cs);
+        s->m33_started = true;
+    }
+}
+
+/*
+ * SiP RPROC START: Linux's remoteproc has loaded M33 firmware into the ITCM
+ * (via the A55-view alias) and asked the "secure firmware" to release the core.
+ * Reset it so it reloads SP/PC from the freshly-staged vector table, then run.
+ */
+static void fsl_imx93_m33_rproc_start_bh(void *opaque)
+{
+    FslImx93State *s = opaque;
+    CPUState *cs = CPU(s->m33.cpu);
+
+    cpu_reset(cs);
+    cs->halted = 0;
+    cpu_resume(cs);
+}
+
+static void fsl_imx93_m33_rproc_stop_bh(void *opaque)
+{
+    FslImx93State *s = opaque;
+    CPUState *cs = CPU(s->m33.cpu);
+
+    cs->halted = 1;
+    cpu_reset(cs);
+}
+
+/* The single SoC instance, for the (global) SiP SMC handler. */
+static FslImx93State *fsl_imx93_sip_soc;
+
+/* i.MX SiP RPROC: Linux remoteproc boots/stops the M33 (IMX_RPROC_SMC). */
+#define IMX_SIP_RPROC           0xc2000005
+#define IMX_SIP_RPROC_START     0x00
+#define IMX_SIP_RPROC_STARTED   0x01
+#define IMX_SIP_RPROC_STOP      0x02
+
+static bool fsl_imx93_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
+                                  uint64_t a3, uint64_t *ret)
+{
+    FslImx93State *s = fsl_imx93_sip_soc;
+
+    if (fid != IMX_SIP_RPROC || !s || !s->m33.cpu) {
+        return false;
+    }
+
+    switch (a1) {
+    case IMX_SIP_RPROC_STARTED:
+        /* 0 keeps imx_rproc in "offline" so it boots the M33 on demand. */
+        *ret = s->m33_started ? 1 : 0;
+        return true;
+    case IMX_SIP_RPROC_START:
+        s->m33_started = true;
+        aio_bh_schedule_oneshot(qemu_get_aio_context(),
+                                fsl_imx93_m33_rproc_start_bh, s);
+        *ret = 0;
+        return true;
+    case IMX_SIP_RPROC_STOP:
+        s->m33_started = false;
+        aio_bh_schedule_oneshot(qemu_get_aio_context(),
+                                fsl_imx93_m33_rproc_stop_bh, s);
+        *ret = 0;
+        return true;
+    default:
+        *ret = 0;
+        return true;
     }
 }
 
@@ -450,6 +516,10 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 
         s->m33_machine_done.notify = fsl_imx93_machine_done;
         qemu_add_machine_init_done_notifier(&s->m33_machine_done);
+
+        /* Service the i.MX SiP RPROC SMCs so Linux boots the M33 on demand. */
+        fsl_imx93_sip_soc = s;
+        arm_register_sip_handler(fsl_imx93_sip_handler);
     }
 
     /*
