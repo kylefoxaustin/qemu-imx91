@@ -92,6 +92,10 @@ attach, the firmware's resource table must also be present at the
 ``rsc-table`` reserved-memory region (as U-Boot's ``bootaux`` would place
 it); stage it with a second ``-device loader,...,addr=0x2021e000``.
 
-The Ethos-U65 microNPU is driven by firmware on the M33 (it has no
-Linux-visible registers); with the NXP ethos firmware loaded the same
-way, Linux's ethosu driver connects over ``rpmsg-ethosu-channel``.
+Alternatively Linux can boot the M33 itself, on demand, through
+remoteproc: the i.MX rproc driver issues the i.MX SiP ``RPROC`` SMC,
+which the machine services (releasing the M33 at its staged vector). This
+is how the Ethos-U65 microNPU comes up - it has no Linux-visible
+registers and is driven by firmware on the M33. Opening ``/dev/ethosu0``
+makes the ethosu driver load the NXP ethos firmware, boot the M33, and
+connect over ``rpmsg-ethosu-channel``.

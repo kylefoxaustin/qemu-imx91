@@ -126,19 +126,18 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
   run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
   `tests/weston-imx93/run.sh`.
-- **Ethos-U65 microNPU — firmware stack comes up.** On the i.MX 93 the NPU is
-  driven by firmware on the Cortex-M33 (its DT node has no `reg`), not by Linux.
-  Without that firmware the `arm,ethosu` driver still binds and registers
-  `/dev/ethosu0` (see `tests/npu-imx93/run.sh`). With the stock NXP
-  `ethosu_firmware` loaded on the M33, the modelled Ethos-U65 register block
-  (0x4a900000) satisfies the firmware's device init (product check, soft reset,
-  access-state) so the firmware initialises the NPU, comes up
-  (`Initialize Arm Ethos-U / RPMSG_LITE is link up`), and brings up
-  `rpmsg-ethosu-channel`, which Linux's `virtio_rpmsg_bus` creates. Completing
-  the ethosu handshake on top of that needs Linux to boot the M33 *on demand*
-  (the driver does `rproc_boot` + `init_completion` when `/dev/ethosu0` is
-  opened); the current pre-loaded-firmware path runs the M33 from reset instead,
-  so that completion race and a real inference are the remaining work — see
+- **Ethos-U65 microNPU — firmware stack comes up over RPMsg.** On the i.MX 93
+  the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
+  not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
+  M33 **on demand** via remoteproc: Linux loads the stock NXP `ethosu_firmware`
+  and issues the i.MX SiP `RPROC` SMC, which the machine services by releasing
+  the M33 (see "Cortex-M33" below). The firmware then initialises the modelled
+  Ethos-U65 register block (0x4a900000 — product check, soft reset, access-state
+  all satisfied), comes up (`Initialize Arm Ethos-U / RPMSG_LITE is link up`),
+  and brings up `rpmsg-ethosu-channel`, which Linux creates and binds — cleanly,
+  no kernel oops. See `tests/ethosu-rpmsg/run.sh` (and `tests/npu-imx93/run.sh`
+  for the plain driver-bind without firmware). Running an *actual inference* on
+  top additionally needs a model of the NPU command-stream compute engine — see
   Roadmap.
 - **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
@@ -169,8 +168,7 @@ and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| On-demand M33 boot | Let Linux boot/stop the M33 via remoteproc (the i.MX SIP `RPROC` SMC) instead of the pre-loaded-firmware path, so the ethosu driver's `rproc_boot`/`init_completion` ordering holds and its RPMsg handshake completes | next |
-| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility researched: achievable from the open Vela assets) | later |
+| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility researched: achievable from the open Vela assets) | next |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
@@ -296,7 +294,8 @@ behaviour.
 | `tests/weston-imx93/run.sh` | Weston/Wayland desktop on the emulated display |
 | `tests/audio-imx93/run.sh`  | ALSA card registration (SAI/MICFIL/WM8962) |
 | `tests/camera-imx93/run.sh` | V4L2 camera pipeline (MT9M114 → CSI → ISI) |
-| `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check |
+| `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check (no firmware) |
+| `tests/ethosu-rpmsg/run.sh` | Ethos-U65: Linux boots the M33 on demand, channel up |
 | `tests/poweroff-imx93/`     | static PSCI power-off helper |
 
 ## Building
@@ -367,9 +366,10 @@ before the EDID could be read and a mode set.
   MT9M114 → parallel-CSI → ISI pipeline brings up the V4L2 media graph.
 - **Cortex-M33 + RPMsg** — the M33 runs the real NXP FreeRTOS firmware and
   ping-pongs RPMsg messages with Linux over MU1 + shared vrings.
-- **Ethos-U65 NPU firmware stack** — the modelled NPU register block lets the
-  stock NXP ethos M33 firmware initialise the NPU and bring up
-  `rpmsg-ethosu-channel`, which Linux binds.
+- **Ethos-U65 NPU firmware stack** — Linux boots the M33 on demand (the i.MX
+  SiP `RPROC` SMC, serviced by the machine), loads the stock NXP ethos firmware,
+  which initialises the modelled NPU and brings up `rpmsg-ethosu-channel` — no
+  kernel oops.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 
