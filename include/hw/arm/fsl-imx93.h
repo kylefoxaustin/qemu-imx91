@@ -46,6 +46,7 @@
 #include "hw/misc/imx93_tmu.h"
 #include "hw/adc/imx93_adc.h"
 #include "hw/ssi/imx93_lpspi.h"
+#include "hw/nvram/imx93_ocotp.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -151,6 +152,7 @@ struct FslImx93State {
     IMX93TmuState tmu;                   /* thermal monitor @ 0x44482000    */
     IMX93AdcState adc1;                  /* SAR-ADC @ 0x44530000            */
     IMX93LpspiState lpspi[8];            /* LPSPI1-8                        */
+    IMX93OcotpState ocotp;               /* OCOTP fuses @ 0x47510000        */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */

@@ -191,7 +191,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_OCOTP,
         FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
@@ -269,10 +268,22 @@ static FslImx93State *fsl_imx93_sip_soc;
 #define IMX_SIP_RPROC_STARTED   0x01
 #define IMX_SIP_RPROC_STOP      0x02
 
+#define IMX_SIP_GET_SOC_INFO    0xc2000006
+/* a1[31:16]=revision (major=[31:28]-9, minor=[27:24]), a1[15:0]=soc id<<8. */
+#define IMX93_SOC_INFO_A1       0xa0009300   /* i.MX93, rev 1.0 */
+
 static bool fsl_imx93_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
-                                  uint64_t a3, uint64_t *ret)
+                                  uint64_t a3, uint64_t ret[4])
 {
     FslImx93State *s = fsl_imx93_sip_soc;
+
+    if (fid == IMX_SIP_GET_SOC_INFO) {
+        ret[0] = 0;                          /* SMCCC_RET_SUCCESS */
+        ret[1] = IMX93_SOC_INFO_A1;
+        ret[2] = 0x00049f9300000000ULL;      /* uid[127:64] */
+        ret[3] = 0x0000000000000001ULL;      /* uid[63:0] */
+        return true;
+    }
 
     if (fid != IMX_SIP_RPROC || !s || !s->m33.cpu) {
         return false;
@@ -281,22 +292,22 @@ static bool fsl_imx93_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
     switch (a1) {
     case IMX_SIP_RPROC_STARTED:
         /* 0 keeps imx_rproc in "offline" so it boots the M33 on demand. */
-        *ret = s->m33_started ? 1 : 0;
+        ret[0] = s->m33_started ? 1 : 0;
         return true;
     case IMX_SIP_RPROC_START:
         s->m33_started = true;
         aio_bh_schedule_oneshot(qemu_get_aio_context(),
                                 fsl_imx93_m33_rproc_start_bh, s);
-        *ret = 0;
+        ret[0] = 0;
         return true;
     case IMX_SIP_RPROC_STOP:
         s->m33_started = false;
         aio_bh_schedule_oneshot(qemu_get_aio_context(),
                                 fsl_imx93_m33_rproc_stop_bh, s);
-        *ret = 0;
+        ret[0] = 0;
         return true;
     default:
-        *ret = 0;
+        ret[0] = 0;
         return true;
     }
 }
@@ -1083,6 +1094,13 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc1), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_ADC1_IRQ));
 
+    /* OCOTP: fuse shadow (MAC addresses, SoC unique ID). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ocotp), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ocotp), 0,
+                    fsl_imx93_memmap[FSL_IMX93_OCOTP].addr);
+
     /* LPSPI1-8: SPI masters (each exposes an SSI bus for slaves). */
     {
         static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
@@ -1122,6 +1140,7 @@ static void fsl_imx93_init(Object *obj)
         g_autofree char *name = g_strdup_printf("lpspi%d", i + 1);
         object_initialize_child(obj, name, &s->lpspi[i], TYPE_IMX93_LPSPI);
     }
+    object_initialize_child(obj, "ocotp", &s->ocotp, TYPE_IMX93_OCOTP);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

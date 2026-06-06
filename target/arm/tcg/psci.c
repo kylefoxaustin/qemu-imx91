@@ -224,14 +224,20 @@ void arm_handle_psci_call(ARMCPU *cpu)
          * SiP handler (used by the i.MX 93 SoC for the i.MX SiP RPROC calls
          * that boot/stop the Cortex-M33); if unhandled, report unsupported.
          */
-        uint64_t sip_ret;
+        uint64_t sip_ret[4] = { 0, 0, 0, 0 };
 
         if (arm_sip_handler &&
-            arm_sip_handler(param[0], param[1], param[2], param[3], &sip_ret)) {
+            arm_sip_handler(param[0], param[1], param[2], param[3], sip_ret)) {
             if (is_a64(env)) {
-                env->xregs[0] = sip_ret;
+                env->xregs[0] = sip_ret[0];
+                env->xregs[1] = sip_ret[1];
+                env->xregs[2] = sip_ret[2];
+                env->xregs[3] = sip_ret[3];
             } else {
-                env->regs[0] = sip_ret;
+                env->regs[0] = sip_ret[0];
+                env->regs[1] = sip_ret[1];
+                env->regs[2] = sip_ret[2];
+                env->regs[3] = sip_ret[3];
             }
             return;
         }
