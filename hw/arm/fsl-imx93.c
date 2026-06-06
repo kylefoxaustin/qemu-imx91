@@ -195,7 +195,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
-        FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
+        FSL_IMX93_TRDC, FSL_IMX93_TMU, FSL_IMX93_ADC1,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
         FSL_IMX93_TPM4, FSL_IMX93_TPM5, FSL_IMX93_TPM6,
@@ -1053,6 +1053,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         create_unimplemented_device("npumix-blk2", 0x4a8d0000, 0x10000);
     }
 
+    /* BBNSM: real-time clock + power key. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->bbnsm), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->bbnsm), 0,
+                    fsl_imx93_memmap[FSL_IMX93_BBNSM].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->bbnsm), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_BBNSM_IRQ));
+
     fsl_imx93_install_unimplemented(s);
 }
 
@@ -1066,6 +1075,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "mu1", &s->mu1, TYPE_IMX_MU);
     object_initialize_child(obj, "mu1_a", &s->mu1_a, TYPE_IMX_MU);
     object_initialize_child(obj, "ethosu", &s->ethosu, TYPE_IMX93_ETHOSU);
+    object_initialize_child(obj, "bbnsm", &s->bbnsm, TYPE_IMX93_BBNSM);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

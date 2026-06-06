@@ -644,6 +644,7 @@ config FSL_IMX93
     select IMX_MU
     select FSL_IMX93_ETHOSU
     select ETHOS_U
+    select IMX93_BBNSM
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART
