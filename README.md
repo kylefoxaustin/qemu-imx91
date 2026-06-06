@@ -129,16 +129,18 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   RPMsg. Running an actual inference would require Cortex-M33 firmware plus a
   model of the NPU compute engine, both out of scope (see Roadmap). See
   `tests/npu-imx93/run.sh`.
-- **Cortex-M33 real-time core.** The M33 is instantiated as a heterogeneous
-  core alongside the A55 cluster, with its own ARMv7-M context, a private
-  address space (a window onto the A55 system memory plus its 256 KiB ITCM /
-  DTCM at the `imx_rproc` view addresses), and the TCM aliased into the A55
-  view for firmware staging. It is held in reset until firmware is staged into
-  its ITCM, so a plain Linux boot is unaffected; with a blob loaded it boots
-  from ITCM and runs concurrently with the A55s (verified by the heartbeat it
-  writes to DTCM, read back at 0x20200000). See `tests/m33-boot/`. A55↔M33
-  RPMsg over the MU (which would make remoteproc + the NPU path live) is the
-  next step — see Roadmap.
+- **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
+  heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
+  ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
+  staging, and a secure peripheral window since the firmware runs secure). It is
+  held in reset until firmware is staged, so a plain Linux boot is unaffected.
+  With the stock NXP firmware loaded it **runs the real FreeRTOS image and talks
+  to Linux over RPMsg**: loading the `rpmsg_lite_pingpong` remote on the M33 and
+  `imx_rpmsg_pingpong` on Linux, the M33 brings its link up, announces the
+  channel over MU1, Linux binds it, and ping-pong messages round-trip through
+  the shared vrings (`new channel ... -> ...`, M33 prints `Link is up! /
+  Sending pong...`). See `tests/m33-boot/` (bare-metal) and `tests/m33-rpmsg/`
+  (full RPMsg). This is the transport the Ethos-U65 NPU inference path rides on.
 
 ![Weston/Wayland desktop with a terminal on the emulated i.MX93 display](docs/images/weston-terminal.png)
 
@@ -150,12 +152,12 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 Every peripheral on the EVK's roadmap is **done** and described under "What runs
 today" above: networking, storage, the full **display (HDMI + LVDS) + input**
 stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
-capture pipeline**, the **Ethos-U65** driver, the **Cortex-M33** core, and a
-**Weston/Wayland desktop**.
+capture pipeline**, the **Ethos-U65** driver, the **Cortex-M33** core with
+**A55↔M33 RPMsg**, and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| A55↔M33 RPMsg | MU doorbell + virtio-rpmsg so remoteproc talks to M33 firmware (enables the NPU inference path) | next |
+| Ethos-U65 inference | Load the NXP ethos M33 firmware so a real inference runs over the (now working) `rpmsg-ethosu-channel` | next |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
