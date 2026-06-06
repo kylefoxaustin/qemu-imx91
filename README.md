@@ -140,9 +140,21 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   is exercised by `tests/ethosu-caps/` — a tiny guest tool (`ethosu_caps`) opens
   `/dev/ethosu0` and issues `CAPABILITIES_REQ`; the request crosses MU/rpmsg to
   the M33, whose firmware reads the modelled NPU's ID/CONFIG registers and
-  replies, and the tool prints them back (Ethos-U65, 8 MACs/cc, cmd-stream v1).
-  Running an *actual inference* on top additionally needs a model of the NPU
-  command-stream compute engine — see Roadmap.
+  replies, and the tool prints them back (Ethos-U65, 8 MACs/cc).
+- **Ethos-U65 — a real end-to-end inference runs (fork-only).** Building on the
+  round-trip above, `tests/ethosu-infer/` runs an *actual* neural-network
+  inference all the way through: a guest app `BUFFER/NETWORK/INFERENCE/INVOKE`s a
+  Vela-compiled int8 CNN, the M33 firmware runs tflite-micro and **kicks the
+  NPU** (writes `QBASE`/`BASEP`/`CMD`), and the NPU model services the kick — it
+  reads the guest's input from the tensor arena, runs the *reference* int8 TFLite
+  model on the host, writes the exact output feature map back into guest memory,
+  and raises the NPU completion IRQ (M33 NVIC 178). The firmware completes, copies
+  the result out, and the guest prints the correct classification — distinct,
+  correct results for distinct inputs. The real command-stream compute engine is
+  not modelled; the host-TFLite reference stands in for it, so this is a fork-only
+  showcase, **not** an upstream deliverable (it shells out to a host helper). See
+  `tests/ethosu-rpmsg/run.sh` (channel bring-up) and `tests/npu-imx93/run.sh`
+  (plain driver-bind without firmware) for the lighter checks.
 - **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
   ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
@@ -172,7 +184,7 @@ and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility researched: achievable from the open Vela assets) | next |
+| Ethos-U65 inference (upstreamable) | A model of the NPU command-stream compute engine so a real inference executes *inside* QEMU (today a correct inference runs on the fork via a host-TFLite stand-in; the in-QEMU engine is a multi-month effort) | next |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
@@ -180,9 +192,11 @@ subsystem registers its devices — matching how QEMU SoC machines model
 controllers for driver bring-up rather than emulating end-to-end data paths to
 host audio/video/NPU sinks. Two intentional non-goals follow from that bar: the
 SAI/camera paths register their ALSA/V4L2 devices but do not pump real
-samples/frames, and the Ethos-U65 firmware stack comes up over RPMsg but does
-not execute a real inference (that needs the NPU command-stream compute engine —
-a firmware/accelerator emulation effort, not a SoC device model).
+samples/frames, and the Ethos-U65 NPU model does not implement the
+command-stream compute engine (an in-QEMU inference engine is a
+firmware/accelerator emulation effort, not a SoC device model). On the fork,
+`tests/ethosu-infer/` does run a *correct* end-to-end inference by standing a
+host-TFLite reference in for that engine — a showcase, not an upstream path.
 
 ## Required artifacts
 
@@ -277,7 +291,7 @@ behaviour.
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
 | `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP reset model; ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
-| `hw/misc/imx93_ethosu.c`    | Ethos-U65 microNPU register block (M33-firmware bring-up) |
+| `hw/misc/imx93_ethosu.c`    | Ethos-U65 microNPU register block + fork-only host-inference path |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
 | `hw/i2c/mt9m114.c`          | MT9M114 camera sensor (I²C) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
@@ -301,6 +315,7 @@ behaviour.
 | `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check (no firmware) |
 | `tests/ethosu-rpmsg/run.sh` | Ethos-U65: Linux boots the M33 on demand, channel up |
 | `tests/ethosu-caps/run.sh`  | Ethos-U65: A55→M33→NPU capabilities round-trip (fork demo) |
+| `tests/ethosu-infer/run.sh` | Ethos-U65: real end-to-end inference, correct output (fork demo) |
 | `tests/poweroff-imx93/`     | static PSCI power-off helper |
 
 ## Building

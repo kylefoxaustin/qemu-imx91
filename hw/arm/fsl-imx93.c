@@ -1040,6 +1040,14 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
             return;
         }
         sysbus_mmio_map(sbd, 0, FSL_IMX93_ETHOSU_ADDR);
+        /*
+         * The NPU interrupt is handled by the ethos firmware on the M33, so it
+         * is wired to the M33 NVIC (IRQ 178, RM Table 6), not the A55 GIC. The
+         * M33 is realized earlier in this function, so its NVIC inputs exist.
+         */
+        sysbus_connect_irq(sbd, 0,
+                           qdev_get_gpio_in(DEVICE(&s->m33),
+                                            FSL_IMX93_ETHOSU_IRQ));
         create_unimplemented_device("npumix-gpr", 0x4a880000, 0x10000);
         create_unimplemented_device("npumix-blk1", 0x4a8c0000, 0x10000);
         create_unimplemented_device("npumix-blk2", 0x4a8d0000, 0x10000);

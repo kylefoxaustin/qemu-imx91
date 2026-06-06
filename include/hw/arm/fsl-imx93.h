@@ -326,6 +326,7 @@ enum FslImx93Irqs {
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_MU1_IRQ       = 22,   /* MU1_MUB -> A55 GIC SPI */
     FSL_IMX93_M33_MU_IRQ    = 21,   /* MU1_MUA -> M33 NVIC (per fw) */
+    FSL_IMX93_ETHOSU_IRQ    = 178,  /* Ethos-U65 NPU -> M33 NVIC (RM Table 6) */
     FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
     FSL_IMX93_LPI2C8_IRQ    = 198,

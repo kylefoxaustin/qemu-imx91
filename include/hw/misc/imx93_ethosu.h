@@ -31,6 +31,7 @@ struct IMX93EthosuState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[IMX93_ETHOSU_REGS];
+    bool busy;          /* an inference (host-TFLite run) is in flight */
 };
 
 #endif /* IMX93_ETHOSU_H */

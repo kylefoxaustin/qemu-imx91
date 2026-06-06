@@ -99,3 +99,15 @@ is how the Ethos-U65 microNPU comes up - it has no Linux-visible
 registers and is driven by firmware on the M33. Opening ``/dev/ethosu0``
 makes the ethosu driver load the NXP ethos firmware, boot the M33, and
 connect over ``rpmsg-ethosu-channel``.
+
+Ethos-U65 microNPU
+------------------
+
+The NPU register block (base ``0x4a900000``) is modelled enough for the
+M33 ethos firmware to identify, reset and configure the part. Its
+completion interrupt is wired to the M33 NVIC (IRQ 178). The
+command-stream compute engine is not modelled; a real inference is not
+executed inside QEMU. (The fork's ``tests/ethosu-infer`` demonstrates a
+correct end-to-end inference by running a reference TFLite model on the
+host when the firmware kicks the NPU, but that host stand-in is a
+demo-only path and is not part of the upstream machine.)
