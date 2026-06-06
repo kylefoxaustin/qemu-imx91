@@ -191,7 +191,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_IOMUXC, FSL_IMX93_SRC,
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
-        FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
+        FSL_IMX93_MU2,
         FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
         FSL_IMX93_TPM1, FSL_IMX93_TPM2, FSL_IMX93_TPM3,
@@ -1101,6 +1101,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->ocotp), 0,
                     fsl_imx93_memmap[FSL_IMX93_OCOTP].addr);
 
+    /* System counter (clocksource + compare clockevent). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->sysctr), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->sysctr), 0,
+                    fsl_imx93_memmap[FSL_IMX93_SYSCTR].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->sysctr), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_SYSCTR_IRQ));
+
     /* LPSPI1-8: SPI masters (each exposes an SSI bus for slaves). */
     {
         static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
@@ -1141,6 +1150,7 @@ static void fsl_imx93_init(Object *obj)
         object_initialize_child(obj, name, &s->lpspi[i], TYPE_IMX93_LPSPI);
     }
     object_initialize_child(obj, "ocotp", &s->ocotp, TYPE_IMX93_OCOTP);
+    object_initialize_child(obj, "sysctr", &s->sysctr, TYPE_IMX93_SYSCTR);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
