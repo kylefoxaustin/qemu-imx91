@@ -388,6 +388,17 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                                  0, 4 * GiB);
         memory_region_add_subregion_overlap(&s->m33_view, 0,
                                             &s->m33_sysmem_alias, -1);
+        /*
+         * The M33 runs secure and reaches the SoC peripherals at their secure
+         * aliases (0x5xxxxxxx = 0x4xxxxxxx | 0x10000000) - e.g. the firmware's
+         * IOMUXC pinmux writes go to 0x543c0000. Mirror the 0x4xxxxxxx
+         * peripheral region into the 0x5xxxxxxx secure window.
+         */
+        memory_region_init_alias(&s->m33_secure_periph, OBJECT(s),
+                                 "imx93-m33-secure-periph", get_system_memory(),
+                                 0x40000000, 0x10000000);
+        memory_region_add_subregion_overlap(&s->m33_view, 0x50000000,
+                                            &s->m33_secure_periph, 0);
 
         /* ITCM (code): secure view backs the RAM; NS + sys are aliases. */
         memory_region_init_ram(&s->m33_itcm, OBJECT(s), "imx93-m33-itcm",

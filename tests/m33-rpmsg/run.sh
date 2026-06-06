@@ -44,8 +44,12 @@ sleep 3
 echo "=== M33 RPMSG TEST ==="
 modprobe imx_rpmsg_pingpong 2>&1 | head; sleep 3
 echo "--- virtio devices ---"; ls /sys/bus/virtio/devices 2>/dev/null
-echo "--- /dev/rpmsg* ---"; ls /dev/rpmsg* 2>/dev/null || echo none
-dmesg | grep -iE "rpmsg|virtio|pingpong|rproc|kick" | tail -25
+dmesg | grep -iE "rpmsg|virtio|pingpong|new channel|goodbye" | tail -15
+if dmesg | grep -q "rpmsg-openamp-demo-channel.*new channel"; then
+    echo "RESULT: PASS - A55<->M33 rpmsg channel up, ping-pong ran"
+else
+    echo "RESULT: FAIL - no rpmsg channel"
+fi
 echo "=== M33 RPMSG TEST DONE ==="
 while true; do sleep 5; done
 EOF
@@ -53,10 +57,14 @@ chmod +x "$TMP/myinit"
 ( cd "$TMP" && echo myinit | cpio -o -H newc 2>/dev/null > o.cpio )
 cat "$BASE_INITRD" "$TMP/o.cpio" > "$TMP/c.cpio.gz"
 
+# 2nd serial = lpuart2 = the M33's FreeRTOS console (its ping-pong banner);
+# captured to a file you can `tail -f` (expect "Link is up! ... Sending pong...").
+M33CON=${M33CON:-/tmp/m33-rpmsg-console.log}
+echo "M33 FreeRTOS console -> $M33CON"
 set -x
 exec "$QEMU" -M imx93-11x11-evk -m 4G -display none \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/c.cpio.gz" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel" \
     -device loader,file="$FW",addr=0x201E0000,force-raw=on \
     -device loader,file="$TMP/rsc.bin",addr=0x2021e000,force-raw=on \
-    -serial mon:stdio -serial null
+    -serial mon:stdio -serial "file:$M33CON"

@@ -140,6 +140,7 @@ struct FslImx93State {
     IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
+    MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */
     MemoryRegion    m33_itcm;            /* ITCM backing RAM (M33 secure)    */
     MemoryRegion    m33_itcm_alias_ns;   /* M33 non-secure ITCM alias        */
     MemoryRegion    m33_itcm_sysview;    /* A55 view of ITCM                 */
