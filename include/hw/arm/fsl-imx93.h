@@ -136,7 +136,8 @@ struct FslImx93State {
     /* Cortex-M33 real-time core + its private TCM and address-space views. */
     ARMv7MState     m33;
     Clock           *m33_cpuclk;
-    IMXMUState      mu1;                  /* A55<->M33 mailbox (rpmsg) */
+    IMXMUState      mu1;                  /* MU1_MUB @ 0x44230000, A55 side  */
+    IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_itcm;            /* ITCM backing RAM (M33 secure)    */
@@ -319,7 +320,8 @@ enum FslImx93Irqs {
     FSL_IMX93_EQOS_IRQ      = 184,
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
-    FSL_IMX93_MU1_IRQ       = 22,   /* A55<->M33 mailbox */
+    FSL_IMX93_MU1_IRQ       = 22,   /* MU1_MUB -> A55 GIC SPI */
+    FSL_IMX93_M33_MU_IRQ    = 21,   /* MU1_MUA -> M33 NVIC (per fw) */
     FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
     FSL_IMX93_LPI2C8_IRQ    = 198,
@@ -399,6 +401,9 @@ enum FslImx93Irqs {
 
 /* WM8962 audio codec on LPI2C1. */
 #define FSL_IMX93_WM8962_ADDR           0x1a
+
+/* MU1_MUA: the M33 side of MU1 (the A55 side, MU1_MUB, is FSL_IMX93_MU1). */
+#define FSL_IMX93_MU1_MUA_ADDR          0x44220000
 
 /* Camera (mt9m114 device-tree variant) on LPI2C8. */
 #define FSL_IMX93_MT9M114_ADDR          0x48

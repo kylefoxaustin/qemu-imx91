@@ -456,6 +456,23 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_MU1].addr);
         sysbus_connect_irq(sbd, 0,
                            qdev_get_gpio_in(gicdev, FSL_IMX93_MU1_IRQ));
+
+        /*
+         * MU1_MUA is the M33's side of the same MU. Peer-link it to MUB so a
+         * TR write on one side lands in the other's RR and rings its doorbell:
+         * the A55's rproc kick reaches the M33's MU IRQ (NVIC 21, per the NXP
+         * firmware), and the M33's RPMsg name-service announcement reaches the
+         * A55's MU1 GIC line. Realized after the M33 so its NVIC inputs exist.
+         */
+        SysBusDevice *sbd_a = SYS_BUS_DEVICE(&s->mu1_a);
+
+        if (!sysbus_realize(sbd_a, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd_a, 0, FSL_IMX93_MU1_MUA_ADDR);
+        sysbus_connect_irq(sbd_a, 0,
+            qdev_get_gpio_in(DEVICE(&s->m33), FSL_IMX93_M33_MU_IRQ));
+        imx_mu_set_peer(&s->mu1, &s->mu1_a);
     }
 
     /* On-chip RAM. */
@@ -941,6 +958,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
     object_initialize_child(obj, "m33", &s->m33, TYPE_ARMV7M);
     object_initialize_child(obj, "mu1", &s->mu1, TYPE_IMX_MU);
+    object_initialize_child(obj, "mu1_a", &s->mu1_a, TYPE_IMX_MU);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);
