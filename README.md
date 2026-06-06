@@ -12,11 +12,16 @@ A QEMU machine type for the NXP **i.MX 93** SoC, targeting the **11×11 EVK**
 > describes the i.MX 93-specific work.
 
 qemu-imx93 is the **first QEMU model of the i.MX 93**. It boots stock NXP BSP
-Linux to userspace on the dual Cortex-A55 cluster, with networking, storage,
-GPIO/PMIC, the EdgeLock Enclave mailbox, and a complete **LCDIFv3 → MIPI-DSI →
-ADV7535 → HDMI** display pipeline you can log into and type on. Intended use
-cases are BSP development, peripheral-driver development, and CI for the above.
-It is not cycle-accurate.
+Linux to userspace on the dual Cortex-A55 cluster and brings up essentially the
+whole EVK: **networking** (FEC + eQOS, both with DHCP), **SD/eMMC storage**,
+**GPIO/PMIC**, the **EdgeLock Enclave** mailbox, **eDMA3/4**, a full
+**LCDIFv3 → MIPI-DSI → ADV7535 → HDMI** (and LVDS) **display** you can log into
+and type on, a **Weston/Wayland desktop**, **FlexCAN**, **USB host** (real
+devices enumerate), **audio** (SAI + MICFIL + WM8962, all three ALSA cards), the
+**MIPI camera** capture pipeline, and the **Cortex-M33 real-time core running
+real NXP firmware with working A55↔M33 RPMsg**. Intended use cases are BSP
+development, peripheral-driver development, multicore/RPMsg work, and CI for the
+above. It is not cycle-accurate.
 
 Unlike the i.MX 95, the **i.MX 93 has no System Manager** — Linux programs the
 CCM / ANATOP / SRC / power domains directly, so those blocks are modelled
@@ -232,12 +237,16 @@ card with `-drive if=sd,file=disk.img,format=raw`.
 
 - **2× Cortex-A55** (GICv3 / GIC-600, no ITS in the base SoC), the application
   cores running Linux. DDR at `0x8000_0000`.
-- **No System Manager.** Unlike the i.MX 95, there is no M33 SM firmware and no
-  SCMI indirection — Linux drives CCM/ANATOP/SRC/power-domains directly, and
-  those are modelled functionally.
-- Real device models for everything the boot + display exercise: LPUART, CCM,
-  ANATOP, MEDIAMIX (blk-ctrl GPR + SRC power slice), PXP, ELE MU, LPI2C +
-  PMICs, GPIO, uSDHC, FEC + eQOS, eDMA3, LCDIFv3 + DSI + ADV7535, and
+- **1× Cortex-M33** real-time core, instantiated as a heterogeneous ARMv8-M
+  context with its own ITCM/DTCM and a secure peripheral window. It runs real
+  NXP firmware and exchanges RPMsg with Linux over MU1 + shared vrings. Unlike
+  the i.MX 95's M33 this is **not** a System Manager — there is no SCMI
+  indirection; Linux drives CCM/ANATOP/SRC/power-domains directly and those are
+  modelled functionally.
+- Real device models for everything boot/display/audio/camera/USB/M33 exercise:
+  LPUART, CCM, ANATOP, MEDIAMIX (blk-ctrl GPR + SRC power slice), PXP, ELE MU,
+  MU1, LPI2C + PMICs, GPIO, uSDHC, FEC + eQOS, eDMA3/4, LCDIFv3 + DSI + ADV7535,
+  SAI/MICFIL/WM8962, MT9M114 + parallel-CSI + ISI, ChipIdea USB, FlexCAN, and
   virtio-mmio for input. Everything else is a logging stub.
 - The NXP BSP uses its **downstream `drm/imx` drivers** (`DRM_IMX_LCDIFV3`,
   `dw-mipi-dsi`, `adv7511`), not the mainline `mxsfb`/`imx` ones — worth knowing
@@ -251,25 +260,34 @@ behaviour.
 
 | Path | Purpose |
 | --- | --- |
-| `hw/arm/fsl-imx93.c`, `include/hw/arm/fsl-imx93.h` | SoC realization: CPUs, GIC, device wiring, memory map, virtio-mmio, logging stubs |
+| `hw/arm/fsl-imx93.c`, `include/hw/arm/fsl-imx93.h` | SoC realization: A55 cluster + Cortex-M33, GIC, device wiring, memory map, virtio-mmio, logging stubs |
 | `hw/arm/imx93-evk.c`        | 11×11 EVK board file (SD attach, DTB virtio node injection) |
 | `hw/char/imx_lpuart.c`      | LPUART model (console) |
 | `hw/misc/imx93_ccm.c`, `hw/misc/imx93_anatop.c` | CCM clock roots/gates; ANATOP PLLs |
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
 | `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP reset model; ELE (EdgeLock Enclave) MU + responder |
+| `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
+| `hw/i2c/mt9m114.c`          | MT9M114 camera sensor (I²C) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
 | `hw/net/imx93_dwmac.c`      | eQOS dwmac4 Ethernet (from scratch) |
 | `hw/net/can/flexcan.c`      | FlexCAN controller (QEMU CAN bus) |
-| `hw/dma/imx93_edma.c`       | eDMA3 controller (TCD execution) |
+| `hw/dma/imx93_edma.c`       | eDMA3 / eDMA4 controller (TCD execution, parameterised stride) |
 | `hw/display/imx93_lcdif.c`  | LCDIFv3 display controller + framebuffer scanout |
 | `hw/display/imx93_dsi.c`    | MIPI-DSI host (dw-mipi-dsi core) |
 | `hw/display/adv7535.c`      | ADV7535 DSI-to-HDMI bridge (I²C) |
+| `hw/audio/imx93_sai.c`, `hw/audio/imx93_micfil.c` | SAI (I²S) + MICFIL (PDM mic) front-ends |
+| `hw/audio/wm8962.c`         | WM8962 audio codec (I²C) |
 | `tests/qtest/flexcan-test.c` | kernel-free FlexCAN model qtest (frame TX/RX) |
 | `tests/hello-imx93/`        | bare-metal LPUART hello (no artifacts needed) |
+| `tests/m33-boot/`           | bare-metal Cortex-M33 bring-up (blob runs, writes DTCM) |
+| `tests/m33-rpmsg/`          | A55↔M33 RPMsg ping-pong with the NXP M33 firmware |
 | `tests/boot-imx93/run.sh`   | boot Linux to the serial console |
 | `tests/login-imx93/run.sh`  | interactive login on the emulated HDMI display |
 | `tests/weston-imx93/run.sh` | Weston/Wayland desktop on the emulated display |
+| `tests/audio-imx93/run.sh`  | ALSA card registration (SAI/MICFIL/WM8962) |
+| `tests/camera-imx93/run.sh` | V4L2 camera pipeline (MT9M114 → CSI → ISI) |
+| `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check |
 | `tests/poweroff-imx93/`     | static PSCI power-off helper |
 
 ## Building
@@ -332,6 +350,17 @@ before the EDID could be read and a mode set.
   1920×1080 HDMI scanout of the framebuffer; the dual-A55 SMP Tux logos.
 - **Interactive login + input** — serial + HDMI-framebuffer login; virtio-mmio
   + virtio-keyboard/tablet so you can type in the QEMU window onto the display.
+- **LVDS + Weston** — second display path (LDB → LVDS panel) and a full
+  `core-image-weston` Wayland desktop (software-rendered).
+- **CAN + USB** — FlexCAN on the QEMU CAN bus (qtest + live driver); ChipIdea
+  USB host enumerating real `usb-kbd` / `usb-storage`.
+- **Audio + camera** — SAI/MICFIL/WM8962 register all three ALSA cards; the
+  MT9M114 → parallel-CSI → ISI pipeline brings up the V4L2 media graph.
+- **Cortex-M33 + RPMsg** — the M33 runs the real NXP FreeRTOS firmware and
+  ping-pongs RPMsg messages with Linux over MU1 + shared vrings (the transport
+  the Ethos-U65 NPU path will ride on).
+- **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
+  docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 
 ## License & credits
 
