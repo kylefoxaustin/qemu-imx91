@@ -39,6 +39,7 @@
 #include "hw/display/imx93_lcdif.h"
 #include "hw/display/imx93_dsi.h"
 #include "hw/misc/imx93_media_blk.h"
+#include "hw/misc/imx_mu.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -91,7 +92,15 @@ enum FslImx93Configuration {
 #define FSL_IMX93_M33_DTCM_MVIEW_S   0x30000000ULL  /* M33 secure        */
 #define FSL_IMX93_M33_DTCM_SYSVIEW   0x20200000ULL  /* A55 view of DTCM  */
 #define FSL_IMX93_M33_TCM_SIZE       (256 * KiB)
-#define FSL_IMX93_M33_SVTOR          FSL_IMX93_M33_ITCM_MVIEW_S
+/*
+ * NXP's i.MX93 M33 firmware (MCUXpresso SDK, rpmsg-lite, ...) links its vector
+ * table 0x20000 into the ITCM (M33 view 0x0FFE0000 / secure 0x1FFE0000), with
+ * .resource_table right after it - not at the ITCM base. The reset VTOR and
+ * the firmware-presence check both key off this offset.
+ */
+#define FSL_IMX93_M33_FW_OFFSET      0x20000
+#define FSL_IMX93_M33_SVTOR          (FSL_IMX93_M33_ITCM_MVIEW_S + \
+                                      FSL_IMX93_M33_FW_OFFSET)
 #define FSL_IMX93_M33_NUM_IRQ        256
 #define FSL_IMX93_M33_CLK_HZ         200000000U     /* M33 ~200 MHz */
 
@@ -127,6 +136,7 @@ struct FslImx93State {
     /* Cortex-M33 real-time core + its private TCM and address-space views. */
     ARMv7MState     m33;
     Clock           *m33_cpuclk;
+    IMXMUState      mu1;                  /* A55<->M33 mailbox (rpmsg) */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_itcm;            /* ITCM backing RAM (M33 secure)    */
@@ -309,6 +319,7 @@ enum FslImx93Irqs {
     FSL_IMX93_EQOS_IRQ      = 184,
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
+    FSL_IMX93_MU1_IRQ       = 22,   /* A55<->M33 mailbox */
     FSL_IMX93_LPI2C1_IRQ    = 13,
     FSL_IMX93_LPI2C2_IRQ    = 14,
     FSL_IMX93_LPI2C8_IRQ    = 198,

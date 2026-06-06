@@ -35,11 +35,12 @@ LOG=$(mktemp /tmp/m33boot.XXXXXX.log)
 cleanup() { [ -n "${QPID:-}" ] && kill "$QPID" 2>/dev/null; rm -f "$MON" "$LOG"; }
 trap cleanup EXIT
 
-# ITCM A55-view alias = 0x201C0000 (imx_rproc_att_imx93 TCM CODE sys addr).
+# Load at the A55 view of ITCM + 0x20000 (0x201E0000) - the M33 reset VTOR,
+# matching where NXP M33 firmware links its vector table.
 setsid "$QEMU" -M imx93-11x11-evk -m 4G -display none \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$BASE_INITRD" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/sbin/init ignore_loglevel" \
-    -device loader,file="$FW",addr=0x201C0000 \
+    -device loader,file="$FW",addr=0x201E0000 \
     -monitor unix:"$MON",server,nowait \
     -serial file:"$LOG" -serial null >/dev/null 2>&1 < /dev/null &
 QPID=$!

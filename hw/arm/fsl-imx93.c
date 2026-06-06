@@ -192,7 +192,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_RSC_TABLE, FSL_IMX93_OCOTP,
-        FSL_IMX93_MU1, FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
+        FSL_IMX93_MU2, FSL_IMX93_SYSCTR,
         FSL_IMX93_WDOG1, FSL_IMX93_WDOG2, FSL_IMX93_WDOG3,
         FSL_IMX93_WDOG4, FSL_IMX93_WDOG5,
         FSL_IMX93_TRDC, FSL_IMX93_BBNSM, FSL_IMX93_TMU, FSL_IMX93_ADC1,
@@ -227,8 +227,9 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
 static void fsl_imx93_m33_start_bh(void *opaque)
 {
     FslImx93State *s = opaque;
-    const void *itcm = memory_region_get_ram_ptr(&s->m33_itcm);
-    uint32_t initial_sp = ldl_le_p(itcm);
+    const uint8_t *itcm = memory_region_get_ram_ptr(&s->m33_itcm);
+    /* The firmware's vector table sits at the reset VTOR (ITCM + FW_OFFSET). */
+    uint32_t initial_sp = ldl_le_p(itcm + FSL_IMX93_M33_FW_OFFSET);
 
     if (initial_sp != 0 && s->m33.cpu) {
         CPUState *cs = CPU(s->m33.cpu);
@@ -438,6 +439,23 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
 
         s->m33_machine_done.notify = fsl_imx93_machine_done;
         qemu_add_machine_init_done_notifier(&s->m33_machine_done);
+    }
+
+    /*
+     * MU1: the A55<->M33 messaging unit (the cm33 remoteproc's tx/rx/rxdb
+     * mailbox). The A55-side endpoint is mapped here with its GIC line; the
+     * M33-side peer endpoint (for the RPMsg doorbell relay) is added once the
+     * M33 firmware path is wired.
+     */
+    {
+        SysBusDevice *sbd = SYS_BUS_DEVICE(&s->mu1);
+
+        if (!sysbus_realize(sbd, errp)) {
+            return;
+        }
+        sysbus_mmio_map(sbd, 0, fsl_imx93_memmap[FSL_IMX93_MU1].addr);
+        sysbus_connect_irq(sbd, 0,
+                           qdev_get_gpio_in(gicdev, FSL_IMX93_MU1_IRQ));
     }
 
     /* On-chip RAM. */
@@ -922,6 +940,7 @@ static void fsl_imx93_init(Object *obj)
 
     object_initialize_child(obj, "gic", &s->gic, TYPE_ARM_GICV3);
     object_initialize_child(obj, "m33", &s->m33, TYPE_ARMV7M);
+    object_initialize_child(obj, "mu1", &s->mu1, TYPE_IMX_MU);
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

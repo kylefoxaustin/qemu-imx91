@@ -2,6 +2,9 @@ config APPLESMC
     bool
     depends on ISA_BUS
 
+config IMX_MU
+    bool
+
 config ARMSSE_CPUID
     bool
 
