@@ -126,14 +126,17 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
   run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
   `tests/weston-imx93/run.sh`.
-- **Ethos-U65 microNPU — driver binds.** The `arm,ethosu` driver probes, takes
-  its reserved memory region, and registers `/dev/ethosu0`, with a clean
-  deferred-probe list. No model was needed: on the i.MX 93 the NPU is **not** a
-  Linux-mapped peripheral (its DT node has no `reg`) — it is driven by firmware
-  on the Cortex-M33 (`fsl,cm33-proc`), and Linux only ships inference jobs over
-  RPMsg. Running an actual inference would require Cortex-M33 firmware plus a
-  model of the NPU compute engine, both out of scope (see Roadmap). See
-  `tests/npu-imx93/run.sh`.
+- **Ethos-U65 microNPU — firmware stack comes up.** On the i.MX 93 the NPU is
+  driven by firmware on the Cortex-M33 (its DT node has no `reg`), not by Linux.
+  Without that firmware the `arm,ethosu` driver still binds and registers
+  `/dev/ethosu0` (see `tests/npu-imx93/run.sh`). With the stock NXP
+  `ethosu_firmware` loaded on the M33, the modelled Ethos-U65 register block
+  (0x4a900000) satisfies the firmware's device init (product check, soft reset,
+  access-state) so the firmware initialises the NPU, comes up
+  (`Initialize Arm Ethos-U / RPMSG_LITE is link up`), and brings up
+  `rpmsg-ethosu-channel`, which Linux creates and binds. Running an *actual
+  inference* additionally needs a model of the NPU command-stream compute
+  engine — see Roadmap.
 - **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
   ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
@@ -154,15 +157,16 @@ with clock, and a `weston-terminal` window, all software-rendered.*
 
 ## Roadmap
 
-Every peripheral on the EVK's roadmap is **done** and described under "What runs
+Everything on the EVK's roadmap is **done** and described under "What runs
 today" above: networking, storage, the full **display (HDMI + LVDS) + input**
 stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
-capture pipeline**, the **Ethos-U65** driver, the **Cortex-M33** core with
-**A55↔M33 RPMsg**, and a **Weston/Wayland desktop**.
+capture pipeline**, the **Cortex-M33** core with **A55↔M33 RPMsg**, the
+**Ethos-U65** NPU firmware stack (firmware boots + `rpmsg-ethosu-channel` up),
+and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| Ethos-U65 inference | Load the NXP ethos M33 firmware so a real inference runs over the (now working) `rpmsg-ethosu-channel` | next |
+| Ethos-U65 inference | A model of the NPU command-stream compute engine so a *real* inference executes (feasibility under research) | research |
 | Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
 
 Each modelled block is taken to the same bar — the Linux driver binds and the
@@ -170,9 +174,9 @@ subsystem registers its devices — matching how QEMU SoC machines model
 controllers for driver bring-up rather than emulating end-to-end data paths to
 host audio/video/NPU sinks. Two intentional non-goals follow from that bar: the
 SAI/camera paths register their ALSA/V4L2 devices but do not pump real
-samples/frames, and the Ethos-U65 binds its driver but does not run inferences
-(that needs Cortex-M33 firmware + an NPU compute model — a firmware/accelerator
-emulation effort, not a SoC device model).
+samples/frames, and the Ethos-U65 firmware stack comes up over RPMsg but does
+not execute a real inference (that needs the NPU command-stream compute engine —
+a firmware/accelerator emulation effort, not a SoC device model).
 
 ## Required artifacts
 
@@ -267,6 +271,7 @@ behaviour.
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
 | `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP reset model; ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
+| `hw/misc/imx93_ethosu.c`    | Ethos-U65 microNPU register block (M33-firmware bring-up) |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
 | `hw/i2c/mt9m114.c`          | MT9M114 camera sensor (I²C) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
@@ -357,8 +362,10 @@ before the EDID could be read and a mode set.
 - **Audio + camera** — SAI/MICFIL/WM8962 register all three ALSA cards; the
   MT9M114 → parallel-CSI → ISI pipeline brings up the V4L2 media graph.
 - **Cortex-M33 + RPMsg** — the M33 runs the real NXP FreeRTOS firmware and
-  ping-pongs RPMsg messages with Linux over MU1 + shared vrings (the transport
-  the Ethos-U65 NPU path will ride on).
+  ping-pongs RPMsg messages with Linux over MU1 + shared vrings.
+- **Ethos-U65 NPU firmware stack** — the modelled NPU register block lets the
+  stock NXP ethos M33 firmware initialise the NPU and bring up
+  `rpmsg-ethosu-channel`, which Linux binds.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 

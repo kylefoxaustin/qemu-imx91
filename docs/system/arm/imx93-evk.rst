@@ -2,10 +2,11 @@ NXP i.MX 93 11x11 Evaluation Kit (``imx93-11x11-evk``)
 ======================================================
 
 The ``imx93-11x11-evk`` machine models the NXP i.MX 93 11x11 LPDDR4X
-Evaluation Kit. The i.MX 93 is a dual Cortex-A55 applications processor.
-Unlike the i.MX 95, it has no System Manager: Linux programs the clock
-(CCM), analog PLLs (ANATOP), reset and power-domain blocks directly, so
-those are modelled functionally rather than served by firmware over SCMI.
+Evaluation Kit. The i.MX 93 is a dual Cortex-A55 applications processor
+with a Cortex-M33 real-time core. Unlike the i.MX 95, it has no System
+Manager: Linux programs the clock (CCM), analog PLLs (ANATOP), reset and
+power-domain blocks directly, so those are modelled functionally rather
+than served by firmware over SCMI.
 
 Supported devices
 -----------------
@@ -13,19 +14,25 @@ Supported devices
 The ``imx93-11x11-evk`` machine implements the following devices:
 
  * 2 Cortex-A55 application cores
+ * 1 Cortex-M33 real-time core (heterogeneous, with private ITCM/DTCM)
  * Generic Interrupt Controller (GICv3)
  * LPUART serial controllers (LPUART1 is the Linux console)
  * CCM clock controller and ANATOP PLLs
  * MEDIAMIX block control / GPR and SRC power-domain slice
- * LPI2C controllers with the board PMIC (PCA9451A), the PCAL6524 and
-   ADP5585 I/O expanders
+ * LPI2C controllers with the board PMIC (PCA9451A), the PCAL6524,
+   ADP5585 and PCA9538 I/O expanders, and an MT9M114 camera sensor
  * GPIO controllers
  * ELE (EdgeLock Enclave) messaging-unit responder
- * eDMA v3 controller
+ * MU1 Messaging Unit (A55 <-> M33 mailbox)
+ * eDMA3 and eDMA4 controllers
  * uSDHC (SD/MMC)
  * FEC and eQOS (dwmac4) Ethernet
+ * ChipIdea USB host controllers
  * Display: LCDIFv3 controller with a MIPI-DSI host + ADV7535 HDMI bridge,
    and an LDB + LVDS-PHY path to a fixed LVDS panel
+ * Audio: SAI (I2S) and MICFIL (PDM) front-ends with a WM8962 codec
+ * Camera: MT9M114 sensor -> parallel-CSI -> ISI V4L2 capture pipeline
+ * Ethos-U65 microNPU register block (driven by the M33 firmware)
  * virtio-mmio transports (for virtio-keyboard / -tablet input)
  * FlexCAN controllers on QEMU's CAN bus
 
@@ -66,3 +73,25 @@ Input
 A ``virtio-keyboard-device`` (and optionally ``virtio-tablet-device``)
 binds to the modelled virtio-mmio transports, delivering keyboard input
 to the framebuffer console when run with a graphical display backend.
+
+Cortex-M33 real-time core
+-------------------------
+
+The Cortex-M33 is instantiated as an additional, always-present core with
+its own ITCM/DTCM. It is held in reset until firmware is staged into its
+ITCM, so a plain Linux boot is unaffected. Stage a firmware image (a raw
+``.bin`` linked for the TCM, as produced from the NXP M-core SDK) at the
+A55-side ITCM alias and let the machine release the core::
+
+  -device loader,file=m33_firmware.bin,addr=0x201e0000,force-raw=on
+
+With NXP's ``rpmsg_lite`` firmware on the M33 and ``imx_rpmsg_pingpong``
+on Linux, the M33 brings its RPMsg link up over MU1, announces a channel,
+and messages round-trip through the shared vrings. For remoteproc to
+attach, the firmware's resource table must also be present at the
+``rsc-table`` reserved-memory region (as U-Boot's ``bootaux`` would place
+it); stage it with a second ``-device loader,...,addr=0x2021e000``.
+
+The Ethos-U65 microNPU is driven by firmware on the M33 (it has no
+Linux-visible registers); with the NXP ethos firmware loaded the same
+way, Linux's ethosu driver connects over ``rpmsg-ethosu-channel``.
