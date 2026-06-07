@@ -630,6 +630,7 @@ config FSL_IMX93
     select FSL_IMX93_DWMAC
     select FSL_IMX93_LCDIF
     select FSL_IMX93_DSI
+    select FSL_IMX93_ISI
     select FSL_IMX93_MEDIA_BLK
     select FSL_IMX93_EDMA
     select ADV7535

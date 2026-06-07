@@ -198,7 +198,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_BLK_CTRL_AONMIX, FSL_IMX93_BLK_CTRL_WAKEUPMIX,
         FSL_IMX93_BLK_CTRL_DDRMIX,
         FSL_IMX93_TRDC,
-        FSL_IMX93_MIPI_CSI, FSL_IMX93_ISI,
+        FSL_IMX93_MIPI_CSI,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
@@ -804,6 +804,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->lcdif), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_LCDIF_IRQ));
 
+    /* ISI: capture channel; synthesises frames for the imx8-isi V4L2 driver. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->isi), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->isi), 0,
+                    fsl_imx93_memmap[FSL_IMX93_ISI].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->isi), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_ISI_IRQ));
+
     /*
      * eDMA1: the i.MX LPI2C driver moves any transfer >= 8 bytes (e.g. the
      * 64-byte HDMI EDID block read) through eDMA, so a working DMA engine is
@@ -1272,6 +1281,7 @@ static void fsl_imx93_init(Object *obj)
                             TYPE_IMX93_MEDIA_BLK_CTRL);
     object_initialize_child(obj, "dsi", &s->dsi, TYPE_IMX93_DSI);
     object_initialize_child(obj, "lcdif", &s->lcdif, TYPE_IMX93_LCDIF);
+    object_initialize_child(obj, "isi", &s->isi, TYPE_IMX93_ISI);
 
     for (i = 0; i < FSL_IMX93_NUM_FLEXCAN; i++) {
         g_autofree char *name = g_strdup_printf("flexcan%d", i + 1);

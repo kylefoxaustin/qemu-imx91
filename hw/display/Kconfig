@@ -33,6 +33,9 @@ config FSL_IMX93_LCDIF
     bool
     select FRAMEBUFFER
 
+config FSL_IMX93_ISI
+    bool
+
 config FSL_IMX93_DSI
     bool
 
