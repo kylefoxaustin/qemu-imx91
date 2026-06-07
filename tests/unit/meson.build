@@ -24,6 +24,8 @@ tests = {
   'test-resv-mem': [],
   'test-ethos-u-cmdstream': [files('../../hw/npu/ethos_u_cmdstream.c',
                                    '../../hw/npu/ethos_u_addr.c')],
+  'test-ethos-u-mlw': [files('../../hw/npu/ethos_u_weights.c',
+                             '../../hw/npu/mlw/mlw_decode.c')],
   # all code tested by test-x86-topo is inside topology.h
   'test-x86-topo': [],
   'test-cutils': [],
