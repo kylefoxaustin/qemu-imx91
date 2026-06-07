@@ -73,6 +73,63 @@ static int test_fill(void *handle)
     return bad ? 1 : 0;
 }
 
+#define BLIT_W  64
+#define BLIT_H  64
+
+/* g2d_blit(): opaque same-format surface->surface blit, verify dst == src. */
+static int test_blit(void *handle)
+{
+    struct g2d_buf *src = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_buf *dst = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_surface s, d;
+    uint32_t *sp, *dp;
+    int i, rc, bad = 0;
+
+    if (!src || !dst) {
+        printf("PXP-G2D-BLIT: FAIL (g2d_alloc)\n");
+        return 1;
+    }
+    sp = src->buf_vaddr;
+    dp = dst->buf_vaddr;
+    for (i = 0; i < BLIT_W * BLIT_H; i++) {
+        sp[i] = 0x10000000u + (uint32_t)i;     /* unique per pixel */
+        dp[i] = 0xa5a5a5a5u;
+    }
+    g2d_cache_op(src, G2D_CACHE_FLUSH);
+    g2d_cache_op(dst, G2D_CACHE_FLUSH);
+
+    memset(&s, 0, sizeof(s));
+    s.format = G2D_RGBA8888; s.planes[0] = src->buf_paddr;
+    s.left = 0; s.top = 0; s.right = BLIT_W; s.bottom = BLIT_H;
+    s.stride = BLIT_W; s.width = BLIT_W; s.height = BLIT_H;
+    s.blendfunc = G2D_ONE; s.global_alpha = 255;
+    d = s;
+    d.planes[0] = dst->buf_paddr;
+    d.blendfunc = G2D_ZERO;
+
+    rc = g2d_blit(handle, &s, &d);
+    if (rc == 0) {
+        rc = g2d_finish(handle);
+    }
+    g2d_cache_op(dst, G2D_CACHE_INVALIDATE);
+
+    if (rc != 0) {
+        printf("PXP-G2D-BLIT: FAIL (g2d_blit/finish rc=%d)\n", rc);
+        bad = 1;
+    } else {
+        for (i = 0; i < BLIT_W * BLIT_H; i++) {
+            if (dp[i] != sp[i]) {
+                bad++;
+            }
+        }
+        printf("PXP-G2D-BLIT: %s (%d/%d px wrong, px0=%#x want %#x)\n",
+               bad ? "FAIL" : "PASS", bad, BLIT_W * BLIT_H, dp[0], sp[0]);
+    }
+    g2d_free(src);
+    g2d_free(dst);
+    return bad ? 1 : 0;
+}
+
 int main(void)
 {
     void *handle = NULL;
@@ -126,6 +183,9 @@ int main(void)
 
     /* Second op: constant-colour fill (g2d_clear) via the Store engine. */
     bad += test_fill(handle);
+
+    /* Third op: opaque surface->surface blit (g2d_blit, fetch->store). */
+    bad += test_blit(handle);
 
     g2d_close(handle);
     return bad ? 1 : 0;

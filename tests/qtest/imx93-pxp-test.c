@@ -31,7 +31,10 @@
 #define PXP_PS_BUF      0xc0
 #define PXP_PS_PITCH    0xf0
 
-/* Fetch/Store engine cluster used by the fill path. */
+/* Fetch/Store engine cluster used by the fill and blit paths. */
+#define PXP_FETCH_SIZE  0x4a0
+#define PXP_FETCH_PITCH 0x510
+#define PXP_FETCH_ADDR  0x580
 #define PXP_STORE_SIZE  0x600
 #define PXP_STORE_PITCH 0x620
 #define PXP_STORE_ADDR  0x690
@@ -144,10 +147,52 @@ static void test_fill(void)
     qtest_quit(qts);
 }
 
+/* Opaque Fetch->Store surface blit: src surface copied to dst, byte-exact. */
+static void test_blit(void)
+{
+    QTestState *qts = qtest_init("-machine imx93-11x11-evk -display none");
+    g_autofree uint8_t *src = g_malloc(FM_LEN);
+    g_autofree uint8_t *dst = g_malloc(FM_LEN);
+    uint32_t stat;
+    int i;
+
+    for (i = 0; i < FM_LEN; i++) {
+        src[i] = (uint8_t)(i * 13 + 0x07);
+    }
+    qtest_memwrite(qts, SRC_ADDR, src, FM_LEN);
+    memset(dst, 0x5a, FM_LEN);
+    qtest_memwrite(qts, DST_ADDR, dst, FM_LEN);
+
+    /* Program the Fetch source and Store dest. Writing FETCH_ADDR arms the
+     * blit path for the shared ENABLE kick. */
+    pxp_writel(qts, PXP_FETCH_SIZE, ((W - 1) << 16) | (H - 1));
+    pxp_writel(qts, PXP_FETCH_PITCH, PITCH);
+    pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
+    pxp_writel(qts, PXP_STORE_PITCH, PITCH);
+    pxp_writel(qts, PXP_STORE_ADDR, (uint32_t)DST_ADDR);
+    pxp_writel(qts, PXP_FETCH_ADDR, (uint32_t)SRC_ADDR);
+
+    pxp_writel(qts, PXP_CTRL_SET, CTRL_ENABLE);
+
+    stat = qtest_readl(qts, PXP_BASE + PXP_STAT);
+    g_assert_cmphex(stat & STAT_IRQ0, ==, STAT_IRQ0);
+
+    qtest_memread(qts, DST_ADDR, dst, FM_LEN);
+    for (i = 0; i < FM_LEN; i++) {
+        if (dst[i] != src[i]) {
+            g_test_message("OFM[%d] = %#x, want %#x", i, dst[i], src[i]);
+        }
+        g_assert_cmpuint(dst[i], ==, src[i]);
+    }
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/aarch64/imx93-pxp/copy", test_copy);
     qtest_add_func("/aarch64/imx93-pxp/fill", test_fill);
+    qtest_add_func("/aarch64/imx93-pxp/blit", test_blit);
     return g_test_run();
 }
