@@ -77,8 +77,7 @@ bool ethos_u_cmdstream_run(EthosUState *s, hwaddr qbase, uint32_t qsize)
         basep[i] = ethos_u_region_base(s, i);
     }
 
-    /* Phase 1: no per-op handler yet (compute lands in later phases). */
-    return ethos_u_cmdstream_decode(cms, qsize, basep, NULL, NULL);
+    return ethos_u_cmdstream_decode(cms, qsize, basep, ethos_u_exec_op, s);
 }
 
 /* A single in-flight job (snapshot taken at kick time). */

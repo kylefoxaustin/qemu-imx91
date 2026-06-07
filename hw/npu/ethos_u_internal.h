@@ -216,4 +216,11 @@ bool ethos_u_cmdstream_run(EthosUState *s, hwaddr qbase, uint32_t qsize);
 /* Resolve BASEP[region] from the register file (low/high pair). */
 uint64_t ethos_u_region_base(EthosUState *s, int region);
 
+/*
+ * Per-operation execution handler (the EthosUOpHandler passed to the decoder).
+ * @ctx is the EthosUState. Runs DMA copies and (later) the compute kernels over
+ * the device DMA address space; may run on a worker thread.
+ */
+void ethos_u_exec_op(void *ctx, uint16_t opcode, const EthosUOpDesc *op);
+
 #endif /* HW_NPU_ETHOS_U_INTERNAL_H */

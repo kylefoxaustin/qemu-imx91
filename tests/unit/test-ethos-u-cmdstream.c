@@ -12,6 +12,7 @@
 
 #include "qemu/osdep.h"
 #include "../../hw/npu/ethos_u_internal.h"
+#include "../../hw/npu/ethos_u_addr.h"
 
 /* Little-endian command-stream emitter. */
 typedef struct {
@@ -169,10 +170,48 @@ static void test_bad_size(void)
     g_assert_false(ethos_u_cmdstream_decode(buf, 3, basep, NULL, NULL));
 }
 
+/* NHWC addressing: off = y*sy + x*sx + c*sc. */
+static void test_addr_nhwc(void)
+{
+    /* 16x16x8 int8: stride_c=1, stride_x=8, stride_y=128. */
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHWC, 0, 0, 0,
+                                       128, 8, 1, 1), ==, 0);
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHWC, 0, 0, 5,
+                                       128, 8, 1, 1), ==, 5);
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHWC, 0, 1, 0,
+                                       128, 8, 1, 1), ==, 8);
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHWC, 2, 3, 4,
+                                       128, 8, 1, 1), ==, 2 * 128 + 3 * 8 + 4);
+}
+
+/* NHCWB16: channels in bricks of 16. */
+static void test_addr_nhcwb16(void)
+{
+    /* width=16: stride_x=16, stride_c(brick)=16*16=256, stride_y=16*16=256. */
+    int sy = 256, sx = 16, sc = 256, elem = 1;
+
+    /* c < 16 stays in brick 0 at (c%16)*elem. */
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHCWB16, 0, 0, 0,
+                                       sy, sx, sc, elem), ==, 0);
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHCWB16, 0, 0, 7,
+                                       sy, sx, sc, elem), ==, 7);
+    /* c = 16 -> next brick (c/16 = 1) -> stride_c. */
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHCWB16, 0, 0, 16,
+                                       sy, sx, sc, elem), ==, 256);
+    /* c = 17 -> brick 1, within-brick 1. */
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHCWB16, 0, 0, 17,
+                                       sy, sx, sc, elem), ==, 256 + 1);
+    /* x advances by stride_x within a brick. */
+    g_assert_cmpuint(ethos_u_fm_offset(ETHOS_U_LAYOUT_NHCWB16, 0, 1, 0,
+                                       sy, sx, sc, elem), ==, 16);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     g_test_add_func("/ethos-u/cmdstream/conv", test_conv);
+    g_test_add_func("/ethos-u/addr/nhwc", test_addr_nhwc);
+    g_test_add_func("/ethos-u/addr/nhcwb16", test_addr_nhcwb16);
     g_test_add_func("/ethos-u/cmdstream/sticky-regs", test_sticky_regs);
     g_test_add_func("/ethos-u/cmdstream/truncated-cmd1", test_truncated_cmd1);
     g_test_add_func("/ethos-u/cmdstream/bad-size", test_bad_size);
