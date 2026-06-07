@@ -166,6 +166,15 @@ enumerates — the registration bar, no working host data path yet).
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
   run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
   `tests/weston-imx93/run.sh`.
+- **GStreamer media on the display — functional.** The i.MX 93 has **no hardware
+  JPEG/video codec** (its Reference Manual has no codec block — unlike the i.MX
+  95's CAST mxc-jpeg), so multimedia is pure software on the A55s. A stock
+  GStreamer pipeline proves that path end to end: frames are generated/decoded in
+  software and handed to `waylandsink`, which the auto-started Weston composites
+  (software) onto the LCDIFv3 → HDMI scanout. `videotestsrc` puts SMPTE bars on
+  screen, and a real Ogg/Theora clip is `theoradec`-decoded and played to EOS.
+  `tests/gstreamer-imx93/run.sh` stages the plugins (the BSP builds them but
+  installs them in no image) into a throwaway rootfs and boots it.
 - **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
   93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
@@ -218,6 +227,12 @@ enumerates — the registration bar, no working host data path yet).
 
 *Weston compositor on the emulated HDMI output — textured background, top panel
 with clock, and a `weston-terminal` window, all software-rendered.*
+
+![GStreamer videotestsrc rendered on the emulated i.MX93 HDMI display](docs/images/gstreamer-imx93.png)
+
+*A stock GStreamer pipeline (`videotestsrc ! videoconvert ! waylandsink`)
+software-rendered through Weston onto the emulated LCDIFv3 → HDMI scanout — the
+i.MX 93 has no hardware codec, so the whole media path runs on the A55s.*
 
 ## Roadmap
 
@@ -328,6 +343,7 @@ behaviour.
 | `tests/boot-imx93/run.sh`   | boot Linux to the serial console |
 | `tests/login-imx93/run.sh`  | interactive login on the emulated HDMI display |
 | `tests/weston-imx93/run.sh` | Weston/Wayland desktop on the emulated display |
+| `tests/gstreamer-imx93/run.sh` | GStreamer software media pipeline → waylandsink → display (no HW codec) |
 | `tests/audio-imx93/run.sh`  | ALSA card registration (SAI/MICFIL/WM8962) |
 | `tests/camera-imx93/run.sh` | V4L2 camera pipeline (MT9M114 → CSI → ISI) |
 | `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check (no firmware) |
