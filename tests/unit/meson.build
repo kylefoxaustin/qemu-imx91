@@ -26,6 +26,7 @@ tests = {
                                    '../../hw/npu/ethos_u_addr.c')],
   'test-ethos-u-mlw': [files('../../hw/npu/ethos_u_weights.c',
                              '../../hw/npu/mlw/mlw_decode.c')],
+  'test-ethos-u-requant': [files('../../hw/npu/ethos_u_requant.c')],
   # all code tested by test-x86-topo is inside topology.h
   'test-x86-topo': [],
   'test-cutils': [],
