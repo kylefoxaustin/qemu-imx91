@@ -51,6 +51,7 @@
 #include "hw/timer/imx93_tpm.h"
 #include "hw/timer/imx93_tstmr.h"
 #include "hw/misc/imx93_sema42.h"
+#include "hw/ssi/imx93_flexspi.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -69,6 +70,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(FslImx93State, FSL_IMX93)
  * board variants.
  */
 #define FSL_IMX93_RAM_START         0x80000000ULL
+#define FSL_IMX93_FLEXSPI_AHB_ADDR  0x28000000ULL  /* memory-mapped NOR (XIP) */
 #define FSL_IMX93_RAM_SIZE_MAX      (4ULL * GiB)
 
 /*
@@ -162,6 +164,7 @@ struct FslImx93State {
     IMXMUState mu2;                       /* MU2 @ 0x42440000                */
     IMX93TstmrState tstmr[2];            /* TSTMR1/2 timestamp timers       */
     IMX93Sema42State sema42[2];          /* SEMA42 (AON + WAKEUP)           */
+    IMX93FlexSpiState flexspi;           /* FlexSPI @ 0x425e0000 (NOR flash) */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */
@@ -356,6 +359,7 @@ enum FslImx93Irqs {
     FSL_IMX93_ADC1_IRQ      = 219,   /* SAR-ADC conversion (driver irq idx 2) */
     FSL_IMX93_SYSCTR_IRQ    = 74,    /* system counter compare */
     FSL_IMX93_MU2_IRQ       = 23,    /* MU2 -> A55 GIC SPI */
+    FSL_IMX93_FLEXSPI1_IRQ  = 55,    /* FlexSPI */
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_MU1_IRQ       = 22,   /* MU1_MUB -> A55 GIC SPI */
