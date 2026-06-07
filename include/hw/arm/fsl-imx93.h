@@ -359,7 +359,7 @@ enum FslImx93Irqs {
     FSL_IMX93_BBNSM_IRQ     = 73,    /* BBNSM RTC alarm -> A55 GIC SPI */
     FSL_IMX93_TMU_IRQ       = 83,    /* TMU temp alarm */
     FSL_IMX93_ADC1_IRQ      = 219,   /* SAR-ADC conversion (driver irq idx 2) */
-    FSL_IMX93_PXP_IRQ       = 173,   /* WAKEUPMIX PXP interrupt 0 (completion) */
+    FSL_IMX93_PXP_IRQ       = 173,   /* WAKEUPMIX PXP interrupt 0 */
     FSL_IMX93_SYSCTR_IRQ    = 74,    /* system counter compare */
     FSL_IMX93_MU2_IRQ       = 23,    /* MU2 -> A55 GIC SPI */
     FSL_IMX93_FLEXSPI1_IRQ  = 55,    /* FlexSPI */

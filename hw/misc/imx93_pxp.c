@@ -5,18 +5,16 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Models the legacy MXS-style register cluster (offsets 0x00..0x3ff) that the
- * built-in pxp_dma_v3 driver programs for a g2d_copy: HW_PXP_CTRL soft-reset,
- * the PS (source) and OUT (dest) surface registers, and the ENABLE kick. On the
- * kick the engine fetches the PS surface from guest memory, writes it to the OUT
- * surface (same-format copy / constant-colour fill) and raises the completion
- * interrupt (WAKEUPMIX PXP interrupt 0) that the driver's fence waits on. Every
+ * Functional model of the i.MX 93 PXP 2D engine driven by the built-in
+ * pxp_dma_v3 driver via libg2d. HW_PXP_CTRL provides the soft-reset and the
+ * shared ENABLE kick; on the kick the engine runs one pass and raises the
+ * completion IRQ (WAKEUPMIX PXP interrupt 0) the driver's fence waits on. Every
  * register is MXS SET/CLR/TOG aliased; set PXP_DBG to trace accesses. The op
- * register layouts were captured from the live driver (see tests/pxp-imx93).
+ * register layouts were captured from the live driver (tests/pxp-imx93).
+ *
  * Scope is same-format copy, constant-colour fill, opaque Fetch->Store blit,
- * src-over alpha blend and 90/180/270 rotation. CSC is not modelled; g2d scale is
- * rejected by the pxp_dma_v3 driver ("unsupport 2d operation") so it is not
- * exercisable here.
+ * src-over alpha blend and 90/180/270 rotation. CSC is not modelled; g2d scale
+ * is rejected by the driver ("unsupport 2d operation"), so neither runs here.
  */
 
 #include "qemu/osdep.h"
@@ -51,14 +49,14 @@
  * (compositing) use this path instead of the legacy PS/OUT registers, kicked by
  * the same HW_PXP_CTRL ENABLE. Only the Store fill registers are modelled.
  */
-#define HW_PXP_FETCH_CTRL   0x450   /* INPUT_FETCH CH0 ctrl; [13:12] = rotation */
+#define HW_PXP_FETCH_CTRL   0x450   /* CH0 ctrl; [13:12] = rotation */
 #define HW_PXP_FETCH_SIZE   0x4a0   /* INPUT_FETCH size: w-1<<16 | h-1 */
-#define HW_PXP_FETCH_PITCH  0x510   /* stride: [31:16] CH1, [15:0] CH0, bytes */
-#define HW_PXP_FETCH_ADDR   0x580   /* INPUT_FETCH CH0 source (blit src / blend bg) */
-#define HW_PXP_FETCH_ADDR1  0x5a0   /* INPUT_FETCH CH1 source (blend foreground) */
+#define HW_PXP_FETCH_PITCH  0x510   /* stride: [31:16] CH1, [15:0] CH0 */
+#define HW_PXP_FETCH_ADDR   0x580   /* CH0 source (blit src / blend bg) */
+#define HW_PXP_FETCH_ADDR1  0x5a0   /* CH1 source (blend foreground) */
 #define HW_PXP_STORE_SIZE   0x600   /* [31:16] width-1, [15:0] height-1 */
 #define HW_PXP_STORE_PITCH  0x620   /* dest stride, bytes */
-#define HW_PXP_STORE_CTRL   0x630   /* INPUT_STORE_CTRL_CH0 (FILL_DATA_EN, fmt) */
+#define HW_PXP_STORE_CTRL   0x630   /* INPUT_STORE_CTRL_CH0 (FILL_DATA_EN) */
 #define HW_PXP_STORE_ADDR   0x690   /* dest physical address */
 #define HW_PXP_STORE_FILL   0x6b0   /* INPUT_STORE_FILL_DATA_CH0 */
 
@@ -72,12 +70,12 @@
 static void imx93_pxp_trace(const char *op, hwaddr offset, uint32_t value)
 {
     if (getenv("PXP_DBG")) {
-        fprintf(stderr, "[pxp] %s +%#06x = %#010x\n", op,
+        fprintf(stderr, "[pxp] %s +0x%04x = 0x%08x\n", op,
                 (unsigned)offset, value);
     }
 }
 
-/* Bytes per pixel for the PS/OUT FORMAT field (RGB formats; copy+fill scope). */
+/* Bytes per pixel for the PS/OUT FORMAT field (RGB formats only). */
 static int imx93_pxp_bpp(uint32_t ctrl)
 {
     switch (ctrl & 0x1f) {
@@ -88,8 +86,10 @@ static int imx93_pxp_bpp(uint32_t ctrl)
     }
 }
 
-/* Swap the R and B bytes of a 32-bit pixel (RGBA8888 <-> the Store internal
- * order, which the capture showed is byte-0/byte-2 swapped). */
+/*
+ * Swap the R and B bytes of a 32-bit pixel (RGBA8888 <-> the Store internal
+ * order, which the capture showed is byte-0/byte-2 swapped).
+ */
 static inline uint32_t imx93_pxp_swap_rb(uint32_t v)
 {
     return (v & 0xff00ff00u) | ((v >> 16) & 0xffu) | ((v & 0xffu) << 16);
@@ -157,7 +157,8 @@ static void imx93_pxp_fill(IMX93PxpState *s)
     }
 }
 
-/* Fetch->Store surface blit (g2d_blit), with optional 90/180/270 rotation from
+/*
+ * Fetch->Store surface blit (g2d_blit), with optional 90/180/270 rotation from
  * FETCH_CTRL[13:12]. The Fetch input conversion and the Store output conversion
  * cancel for a same-format blit, so the surface lands unchanged (just rotated).
  */
@@ -212,12 +213,22 @@ static void imx93_pxp_fetch_store(IMX93PxpState *s)
         for (ox = 0; ox < dw; ox++) {
             uint32_t sx, sy;
             switch (rot) {
-            case 1: sx = oy;          sy = sh - 1 - ox; break;  /* 90  */
-            case 2: sx = sw - 1 - ox; sy = sh - 1 - oy; break;  /* 180 */
-            default: sx = sw - 1 - oy; sy = ox;         break;  /* 270 */
+            case 1:                              /* 90  */
+                sx = oy;
+                sy = sh - 1 - ox;
+                break;
+            case 2:                              /* 180 */
+                sx = sw - 1 - ox;
+                sy = sh - 1 - oy;
+                break;
+            default:                             /* 270 */
+                sx = sw - 1 - oy;
+                sy = ox;
+                break;
             }
             if (sx < sw && sy < sh) {
-                memcpy(&dl[ox], sbuf + (size_t)sy * src_pitch + (size_t)sx * 4, 4);
+                memcpy(&dl[ox],
+                       sbuf + (size_t)sy * src_pitch + (size_t)sx * 4, 4);
             } else {
                 dl[ox] = 0;
             }
@@ -289,7 +300,7 @@ static void imx93_pxp_blend(IMX93PxpState *s)
  * Execute one PXP pass on the ENABLE kick and post the completion interrupt.
  * The legacy copy, Store fill, Fetch->Store blit and blend share the kick;
  * dispatch on whichever the driver armed last (a fetch source, a fill word, a
- * legacy OUT/PS buffer write, or a CH1 source for blend — see imx93_pxp_write).
+ * legacy OUT/PS buffer, or a CH1 source for blend; see imx93_pxp_write).
  */
 static void imx93_pxp_blit(IMX93PxpState *s)
 {
@@ -308,7 +319,7 @@ static void imx93_pxp_blit(IMX93PxpState *s)
             break;
         }
     }
-    s->blend_pending = false;       /* per-kick: re-armed by the next CH1 write */
+    s->blend_pending = false;       /* re-armed by the next CH1 write */
 
     /* Hardware clears ENABLE when the frame completes and posts IRQ0. */
     s->ctrl &= ~BM_PXP_CTRL_ENABLE;
@@ -341,10 +352,18 @@ static uint64_t imx93_pxp_read(void *opaque, hwaddr offset, unsigned size)
 static void imx93_pxp_mxs(uint32_t *reg, hwaddr offset, uint32_t value)
 {
     switch (offset & 0xf) {
-    case 0x0: *reg = value;    break;
-    case 0x4: *reg |= value;   break;
-    case 0x8: *reg &= ~value;  break;
-    case 0xc: *reg ^= value;   break;
+    case 0x0:
+        *reg = value;
+        break;
+    case 0x4:
+        *reg |= value;
+        break;
+    case 0x8:
+        *reg &= ~value;
+        break;
+    case 0xc:
+        *reg ^= value;
+        break;
     }
 }
 
@@ -377,7 +396,7 @@ static void imx93_pxp_write(void *opaque, hwaddr offset, uint64_t value,
          * buffer -> copy.
          */
         if (base == HW_PXP_FETCH_ADDR1) {
-            /* CH1 source is unique to a blend; overrides op_mode at the kick. */
+            /* CH1 source is unique to a blend; it wins at the kick. */
             s->blend_pending = true;
         } else if (base == HW_PXP_FETCH_ADDR) {
             s->op_mode = PXP_OP_BLIT;

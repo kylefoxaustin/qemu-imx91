@@ -7,10 +7,11 @@
  *
  * Drives a series of int8 convolutions through the NPU exactly as the firmware
  * would: each case stages a Vela-style command stream, mlw-encoded weights, a
- * scale/bias stream and an IFM in DRAM, programs the region bases + queue, kicks
- * the engine and compares the OFM written back to the golden. The cases escalate
- * from the single-brick path to the multi-brick / depth-split path wider models
- * need, so a failure pinpoints which executor path is wrong. No BSP boot.
+ * scale/bias stream and an IFM in DRAM, programs the region bases + queue,
+ * kicks the engine and compares the OFM written back to the golden. The cases
+ * escalate from the single-brick path to the multi-brick / depth-split path
+ * wider models need, so a failure pinpoints which executor path is wrong.
+ * No BSP boot.
  */
 
 #include "qemu/osdep.h"

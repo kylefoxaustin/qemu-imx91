@@ -5,12 +5,12 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Drives a PXP copy the way the pxp_dma_v3 driver does for a g2d_copy, with no
- * kernel: a source pattern is staged in DRAM, the PS (source) and OUT (dest)
- * surface registers are programmed, the ENABLE bit kicks the engine, and the
- * OFM written back is checked byte-exact against the source while STAT reports
- * the completion interrupt. The register sequence matches the one captured from
- * the live driver in tests/pxp-imx93.
+ * Drives the PXP the way the pxp_dma_v3 driver does, with no kernel: each test
+ * stages a source in DRAM, programs the op's registers, kicks ENABLE and checks
+ * the OFM written back is byte-exact while STAT reports the completion
+ * interrupt. Covers copy, fill, opaque blit, src-over blend and 90-degree
+ * rotation; the register sequences match the ones captured from the live driver
+ * in tests/pxp-imx93.
  */
 
 #include "qemu/osdep.h"
@@ -32,7 +32,7 @@
 #define PXP_PS_PITCH    0xf0
 
 /* Fetch/Store engine cluster used by the fill, blit, blend and rotate paths. */
-#define PXP_FETCH_CTRL  0x450       /* [13:12] = rotation (1=90, 2=180, 3=270) */
+#define PXP_FETCH_CTRL  0x450       /* [13:12] = rotation */
 #define PXP_FETCH_SIZE  0x4a0
 #define PXP_FETCH_PITCH 0x510
 #define PXP_FETCH_ADDR  0x580       /* CH0 (blit src / blend background) */
@@ -98,7 +98,7 @@ static void test_copy(void)
     qtest_memread(qts, DST_ADDR, dst, FM_LEN);
     for (i = 0; i < FM_LEN; i++) {
         if (dst[i] != src[i]) {
-            g_test_message("OFM[%d] = %#x, want %#x", i, dst[i], src[i]);
+            g_test_message("OFM[%d] = 0x%x, want 0x%x", i, dst[i], src[i]);
         }
         g_assert_cmpuint(dst[i], ==, src[i]);
     }
@@ -126,8 +126,10 @@ static void test_fill(void)
     }
     qtest_memwrite(qts, DST_ADDR, dst, FM_LEN);
 
-    /* Program the Store engine for a fill. Writing STORE_ADDR arms the fill
-     * path (vs the legacy copy path) for the shared ENABLE kick. */
+    /*
+     * Program the Store engine for a fill. Writing STORE_ADDR arms the fill
+     * path (vs the legacy copy path) for the shared ENABLE kick.
+     */
     pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
     pxp_writel(qts, PXP_STORE_PITCH, PITCH);
     pxp_writel(qts, PXP_STORE_FILL, fill);
@@ -141,7 +143,7 @@ static void test_fill(void)
     qtest_memread(qts, DST_ADDR, dst, FM_LEN);
     for (i = 0; i < (int)(FM_LEN / 4); i++) {
         if (dst[i] != want) {
-            g_test_message("OFM[%d] = %#x, want %#x", i, dst[i], want);
+            g_test_message("OFM[%d] = 0x%x, want 0x%x", i, dst[i], want);
         }
         g_assert_cmphex(dst[i], ==, want);
     }
@@ -165,8 +167,10 @@ static void test_blit(void)
     memset(dst, 0x5a, FM_LEN);
     qtest_memwrite(qts, DST_ADDR, dst, FM_LEN);
 
-    /* Program the Fetch source and Store dest. Writing FETCH_ADDR arms the
-     * blit path for the shared ENABLE kick. */
+    /*
+     * Program the Fetch source and Store dest. Writing FETCH_ADDR arms the
+     * blit path for the shared ENABLE kick.
+     */
     pxp_writel(qts, PXP_FETCH_SIZE, ((W - 1) << 16) | (H - 1));
     pxp_writel(qts, PXP_FETCH_PITCH, PITCH);
     pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
@@ -182,7 +186,7 @@ static void test_blit(void)
     qtest_memread(qts, DST_ADDR, dst, FM_LEN);
     for (i = 0; i < FM_LEN; i++) {
         if (dst[i] != src[i]) {
-            g_test_message("OFM[%d] = %#x, want %#x", i, dst[i], src[i]);
+            g_test_message("OFM[%d] = 0x%x, want 0x%x", i, dst[i], src[i]);
         }
         g_assert_cmpuint(dst[i], ==, src[i]);
     }
@@ -209,8 +213,8 @@ static void test_blend(void)
     for (i = 0; i < (int)(FM_LEN / 4); i++) {
         fbuf[i] = fg; dbuf[i] = bg;
     }
-    qtest_memwrite(qts, SRC_ADDR, fbuf, FM_LEN);          /* foreground */
-    qtest_memwrite(qts, DST_ADDR, dbuf, FM_LEN);          /* background + dest */
+    qtest_memwrite(qts, SRC_ADDR, fbuf, FM_LEN);     /* foreground */
+    qtest_memwrite(qts, DST_ADDR, dbuf, FM_LEN);     /* background + dest */
 
     want = ((uint32_t)(a + (uint8_t)((da * (255 - a) + 127) / 255)) << 24)
          | ((uint32_t)over((fg >> 16) & 0xff, (bg >> 16) & 0xff, a) << 16)
@@ -222,8 +226,8 @@ static void test_blend(void)
     pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
     pxp_writel(qts, PXP_STORE_PITCH, PITCH);
     pxp_writel(qts, PXP_STORE_ADDR, (uint32_t)DST_ADDR);
-    pxp_writel(qts, PXP_FETCH_ADDR, (uint32_t)DST_ADDR);   /* CH0 background */
-    pxp_writel(qts, PXP_FETCH_ADDR1, (uint32_t)SRC_ADDR);  /* CH1 fg -> arms blend */
+    pxp_writel(qts, PXP_FETCH_ADDR, (uint32_t)DST_ADDR);    /* CH0 background */
+    pxp_writel(qts, PXP_FETCH_ADDR1, (uint32_t)SRC_ADDR);   /* CH1 fg, blend */
 
     pxp_writel(qts, PXP_CTRL_SET, CTRL_ENABLE);
 
@@ -233,7 +237,7 @@ static void test_blend(void)
     qtest_memread(qts, DST_ADDR, dbuf, FM_LEN);
     for (i = 0; i < (int)(FM_LEN / 4); i++) {
         if (dbuf[i] != want) {
-            g_test_message("OFM[%d] = %#x, want %#x", i, dbuf[i], want);
+            g_test_message("OFM[%d] = 0x%x, want 0x%x", i, dbuf[i], want);
         }
         g_assert_cmphex(dbuf[i], ==, want);
     }
