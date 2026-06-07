@@ -130,6 +130,74 @@ static int test_blit(void *handle)
     return bad ? 1 : 0;
 }
 
+/* src-over alpha blend: out = (src*a + dst*(255-a) + 127) / 255 per channel. */
+static uint32_t srcover(uint32_t s, uint32_t d)
+{
+    uint32_t a = (s >> 24) & 0xff, out = 0, i;
+    for (i = 0; i < 4; i++) {
+        uint32_t sc = (s >> (i * 8)) & 0xff, dc = (d >> (i * 8)) & 0xff;
+        uint32_t v = (i == 3) ? 0xff : (sc * a + dc * (255 - a) + 127) / 255;
+        out |= v << (i * 8);
+    }
+    return out;
+}
+
+/* g2d_blit with G2D_BLEND: a translucent source composited over an opaque
+ * destination; verify the result is src-over (within a small rounding margin). */
+static int test_blend(void *handle)
+{
+    struct g2d_buf *src = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_buf *dst = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_surface s, d;
+    uint32_t *sp, *dp, fg = 0x80c08040u /* A=80 B=c0 G=80 R=40 */, bg = 0xff102030u;
+    uint32_t want;
+    int i, rc, bad = 0;
+
+    if (!src || !dst) {
+        printf("PXP-G2D-BLEND: FAIL (g2d_alloc)\n");
+        return 1;
+    }
+    sp = src->buf_vaddr; dp = dst->buf_vaddr;
+    for (i = 0; i < BLIT_W * BLIT_H; i++) { sp[i] = fg; dp[i] = bg; }
+    g2d_cache_op(src, G2D_CACHE_FLUSH);
+    g2d_cache_op(dst, G2D_CACHE_FLUSH);
+
+    memset(&s, 0, sizeof(s));
+    s.format = G2D_RGBA8888; s.planes[0] = src->buf_paddr;
+    s.left = 0; s.top = 0; s.right = BLIT_W; s.bottom = BLIT_H;
+    s.stride = BLIT_W; s.width = BLIT_W; s.height = BLIT_H;
+    s.blendfunc = G2D_SRC_ALPHA; s.global_alpha = 255;
+    d = s;
+    d.planes[0] = dst->buf_paddr;
+    d.blendfunc = G2D_ONE_MINUS_SRC_ALPHA;
+
+    g2d_enable(handle, G2D_BLEND);
+    rc = g2d_blit(handle, &s, &d);
+    if (rc == 0) {
+        rc = g2d_finish(handle);
+    }
+    g2d_disable(handle, G2D_BLEND);
+    g2d_cache_op(dst, G2D_CACHE_INVALIDATE);
+
+    want = srcover(fg, bg);
+    if (rc != 0) {
+        printf("PXP-G2D-BLEND: FAIL (g2d_blit/finish rc=%d)\n", rc);
+        bad = 1;
+    } else {
+        for (i = 0; i < BLIT_W * BLIT_H; i++) {
+            uint32_t g = dp[i], j;
+            for (j = 0; j < 4; j++) {
+                int gv = (g >> (j * 8)) & 0xff, wv = (want >> (j * 8)) & 0xff;
+                if (gv - wv > 2 || wv - gv > 2) { bad++; break; }
+            }
+        }
+        printf("PXP-G2D-BLEND: %s (%d/%d px wrong, px0=%#x want~%#x)\n",
+               bad ? "FAIL" : "PASS", bad, BLIT_W * BLIT_H, dp[0], want);
+    }
+    g2d_free(src); g2d_free(dst);
+    return bad ? 1 : 0;
+}
+
 int main(void)
 {
     void *handle = NULL;
@@ -186,6 +254,9 @@ int main(void)
 
     /* Third op: opaque surface->surface blit (g2d_blit, fetch->store). */
     bad += test_blit(handle);
+
+    /* Fourth op: alpha-blended blit (g2d_blit + G2D_BLEND, src-over). */
+    bad += test_blend(handle);
 
     g2d_close(handle);
     return bad ? 1 : 0;

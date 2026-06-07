@@ -98,9 +98,9 @@ This port holds that bar, and goes past it where the data path is the point:
   cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
   neither pumps real samples/frames yet.
 - **Deferred / not on silicon.** No 3D GPU; the 2D PXP does accelerated G2D
-  copy + fill + opaque blit (see below) — enough for `use-g2d=true` Weston to
-  composite opaque surfaces — but alpha blend is not modelled, so translucent UI
-  still software-renders.
+  copy + fill + blit + src-over blend (see below), enough for `use-g2d=true`
+  Weston to composite opaque *and* alpha-blended surfaces. CSC / scale / rotate
+  are not modelled.
 
 The per-device tags under **What runs today** make this split explicit.
 
@@ -166,9 +166,8 @@ enumerates — the registration bar, no working host data path yet).
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU. This test uses
-  `use-g2d=false`; the PXP now also composites opaque surfaces under
-  `use-g2d=true` (see PXP below), but alpha blend isn't modelled, so software
-  rendering stays the default here. See `tests/weston-imx93/run.sh`.
+  `use-g2d=false`; the PXP now also composites (opaque + alpha-blended) under
+  `use-g2d=true` (see PXP below). See `tests/weston-imx93/run.sh`.
 - **GStreamer media on the display — functional.** The i.MX 93 has **no hardware
   JPEG/video codec** (its Reference Manual has no codec block — unlike the i.MX
   95's CAST mxc-jpeg), so multimedia is pure software on the A55s. A stock
@@ -178,18 +177,18 @@ enumerates — the registration bar, no working host data path yet).
   screen, and a real Ogg/Theora clip is `theoradec`-decoded and played to EOS.
   `tests/gstreamer-imx93/run.sh` stages the plugins (the BSP builds them but
   installs them in no image) into a throwaway rootfs and boots it.
-- **PXP 2D engine — functional (G2D copy + fill + blit).** The Pixel Pipeline
-  (`hw/misc/imx93_pxp.c`) executes real surface ops on the ENABLE kick — a legacy
-  PS→OUT same-format **copy** (`g2d_copy`), a Store-engine constant-colour **fill**
-  (`g2d_clear`, with the internal→RGBA byte conversion), or a Fetch→Store opaque
-  surface **blit** (`g2d_blit`) — then raises the completion IRQ the driver's
-  fence waits on. All three are proven **byte-exact** through the whole stack —
-  `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` → the built-in `pxp_dma_v3` driver →
-  the model — by a `g2d_copy`/`g2d_clear`/`g2d_blit` oracle (`tests/pxp-imx93/`,
-  plus a kernel-free qtest). With the opaque blit, **`use-g2d=true` Weston now
-  composites** its surfaces through the PXP instead of pixman (the desktop
-  background renders via hardware G2D). Alpha **blend**, CSC, scale and rotate are
-  not modelled yet, so translucent/blended UI still needs software rendering.
+- **PXP 2D engine — functional (G2D copy + fill + blit + blend).** The Pixel
+  Pipeline (`hw/misc/imx93_pxp.c`) executes real surface ops on the ENABLE kick —
+  a legacy PS→OUT same-format **copy** (`g2d_copy`), a Store-engine constant-colour
+  **fill** (`g2d_clear`), an opaque Fetch→Store **blit** (`g2d_blit`), or a
+  two-channel **src-over alpha blend** (`g2d_blit` + `G2D_BLEND`: Fetch CH1
+  foreground over Fetch CH0 background → Store) — then raises the completion IRQ
+  the driver's fence waits on. All four are proven **byte-exact** through the whole
+  stack — `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` → the built-in `pxp_dma_v3`
+  driver → the model — by a copy/clear/blit/blend oracle (`tests/pxp-imx93/`, plus
+  a kernel-free qtest). With the full op set, **`use-g2d=true` Weston composites
+  through the PXP** (opaque *and* alpha-blended surfaces) instead of pixman. CSC,
+  scale and rotate are not modelled yet.
 - **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
   93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
@@ -297,8 +296,8 @@ env vars and print exactly which to set if an artifact is missing.
   gap before `Freeing initrd memory`); a small busybox initramfs boots far
   faster. Not a hang.
 - **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU. The PXP G2D
-  path models copy + fill + opaque blit (so `use-g2d=true` Weston composites
-  opaque surfaces) but not alpha blend, so translucent UI still software-renders.
+  path models copy + fill + blit + src-over blend (so `use-g2d=true` Weston
+  composites opaque and alpha-blended surfaces); CSC / scale / rotate are not.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
 - On the framebuffer console, the shell prints a cosmetic
@@ -338,7 +337,7 @@ behaviour.
 | `hw/char/imx_lpuart.c`      | LPUART model (console) |
 | `hw/misc/imx93_ccm.c`, `hw/misc/imx93_anatop.c` | CCM clock roots/gates; ANATOP PLLs |
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
-| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + fill + Fetch→Store opaque blit + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
+| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + fill + Fetch→Store blit + src-over blend + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
@@ -448,10 +447,11 @@ before the EDID could be read and a mode set.
   host-TFLite stand-in; end-to-end inference on the BSP model is bit-exact vs
   TFLite, gated by 19 unit subtests + a 12-case qtest escalation suite.
 - **GStreamer + PXP G2D** — a software GStreamer pipeline renders to the LCDIFv3
-  display via waylandsink; the PXP gains real G2D copy + fill + opaque Fetch→Store
-  blit (+ completion IRQ), all proven byte-exact through `libg2d →
-  /dev/pxp_device → pxp_dma_v3` end to end plus a kernel-free qtest, and
-  `use-g2d=true` Weston now composites opaque surfaces through the PXP.
+  display via waylandsink; the PXP gains the full G2D op set — copy, fill,
+  Fetch→Store opaque blit and two-channel src-over alpha blend (+ completion
+  IRQ) — all proven byte-exact through `libg2d → /dev/pxp_device → pxp_dma_v3`
+  end to end plus a kernel-free qtest, so `use-g2d=true` Weston composites
+  (opaque and alpha-blended) through the PXP instead of pixman.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 

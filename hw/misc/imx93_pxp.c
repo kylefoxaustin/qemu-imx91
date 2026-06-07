@@ -11,9 +11,10 @@
  * kick the engine fetches the PS surface from guest memory, writes it to the OUT
  * surface (same-format copy / constant-colour fill) and raises the completion
  * interrupt (WAKEUPMIX PXP interrupt 0) that the driver's fence waits on. Every
- * register is MXS SET/CLR/TOG aliased; set PXP_DBG to trace accesses. The blit
- * register layout was captured from the live driver (see tests/pxp-imx93). Scope
- * is single-source copy + fill; CSC / blend / scale / rotate are not modelled.
+ * register is MXS SET/CLR/TOG aliased; set PXP_DBG to trace accesses. The op
+ * register layouts were captured from the live driver (see tests/pxp-imx93).
+ * Scope is same-format copy, constant-colour fill, opaque Fetch->Store blit and
+ * src-over alpha blend; CSC / scale / rotate are not modelled.
  */
 
 #include "qemu/osdep.h"
@@ -49,8 +50,9 @@
  * the same HW_PXP_CTRL ENABLE. Only the Store fill registers are modelled.
  */
 #define HW_PXP_FETCH_SIZE   0x4a0   /* INPUT_FETCH size: w-1<<16 | h-1 */
-#define HW_PXP_FETCH_PITCH  0x510   /* source stride, bytes */
-#define HW_PXP_FETCH_ADDR   0x580   /* INPUT_FETCH source physical address */
+#define HW_PXP_FETCH_PITCH  0x510   /* stride: [31:16] CH1, [15:0] CH0, bytes */
+#define HW_PXP_FETCH_ADDR   0x580   /* INPUT_FETCH CH0 source (blit src / blend bg) */
+#define HW_PXP_FETCH_ADDR1  0x5a0   /* INPUT_FETCH CH1 source (blend foreground) */
 #define HW_PXP_STORE_SIZE   0x600   /* [31:16] width-1, [15:0] height-1 */
 #define HW_PXP_STORE_PITCH  0x620   /* dest stride, bytes */
 #define HW_PXP_STORE_CTRL   0x630   /* INPUT_STORE_CTRL_CH0 (FILL_DATA_EN, fmt) */
@@ -184,25 +186,88 @@ static void imx93_pxp_fetch_store(IMX93PxpState *s)
     }
 }
 
+/* Per-channel non-premultiplied src-over: out = (s*a + d*(255-a) + 127)/255. */
+static inline uint8_t imx93_pxp_over(uint8_t sc, uint8_t dc, uint8_t a)
+{
+    return (uint8_t)((sc * a + dc * (255 - a) + 127) / 255);
+}
+
+/*
+ * Alpha-blended blit: Fetch CH1 (foreground) src-over Fetch CH0 (background),
+ * stored back to the destination. g2d_blit with G2D_BLEND. The R/B fetch and
+ * store conversions cancel per channel, so the blend runs directly in RGBA8888.
+ */
+static void imx93_pxp_blend(IMX93PxpState *s)
+{
+    uint32_t size = R(s, HW_PXP_STORE_SIZE);
+    uint32_t width = ((size >> 16) & 0xffff) + 1;
+    uint32_t height = (size & 0xffff) + 1;
+    uint64_t fg = R(s, HW_PXP_FETCH_ADDR1);    /* CH1 foreground */
+    uint64_t bg = R(s, HW_PXP_FETCH_ADDR);     /* CH0 background */
+    uint64_t dst = R(s, HW_PXP_STORE_ADDR);
+    uint32_t fpitch = (R(s, HW_PXP_FETCH_PITCH) >> 16) & 0xffff;
+    uint32_t bpitch = R(s, HW_PXP_FETCH_PITCH) & 0xffff;
+    uint32_t dpitch = R(s, HW_PXP_STORE_PITCH) & 0xffff;
+    g_autofree uint32_t *fl = NULL, *bl = NULL;
+    uint32_t x, y;
+
+    if (!fg || !bg || !dst || width == 0) {
+        return;
+    }
+    fpitch = fpitch ? fpitch : width * 4;
+    bpitch = bpitch ? bpitch : width * 4;
+    dpitch = dpitch ? dpitch : width * 4;
+    fl = g_malloc((size_t)width * 4);
+    bl = g_malloc((size_t)width * 4);
+
+    for (y = 0; y < height; y++) {
+        if (dma_memory_read(&address_space_memory, fg + (uint64_t)y * fpitch,
+                            fl, (size_t)width * 4, MEMTXATTRS_UNSPECIFIED)
+                != MEMTX_OK ||
+            dma_memory_read(&address_space_memory, bg + (uint64_t)y * bpitch,
+                            bl, (size_t)width * 4, MEMTXATTRS_UNSPECIFIED)
+                != MEMTX_OK) {
+            break;
+        }
+        for (x = 0; x < width; x++) {
+            uint32_t sp = fl[x], dp = bl[x];
+            uint8_t a = (sp >> 24) & 0xff, da = (dp >> 24) & 0xff;
+            uint8_t r = imx93_pxp_over(sp & 0xff, dp & 0xff, a);
+            uint8_t g = imx93_pxp_over((sp >> 8) & 0xff, (dp >> 8) & 0xff, a);
+            uint8_t b = imx93_pxp_over((sp >> 16) & 0xff, (dp >> 16) & 0xff, a);
+            uint8_t oa = a + (uint8_t)((da * (255 - a) + 127) / 255);
+            bl[x] = ((uint32_t)oa << 24) | ((uint32_t)b << 16) |
+                    ((uint32_t)g << 8) | r;
+        }
+        dma_memory_write(&address_space_memory, dst + (uint64_t)y * dpitch,
+                         bl, (size_t)width * 4, MEMTXATTRS_UNSPECIFIED);
+    }
+}
+
 /*
  * Execute one PXP pass on the ENABLE kick and post the completion interrupt.
- * The legacy copy, Store fill and Fetch->Store blit share the kick; dispatch on
- * whichever the driver armed last (a fetch source, a fill word, or a legacy
- * OUT/PS buffer write — see imx93_pxp_write).
+ * The legacy copy, Store fill, Fetch->Store blit and blend share the kick;
+ * dispatch on whichever the driver armed last (a fetch source, a fill word, a
+ * legacy OUT/PS buffer write, or a CH1 source for blend — see imx93_pxp_write).
  */
 static void imx93_pxp_blit(IMX93PxpState *s)
 {
-    switch (s->op_mode) {
-    case PXP_OP_FILL:
-        imx93_pxp_fill(s);
-        break;
-    case PXP_OP_BLIT:
-        imx93_pxp_fetch_store(s);
-        break;
-    default:
-        imx93_pxp_copy(s);
-        break;
+    if (s->blend_pending) {
+        imx93_pxp_blend(s);
+    } else {
+        switch (s->op_mode) {
+        case PXP_OP_FILL:
+            imx93_pxp_fill(s);
+            break;
+        case PXP_OP_BLIT:
+            imx93_pxp_fetch_store(s);
+            break;
+        default:
+            imx93_pxp_copy(s);
+            break;
+        }
     }
+    s->blend_pending = false;       /* per-kick: re-armed by the next CH1 write */
 
     /* Hardware clears ENABLE when the frame completes and posts IRQ0. */
     s->ctrl &= ~BM_PXP_CTRL_ENABLE;
@@ -270,7 +335,10 @@ static void imx93_pxp_write(void *opaque, hwaddr offset, uint64_t value,
          * a Fetch source -> blit, a Store fill word -> fill, a legacy OUT/PS
          * buffer -> copy.
          */
-        if (base == HW_PXP_FETCH_ADDR) {
+        if (base == HW_PXP_FETCH_ADDR1) {
+            /* CH1 source is unique to a blend; overrides op_mode at the kick. */
+            s->blend_pending = true;
+        } else if (base == HW_PXP_FETCH_ADDR) {
             s->op_mode = PXP_OP_BLIT;
         } else if (base == HW_PXP_STORE_FILL) {
             s->op_mode = PXP_OP_FILL;
@@ -295,6 +363,7 @@ static void imx93_pxp_reset(DeviceState *dev)
     s->ctrl = 0;
     s->stat = 0;
     s->op_mode = PXP_OP_COPY;
+    s->blend_pending = false;
     memset(s->regs, 0, sizeof(s->regs));
     qemu_set_irq(s->irq, 0);
 }
@@ -311,12 +380,13 @@ static void imx93_pxp_init(Object *obj)
 
 static const VMStateDescription vmstate_imx93_pxp = {
     .name = TYPE_IMX93_PXP,
-    .version_id = 4,
-    .minimum_version_id = 4,
+    .version_id = 5,
+    .minimum_version_id = 5,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(ctrl, IMX93PxpState),
         VMSTATE_UINT32(stat, IMX93PxpState),
         VMSTATE_UINT32(op_mode, IMX93PxpState),
+        VMSTATE_BOOL(blend_pending, IMX93PxpState),
         VMSTATE_UINT32_ARRAY(regs, IMX93PxpState, IMX93_PXP_NUM_REGS),
         VMSTATE_END_OF_LIST()
     },

@@ -98,20 +98,17 @@ qpid=$!
 trap 'kill $qpid 2>/dev/null' EXIT
 for s in $(seq 1 60); do
     sleep 5
-    grep -qa "PXP-G2D-BLIT:" "$LOG" 2>/dev/null && break
+    grep -qa "PXP-G2D-BLEND:" "$LOG" 2>/dev/null && break
 done
 kill $qpid 2>/dev/null; trap - EXIT
 
-copy=$(grep -a "PXP-G2D-COPY:" "$LOG" | head -1)
-fill=$(grep -a "PXP-G2D-FILL:" "$LOG" | head -1)
-blit=$(grep -a "PXP-G2D-BLIT:" "$LOG" | head -1)
-echo "==> ${copy:-PXP-G2D-COPY: (no result)}"
-echo "==> ${fill:-PXP-G2D-FILL: (no result)}"
-echo "==> ${blit:-PXP-G2D-BLIT: (no result)}"
+ok=1
+for op in COPY FILL BLIT BLEND; do
+    line=$(grep -a "PXP-G2D-$op:" "$LOG" | head -1)
+    echo "==> ${line:-PXP-G2D-$op: (no result)}"
+    [ "${line#*PASS}" != "$line" ] || ok=0
+done
 [ "$CAPTURE" = 1 ] && echo "==> PXP register trace: $TRACE ($(grep -c '\[pxp\]' "$TRACE" 2>/dev/null) accesses)"
-if [ "${copy#*PASS}" != "$copy" ] && [ "${fill#*PASS}" != "$fill" ] \
-   && [ "${blit#*PASS}" != "$blit" ]; then
-    exit 0
-fi
+[ "$ok" = 1 ] && exit 0
 echo "FAIL or missing result; see $LOG" >&2
 exit 1

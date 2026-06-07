@@ -31,10 +31,11 @@
 #define PXP_PS_BUF      0xc0
 #define PXP_PS_PITCH    0xf0
 
-/* Fetch/Store engine cluster used by the fill and blit paths. */
+/* Fetch/Store engine cluster used by the fill, blit and blend paths. */
 #define PXP_FETCH_SIZE  0x4a0
 #define PXP_FETCH_PITCH 0x510
-#define PXP_FETCH_ADDR  0x580
+#define PXP_FETCH_ADDR  0x580       /* CH0 (blit src / blend background) */
+#define PXP_FETCH_ADDR1 0x5a0       /* CH1 (blend foreground) */
 #define PXP_STORE_SIZE  0x600
 #define PXP_STORE_PITCH 0x620
 #define PXP_STORE_ADDR  0x690
@@ -188,11 +189,63 @@ static void test_blit(void)
     qtest_quit(qts);
 }
 
+static uint8_t over(uint8_t s, uint8_t d, uint8_t a)
+{
+    return (uint8_t)((s * a + d * (255 - a) + 127) / 255);
+}
+
+/* CH1 foreground src-over CH0 background, stored to the dest, byte-exact. */
+static void test_blend(void)
+{
+    QTestState *qts = qtest_init("-machine imx93-11x11-evk -display none");
+    const uint32_t fg = 0x80c08040u, bg = 0xff102030u;   /* RGBA8888 */
+    g_autofree uint32_t *fbuf = g_malloc(FM_LEN);
+    g_autofree uint32_t *dbuf = g_malloc(FM_LEN);
+    uint32_t want, stat;
+    uint8_t a = (fg >> 24) & 0xff, da = (bg >> 24) & 0xff;
+    int i;
+
+    for (i = 0; i < (int)(FM_LEN / 4); i++) {
+        fbuf[i] = fg; dbuf[i] = bg;
+    }
+    qtest_memwrite(qts, SRC_ADDR, fbuf, FM_LEN);          /* foreground */
+    qtest_memwrite(qts, DST_ADDR, dbuf, FM_LEN);          /* background + dest */
+
+    want = ((uint32_t)(a + (uint8_t)((da * (255 - a) + 127) / 255)) << 24)
+         | ((uint32_t)over((fg >> 16) & 0xff, (bg >> 16) & 0xff, a) << 16)
+         | ((uint32_t)over((fg >> 8) & 0xff, (bg >> 8) & 0xff, a) << 8)
+         | over(fg & 0xff, bg & 0xff, a);
+
+    pxp_writel(qts, PXP_FETCH_SIZE, ((W - 1) << 16) | (H - 1));
+    pxp_writel(qts, PXP_FETCH_PITCH, (PITCH << 16) | PITCH);  /* CH1|CH0 */
+    pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
+    pxp_writel(qts, PXP_STORE_PITCH, PITCH);
+    pxp_writel(qts, PXP_STORE_ADDR, (uint32_t)DST_ADDR);
+    pxp_writel(qts, PXP_FETCH_ADDR, (uint32_t)DST_ADDR);   /* CH0 background */
+    pxp_writel(qts, PXP_FETCH_ADDR1, (uint32_t)SRC_ADDR);  /* CH1 fg -> arms blend */
+
+    pxp_writel(qts, PXP_CTRL_SET, CTRL_ENABLE);
+
+    stat = qtest_readl(qts, PXP_BASE + PXP_STAT);
+    g_assert_cmphex(stat & STAT_IRQ0, ==, STAT_IRQ0);
+
+    qtest_memread(qts, DST_ADDR, dbuf, FM_LEN);
+    for (i = 0; i < (int)(FM_LEN / 4); i++) {
+        if (dbuf[i] != want) {
+            g_test_message("OFM[%d] = %#x, want %#x", i, dbuf[i], want);
+        }
+        g_assert_cmphex(dbuf[i], ==, want);
+    }
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/aarch64/imx93-pxp/copy", test_copy);
     qtest_add_func("/aarch64/imx93-pxp/fill", test_fill);
     qtest_add_func("/aarch64/imx93-pxp/blit", test_blit);
+    qtest_add_func("/aarch64/imx93-pxp/blend", test_blend);
     return g_test_run();
 }
