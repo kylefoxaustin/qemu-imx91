@@ -5,12 +5,13 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Models enough of the i.MX93 SAR-ADC for the imx93_adc driver: self-calibration
- * (MCR.CALSTART completes immediately; MSR.CALBUSY/CALFAIL stay clear) and a
- * normal conversion (MCR.NSTART) that fills the per-channel data registers
- * (PCDRn, 12-bit) for the channels in NCMR0, sets the end-of-conversion
- * status (ISR), and raises the EOC interrupt the driver waits on. Conversions
- * return a fixed mid-scale sample; no analog input source is modelled.
+ * Models enough of the i.MX93 SAR-ADC for the imx93_adc driver.
+ * Self-calibration (MCR.CALSTART) completes immediately, with
+ * MSR.CALBUSY/CALFAIL clear. A normal conversion (MCR.NSTART) fills the
+ * per-channel data registers (PCDRn, 12-bit) for the channels in NCMR0, sets
+ * the end-of-conversion status (ISR) and raises the EOC interrupt the driver
+ * waits on. Conversions return a fixed mid-scale sample; no analog input
+ * source is modelled.
  */
 
 #include "qemu/osdep.h"
