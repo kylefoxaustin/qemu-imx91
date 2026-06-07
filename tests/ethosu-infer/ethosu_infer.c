@@ -14,9 +14,9 @@
  *   read OFM from the mmap'd ofm buffer, print + argmax
  *
  * Opening /dev/ethosu0 boots the M33 on demand (the i.MX SiP RPROC SMC the
- * machine services); the M33 firmware runs the inference, the modelled NPU
- * (hw/misc/imx93_ethosu.c) produces the real OFM via the host TFLite reference,
- * raises the completion IRQ, and the result lands in the ofm buffer.
+ * machine services); the M33 firmware runs the inference, the in-QEMU Ethos-U
+ * executor (hw/npu/) runs the command stream to produce the OFM, raises the
+ * completion IRQ, and the result lands in the ofm buffer.
  *
  * Build: aarch64-linux-gnu-gcc -static -O2 -o ethosu_infer ethosu_infer.c
  * Not an upstream QEMU deliverable - it talks to a Linux char device.

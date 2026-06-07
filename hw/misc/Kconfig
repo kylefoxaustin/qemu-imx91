@@ -119,9 +119,6 @@ config FSL_IMX93_ELE
 config FSL_IMX93_MEDIA_BLK
     bool
 
-config FSL_IMX93_ETHOSU
-    bool
-
 config STM32_RCC
     bool
 

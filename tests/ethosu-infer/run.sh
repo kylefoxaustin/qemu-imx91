@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 #
-# Ethos-U65 end-to-end inference test for the i.MX93 QEMU machine (fork-only).
+# Ethos-U65 end-to-end inference test for the i.MX93 QEMU machine.
 #
 # Stages a Vela-compiled int8 model + a sample IFM + the ethosu_infer guest app
 # into the rootfs, boots the on-demand M33 path, and runs a full inference:
 #   open /dev/ethosu0 -> M33 boots -> NETWORK/INFERENCE/INVOKE -> NPU kick ->
-#   the modelled NPU produces the real OFM (host TFLite reference) + IRQ -> the
-#   guest reads the correct classification out of its OFM buffer.
+#   the in-QEMU Ethos-U executor (hw/npu/) runs the command stream and produces
+#   the OFM + IRQ -> the guest reads the classification out of its OFM buffer.
 #
-# Set ETHOSU_TRACE=1 (default here) to dump the firmware's NPU register traffic
-# and command stream to qemu's stderr - used to map where IFM/OFM live.
+# The executor's OFM is bit-exact with the host TFLite reference; compare with
+#   tests/ethosu-infer/host/ethosu_host_infer.py model_int8.tflite sample.bin out
+#
+# Set ETHOSU_TRACE=1 to dump the firmware's NPU register traffic to qemu stderr.
 #
 # Env overrides: QEMU=, KERNEL=, DTB=, BASE_INITRD=, MODEL=, IFM=, LOG=
 set -u
@@ -27,8 +29,6 @@ IFM=${IFM:-$HERE/host/sample_top.bin}
 APP=${APP:-$HERE/ethosu_infer}
 LOG=${LOG:-/tmp/ethosu-infer.log}
 export ETHOSU_TRACE=${ETHOSU_TRACE:-0}
-export ETHOSU_HOST_INFER=${ETHOSU_HOST_INFER:-$HERE/host/ethosu_host_infer.py}
-export ETHOSU_HOST_MODEL=${ETHOSU_HOST_MODEL:-$HERE/host/model_int8.tflite}
 
 need() { [ -e "$2" ] || { echo "error: $3 not found: $2" >&2; exit 1; }; }
 need QEMU "$QEMU" "qemu"; need KERNEL "$KERNEL" "kernel"; need DTB "$DTB" "dtb"
