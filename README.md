@@ -18,9 +18,11 @@ whole EVK: **networking** (FEC + eQOS, both with DHCP), **SD/eMMC storage**,
 **LCDIFv3 → MIPI-DSI → ADV7535 → HDMI** (and LVDS) **display** you can log into
 and type on, a **Weston/Wayland desktop**, **FlexCAN**, **USB host** (real
 devices enumerate), **audio** (SAI + MICFIL + WM8962, all three ALSA cards), the
-**MIPI camera** capture pipeline, and the **Cortex-M33 real-time core running
-real NXP firmware with working A55↔M33 RPMsg**. Intended use cases are BSP
-development, peripheral-driver development, multicore/RPMsg work, and CI for the
+**MIPI camera** capture pipeline, the **Cortex-M33 real-time core running
+real NXP firmware with working A55↔M33 RPMsg**, and an **Ethos-U65 microNPU**
+with a real in-QEMU command-stream executor that runs **bit-exact int8
+inference**. Intended use cases are BSP development, peripheral-driver
+development, multicore/RPMsg work, NPU/accelerator bring-up, and CI for the
 above. It is not cycle-accurate.
 
 Unlike the i.MX 95, the **i.MX 93 has no System Manager** — Linux programs the
@@ -37,7 +39,7 @@ long-term aim is to be upstream-mergeable into QEMU mainline.
 DSI → ADV7535 → HDMI chain, on the stock EVK device tree. Two Tux logos = two
 Cortex-A55 cores.*
 
-## Quickstart for newcomers
+## Quickstart
 
 This fork **builds and runs as-is** — a plain clone lands on `imx93-dev`.
 
@@ -62,72 +64,110 @@ host packages):
 **3. The full stack — Linux to userspace.** Booting Linux needs a kernel
 `Image`, the `imx93-11x11-evk.dtb`, and a root filesystem, all built from the
 NXP BSP (not redistributable, so not in the repo — see
-[Required artifacts](#required-artifacts)). Then `tests/boot-imx93/run.sh`
-(serial console) or `tests/login-imx93/run.sh` (interactive login on the
-emulated HDMI display).
+[Required artifacts](#required-artifacts)). The easy path is
+`tests/boot-imx93/run.sh` (serial console) or `tests/login-imx93/run.sh`
+(interactive login on the emulated HDMI display; attach an SD card with
+`-drive if=sd,file=disk.img,format=raw`). The equivalent manual invocation:
+
+    ./build/qemu-system-aarch64 -M imx93-11x11-evk -m 4G -display none \
+        -kernel <Image> -dtb <imx93-11x11-evk.dtb> -initrd <rootfs.cpio.gz> \
+        -append "earlycon=lpuart32,mmio32,0x44380010 console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
+        -serial mon:stdio -serial null
+
+Two cmdline details are load-bearing:
+
+- **earlycon address `0x44380010`, not `0x44380000`.** The i.MX LPUART has
+  VERID/PARAM/GLOBAL/PINCFG at 0x00–0x0C and BAUD at 0x10. Linux's regular
+  driver applies the `reg_off = 0x10` offset to the DT base automatically;
+  earlycon does not, so the cmdline address must be pre-offset.
+- **`cpuidle.off=1`** is the conservative first-boot default (avoids the
+  GICv3 WakeRequest gap shared by all GICv3 QEMU machines).
+
+## Scope: what's modelled, what's deferred
+
+QEMU SoC machines model controllers so their **Linux drivers bind and the
+subsystem registers** — not so every byte reaches a host audio/video/NPU sink.
+This port holds that bar, and goes past it where the data path is the point:
+
+- **Functional data paths.** Networking (FEC + eQOS, both DHCP), storage
+  (uSDHC → ext4 mount), the full display (LCDIFv3 → DSI → ADV7535 → HDMI scanout
+  to `/dev/fb0`, plus LVDS), interactive input/login, CAN frame TX/RX, the
+  Cortex-M33 + A55↔M33 RPMsg transport, and the **in-QEMU Ethos-U65 executor**
+  (a real int8 inference, bit-exact vs TFLite) all move real data end to end.
+- **Registration bar.** Audio (SAI/MICFIL/WM8962) registers all three ALSA
+  cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
+  neither pumps real samples/frames yet.
+- **Deferred / not on silicon.** No 3D GPU and no G2D 2D engine, so the Wayland
+  desktop is software-rendered.
+
+The per-device tags under **What runs today** make this split explicit.
 
 ## What runs today
 
 Stock **NXP Linux 6.12.49** boots to userspace (PID 1) on both Cortex-A55
 cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
 
-- **SMP boot** of both A55 cores to userspace, **serial console** on `ttyLP0`,
-  clean **PSCI power-off**.
-- **Networking — both NICs live with DHCP.** FEC (`eth0`, reuses
+Each device below is tagged **functional** (the host driver's data path runs
+end to end) or **brings up** (the driver binds and the device registers /
+enumerates — the registration bar, no working host data path yet).
+
+- **SMP boot — functional.** Both A55 cores to userspace, **serial console**
+  on `ttyLP0`, clean **PSCI power-off**.
+- **Networking — functional.** Both NICs live with DHCP — FEC (`eth0`, reuses
   `hw/net/imx_fec.c`) and a from-scratch eQOS/dwmac4 (`eth1`,
   `hw/net/imx93_dwmac.c`).
-- **Storage** — SD/MMC via uSDHC from `-drive if=sd`; mounts a real ext4 image
-  (`mmcblk0`).
-- **Clocks / power** — CCM clock roots+gates, ANATOP fractional-N PLLs, the
-  MEDIAMIX power domain (genpd) and block-control GPR.
-- **I²C + PMIC** — LPI2C master with the board's PCA9451A PMIC and PCAL6524
-  I/O expander; regulators register and unblock uSDHC.
-- **GPIO** controllers; **ELE** (EdgeLock Enclave) s4 MU + responder, so the
-  OCOTP MAC nvmem cells resolve.
-- **eDMA3** (`hw/dma/imx93_edma.c`) — real TCD execution (drives the LPI2C
-  EDID read, among others).
-- **Display — full HDMI pipeline.** The LCDIFv3 controller scans a framebuffer
+- **Storage — functional.** SD/MMC via uSDHC from `-drive if=sd`; mounts a real
+  ext4 image (`mmcblk0`).
+- **Clocks / power — functional.** CCM clock roots+gates, ANATOP fractional-N
+  PLLs, the MEDIAMIX power domain (genpd) and block-control GPR.
+- **I²C + PMIC — functional.** LPI2C master with the board's PCA9451A PMIC and
+  PCAL6524 I/O expander; regulators register and unblock uSDHC.
+- **GPIO + ELE — functional.** GPIO controllers; **ELE** (EdgeLock Enclave) s4
+  MU + responder, so the OCOTP MAC nvmem cells resolve.
+- **eDMA3 — functional.** (`hw/dma/imx93_edma.c`) real TCD execution (drives the
+  LPI2C EDID read, among others).
+- **Display, HDMI — functional.** Full pipeline — the LCDIFv3 controller scans a framebuffer
   out of guest DRAM; a dw-mipi-dsi host + an ADV7535 HDMI bridge (with a
   generated EDID served over I²C-DDC) satisfy the DRM stack, which sets a
   1920×1080 mode and brings up `/dev/fb0`. fbcon renders the console on the
   emulated display.
-- **Display — LVDS panel too.** Booting the `…-boe-wxga-lvds-panel` DTB lights
+- **Display, LVDS — functional.** Booting the `…-boe-wxga-lvds-panel` DTB lights
   the second display path, LCDIFv3 → LDB → LVDS-PHY → a fixed `boe` panel at
   1280×800 (no EDID; the panel mode is fixed). Needs the adp5585 I/O expander
   (modelled) for the panel's backlight.
-- **Input + interactive login.** virtio-mmio transports + a virtio-keyboard
+- **Input + interactive login — functional.** virtio-mmio transports + a virtio-keyboard
   (and tablet) let you **type in the QEMU window** onto the HDMI console; root
   logs in (the BSP image's root has no password) on both the framebuffer
   console and serial.
-- **CAN — FlexCAN1/2** on QEMU's CAN bus subsystem. The Linux `flexcan` driver
+- **CAN (FlexCAN1/2) — functional.** On QEMU's CAN bus subsystem, the Linux `flexcan` driver
   binds and `can0` brings up; real frame TX/RX between the two controllers is
   covered by a kernel-free qtest. Attach a bus with
   `-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`.
-- **USB host — ChipIdea USB OTG1/2.** The `ci_hdrc` driver brings up both
+- **USB host (ChipIdea OTG1/2) — functional.** The `ci_hdrc` driver brings up both
   EHCI host controllers and real USB devices enumerate: `-device usb-kbd`
   binds as a HID input and `-device usb-storage,drive=…` attaches as a SCSI
   disk (`sda`). The stock EVK device tree's Type-C role switch is unmodelled,
   but the controller falls back to host mode, so no DT override is needed.
-- **Audio — SAI + MICFIL + WM8962.** The SAI (I2S) and MICFIL (PDM mic)
+- **Audio (SAI + MICFIL + WM8962) — brings up.** The SAI (I2S) and MICFIL (PDM mic)
   front-ends are modelled, so the ASoC stack registers all three EVK ALSA
   cards: the SAI1 bt-sco card (playback+capture), the MICFIL PDM capture card,
   and the **WM8962** headphone/speaker/mic card on SAI3 (playback+capture, via
   a modelled WM8962 codec on LPI2C1 and the WAKEUPMIX eDMA4). Their FIFOs ride
   the eDMA datapath. See `tests/audio-imx93/run.sh`.
-- **Camera capture pipeline.** Booting the `…-mt9m114` DTB, the parallel
+- **Camera capture pipeline — brings up.** Booting the `…-mt9m114` DTB, the parallel
   camera path binds end to end — MT9M114 sensor → parallel-CSI → ISI — and the
   V4L2 media graph registers `/dev/media0`, four subdevs, and the two ISI
   `/dev/video*` capture nodes (modelled MT9M114 sensor + PCA9538 expander on
   LPI2C8). See `tests/camera-imx93/run.sh`. No frames are captured (no V4L2
   capture backend) — the pipeline binds and the graph registers.
-- **Wayland desktop.** A `core-image-weston` rootfs boots to the Weston
+- **Wayland desktop — functional.** A `core-image-weston` rootfs boots to the Weston
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
   run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
   `tests/weston-imx93/run.sh`.
-- **Ethos-U65 microNPU — firmware stack comes up over RPMsg.** On the i.MX 93
-  the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
+- **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
+  93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
   M33 **on demand** via remoteproc: Linux loads the stock NXP `ethosu_firmware`
   and issues the i.MX SiP `RPROC` SMC, which the machine services by releasing
@@ -141,21 +181,27 @@ cores, on the **stock `imx93-11x11-evk` device tree — no DT modifications**.
   `/dev/ethosu0` and issues `CAPABILITIES_REQ`; the request crosses MU/rpmsg to
   the M33, whose firmware reads the modelled NPU's ID/CONFIG registers and
   replies, and the tool prints them back (Ethos-U65, 8 MACs/cc).
-- **Ethos-U65 — a real end-to-end inference runs (fork-only).** Building on the
+- **Ethos-U65 — real in-QEMU inference, bit-exact — functional.** Building on the
   round-trip above, `tests/ethosu-infer/` runs an *actual* neural-network
-  inference all the way through: a guest app `BUFFER/NETWORK/INFERENCE/INVOKE`s a
-  Vela-compiled int8 CNN, the M33 firmware runs tflite-micro and **kicks the
-  NPU** (writes `QBASE`/`BASEP`/`CMD`), and the NPU model services the kick — it
-  reads the guest's input from the tensor arena, runs the *reference* int8 TFLite
-  model on the host, writes the exact output feature map back into guest memory,
-  and raises the NPU completion IRQ (M33 NVIC 178). The firmware completes, copies
-  the result out, and the guest prints the correct classification — distinct,
-  correct results for distinct inputs. The real command-stream compute engine is
-  not modelled; the host-TFLite reference stands in for it, so this is a fork-only
-  showcase, **not** an upstream deliverable (it shells out to a host helper). See
-  `tests/ethosu-rpmsg/run.sh` (channel bring-up) and `tests/npu-imx93/run.sh`
-  (plain driver-bind without firmware) for the lighter checks.
-- **Cortex-M33 real-time core + A55↔M33 RPMsg.** The M33 is instantiated as a
+  inference end to end **inside QEMU — no host stand-in**: a guest app
+  `BUFFER/NETWORK/INFERENCE/INVOKE`s a Vela-compiled int8 CNN, the M33 firmware
+  runs tflite-micro and **kicks the NPU** (writes `QBASE`/`BASEP`/`CMD`), and the
+  generic `hw/npu/` executor (`TYPE_ETHOS_U`, instantiated as the i.MX 93's
+  Ethos-U65-256) services the kick *for real* — it parses the Vela command
+  stream, DMA-marshals the IFM (NHWC + NHCWB16), mlw-decodes the weights and
+  inverts the reorder into an OHWI volume, unpacks the per-channel scale/bias,
+  runs int8 conv / depthwise / pool / elementwise kernels with gemmlowp/TFLM
+  requant, writes the OFM back into guest memory and raises the completion IRQ
+  (M33 NVIC 178). On the real BSP 3-conv + 2-maxpool model the output is
+  **bit-exact against the host TFLite reference** (class 0, OFM `[118, -106]`).
+  Gated by 19 unit subtests (mlw / reorder / requant / kernels vs committed
+  Vela+tflite vectors) and a 12-case qtest escalation suite (single-brick →
+  NHCWB16 multi-brick → depth-split → multi-IFM → depthwise → DMA-staged →
+  maxpool, all bit-exact). Scope is the single-brick / single-core Ethos-U65-256
+  the i.MX 93 uses; multi-core deinterleave and depth-bricked streams are not yet
+  handled. Unlike the earlier host-TFLite stand-in (since removed), this is a
+  genuine SoC device model and an upstream-track deliverable.
+- **Cortex-M33 + A55↔M33 RPMsg — functional.** The M33 is instantiated as a
   heterogeneous core alongside the A55 cluster (its own ARMv7-M context, private
   ITCM/DTCM at the `imx_rproc` view addresses with A55-side aliases for firmware
   staging, and a secure peripheral window since the firmware runs secure). It is
@@ -179,24 +225,22 @@ Everything on the EVK's roadmap is **done** and described under "What runs
 today" above: networking, storage, the full **display (HDMI + LVDS) + input**
 stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
 capture pipeline**, the **Cortex-M33** core with **A55↔M33 RPMsg**, the
-**Ethos-U65** NPU firmware stack (firmware boots + `rpmsg-ethosu-channel` up),
-and a **Weston/Wayland desktop**.
+**Ethos-U65** NPU — firmware stack *and* a real in-QEMU command-stream executor
+running bit-exact int8 inference — and a **Weston/Wayland desktop**.
 
 | Feature | What | Target |
 |---|---|---|
-| Ethos-U65 inference (upstreamable) | A model of the NPU command-stream compute engine so a real inference executes *inside* QEMU (today a correct inference runs on the fork via a host-TFLite stand-in; the in-QEMU engine is a multi-month effort) | next |
-| Upstreaming | Submit the machine (+ any generic-QEMU prereqs) to qemu-devel | longer-term |
+| Upstreaming | Submit the machine + its generic-QEMU prereqs (notably the board-agnostic `hw/npu/` Ethos-U executor) to qemu-devel | next |
 
-Each modelled block is taken to the same bar — the Linux driver binds and the
-subsystem registers its devices — matching how QEMU SoC machines model
+Each modelled block is taken to at least the bar where the Linux driver binds
+and the subsystem registers its devices — matching how QEMU SoC machines model
 controllers for driver bring-up rather than emulating end-to-end data paths to
-host audio/video/NPU sinks. Two intentional non-goals follow from that bar: the
-SAI/camera paths register their ALSA/V4L2 devices but do not pump real
-samples/frames, and the Ethos-U65 NPU model does not implement the
-command-stream compute engine (an in-QEMU inference engine is a
-firmware/accelerator emulation effort, not a SoC device model). On the fork,
-`tests/ethosu-infer/` does run a *correct* end-to-end inference by standing a
-host-TFLite reference in for that engine — a showcase, not an upstream path.
+host audio/video sinks. Two intentional registration-bar non-goals remain: the
+SAI and camera paths register their ALSA/V4L2 devices but do not pump real
+samples/frames. The Ethos-U65 NPU, by contrast, went *past* that bar — the
+`hw/npu/` executor runs the Vela command stream and produces bit-exact int8
+inference output entirely inside QEMU (see "What runs today"), so it is a real
+SoC device model rather than a host stand-in.
 
 ## Required artifacts
 
@@ -212,31 +256,6 @@ To boot Linux to userspace you need three artifacts, all built from the
 The `tests/*/run.sh` scripts take `KERNEL=`, `DTB=`, `INITRD=` (and `QEMU=`)
 env vars and print exactly which to set if an artifact is missing.
 
-## Quick start
-
-Build (see [Building](#building)), then boot Linux to a serial console:
-
-```
-./build/qemu-system-aarch64 -M imx93-11x11-evk -m 4G -display none \
-    -kernel <Image> -dtb <imx93-11x11-evk.dtb> -initrd <rootfs.cpio.gz> \
-    -append "earlycon=lpuart32,mmio32,0x44380010 console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
-    -serial mon:stdio -serial null
-```
-
-Two cmdline details are load-bearing:
-
-- **earlycon address `0x44380010`, not `0x44380000`.** The i.MX LPUART has
-  VERID/PARAM/GLOBAL/PINCFG at 0x00–0x0C and BAUD at 0x10. Linux's regular
-  driver applies the `reg_off = 0x10` offset to the DT base automatically;
-  earlycon does not, so the cmdline address must be pre-offset.
-- **`cpuidle.off=1`** is the conservative first-boot default (avoids the
-  GICv3 WakeRequest gap shared by all GICv3 QEMU machines).
-
-To see it on the **emulated HDMI display** and type into it, use
-`tests/login-imx93/run.sh` (opens a GTK window; it routes the console to the
-framebuffer, adds a virtio-keyboard, and runs a getty on `tty1`). Attach an SD
-card with `-drive if=sd,file=disk.img,format=raw`.
-
 ## Known limitations
 
 - **`fsl-se … Failed to read tamper status` is benign.** The ELE itself
@@ -247,9 +266,8 @@ card with `-drive if=sd,file=disk.img,format=raw`.
   ~430 MB rootfs unpacks to ~1.3 GB tmpfs (~12 s on this host, logged as the
   gap before `Freeing initrd memory`); a small busybox initramfs boots far
   faster. Not a hang.
-- **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU; the
-  **Ethos-U65 microNPU** is a probe-time stub. A Wayland desktop will use
-  software rendering.
+- **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU and no G2D 2D
+  engine modelled, so a Wayland desktop uses software rendering.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
 - On the framebuffer console, the shell prints a cosmetic
@@ -291,7 +309,7 @@ behaviour.
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
 | `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP reset model; ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
-| `hw/misc/imx93_ethosu.c`    | Ethos-U65 microNPU register block + fork-only host-inference path |
+| `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
 | `hw/i2c/mt9m114.c`          | MT9M114 camera sensor (I²C) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
@@ -352,7 +370,7 @@ behaviour.
     # interactive login on the emulated HDMI display
     KERNEL=<Image> DTB=<dtb> BASE_INITRD=<rootfs> tests/login-imx93/run.sh
 
-## Methodology
+## Methodology & contributing
 
 Bring-up is measure-first ("Path-C triage"): boot real Linux, read the exact
 external abort / hang, map or model that peripheral, repeat. Every address and
@@ -390,6 +408,11 @@ before the EDID could be read and a mode set.
   SiP `RPROC` SMC, serviced by the machine), loads the stock NXP ethos firmware,
   which initialises the modelled NPU and brings up `rpmsg-ethosu-channel` — no
   kernel oops.
+- **Ethos-U65 in-QEMU executor** — a real command-stream compute engine in
+  `hw/npu/` (vendored Arm mlw decode, reorder inverse, scale/bias unpack, int8
+  conv/depthwise/pool/elementwise kernels, gemmlowp/TFLM requant) replaces the
+  host-TFLite stand-in; end-to-end inference on the BSP model is bit-exact vs
+  TFLite, gated by 19 unit subtests + a 12-case qtest escalation suite.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 
