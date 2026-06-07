@@ -78,6 +78,9 @@ typedef enum {
     NPU_SET_OFM_HEIGHT_M1  = 0x112,
     NPU_SET_OFM_DEPTH_M1   = 0x113,
     NPU_SET_OFM_PRECISION  = 0x114,
+    NPU_SET_OFM_BLK_WIDTH_M1  = 0x115,
+    NPU_SET_OFM_BLK_HEIGHT_M1 = 0x116,
+    NPU_SET_OFM_BLK_DEPTH_M1  = 0x117,
     NPU_SET_OFM_ZERO_POINT = 0x118,
     NPU_SET_OFM_WIDTH0_M1  = 0x11a,
     NPU_SET_OFM_HEIGHT0_M1 = 0x11b,
@@ -169,6 +172,13 @@ typedef struct EthosUOpDesc {
     int32_t kw, kh;
     int32_t stride_x, stride_y, dilation_x, dilation_y;
     bool part_kernel_first;
+
+    /* block config / precision (needed to invert the weight reorder) */
+    int32_t ofm_block_depth;
+    int ifm_bitdepth;       /* 8 or 16 */
+
+    /* immediate param of the executing NPU_OP_* (e.g. pooling mode) */
+    uint16_t op_param;
 
     /* weights / scales */
     int weight_region, scale_region;

@@ -40,7 +40,7 @@
 #include "hw/display/imx93_dsi.h"
 #include "hw/misc/imx93_media_blk.h"
 #include "hw/misc/imx_mu.h"
-#include "hw/misc/imx93_ethosu.h"
+#include "hw/npu/ethos_u.h"
 #include "hw/rtc/imx93_bbnsm.h"
 #include "hw/watchdog/imx93_wdog.h"
 #include "hw/misc/imx93_tmu.h"
@@ -153,7 +153,7 @@ struct FslImx93State {
     bool            m33_started;          /* SiP RPROC start/stop state */
     IMXMUState      mu1;                  /* MU1_MUB @ 0x44230000, A55 side  */
     IMXMUState      mu1_a;                /* MU1_MUA @ 0x44220000, M33 side  */
-    IMX93EthosuState ethosu;             /* Ethos-U65 NPU @ 0x4a900000      */
+    EthosUState ethosu;                  /* Ethos-U65 NPU @ 0x4a900000      */
     IMX93BbnsmState bbnsm;               /* BBNSM RTC @ 0x44440000          */
     IMX93WdogState wdog[5];              /* WDOG1-5                         */
     IMX93TmuState tmu;                   /* thermal monitor @ 0x44482000    */

@@ -1046,6 +1046,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     {
         SysBusDevice *sbd = SYS_BUS_DEVICE(&s->ethosu);
 
+        /*
+         * Generic Arm Ethos-U executor as the i.MX93's Ethos-U65-256: variant
+         * u65 + macs_per_cc_log2 8 make ID/CONFIG report 0x10061000 and
+         * 0x10000008, the values the M33 ethos firmware's
+         * verify_optimizer_config matches. DMA defaults to system memory.
+         */
+        object_property_set_str(OBJECT(&s->ethosu), "variant", "u65",
+                                &error_abort);
+        object_property_set_uint(OBJECT(&s->ethosu), "macs", 8, &error_abort);
         if (!sysbus_realize(sbd, errp)) {
             return;
         }
@@ -1211,7 +1220,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "m33", &s->m33, TYPE_ARMV7M);
     object_initialize_child(obj, "mu1", &s->mu1, TYPE_IMX_MU);
     object_initialize_child(obj, "mu1_a", &s->mu1_a, TYPE_IMX_MU);
-    object_initialize_child(obj, "ethosu", &s->ethosu, TYPE_IMX93_ETHOSU);
+    object_initialize_child(obj, "ethosu", &s->ethosu, TYPE_ETHOS_U);
     object_initialize_child(obj, "bbnsm", &s->bbnsm, TYPE_IMX93_BBNSM);
     for (i = 0; i < 5; i++) {
         g_autofree char *name = g_strdup_printf("wdog%d", i + 1);

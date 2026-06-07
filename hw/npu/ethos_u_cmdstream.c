@@ -139,6 +139,8 @@ static void apply_set(EthosUOpDesc *op, bool payload, uint16_t opcode,
         break;
     case NPU_SET_IFM_PRECISION:
         op->ifm_layout = precision_layout(v);
+        /* activation_precision at bits [3:2]: 0=>8-bit, 1=>16-bit, 2=>32-bit */
+        op->ifm_bitdepth = 8 << ((v >> 2) & 0x3);
         break;
     case NPU_SET_IFM_ZERO_POINT:
         op->ifm_zp = (int16_t)v;
@@ -160,6 +162,9 @@ static void apply_set(EthosUOpDesc *op, bool payload, uint16_t opcode,
         break;
     case NPU_SET_OFM_DEPTH_M1:
         op->ofm_c = v + 1;
+        break;
+    case NPU_SET_OFM_BLK_DEPTH_M1:
+        op->ofm_block_depth = v + 1;
         break;
     case NPU_SET_OFM_PRECISION:
         op->ofm_layout = precision_layout(v);
@@ -264,6 +269,7 @@ bool ethos_u_cmdstream_decode(const uint8_t *cms, uint32_t qsize,
             op.ofm_addr = resolve(basep, op.ofm_region, op.ofm_base[0]);
             op.weight_addr = resolve(basep, op.weight_region, op.weight_base);
             op.scale_addr = resolve(basep, op.scale_region, op.scale_base);
+            op.op_param = imm;
             if (handler) {
                 handler(ctx, opcode, &op);
             }
