@@ -173,6 +173,12 @@ static const struct {
     /* MEDIAMIX: block control + imaging cluster (csi/dsi/pxp/lcdif/isi). */
     [FSL_IMX93_MEDIAMIX_PD] = { 0x44462400, 0x400, "mediamix-pd" },
     [FSL_IMX93_MEDIA_BLK_CTRL] = { 0x4ac10000, 4 * KiB, "media_blk_ctrl" },
+    [FSL_IMX93_TSTMR1] = { 0x442c0000, 64 * KiB, "tstmr1" },
+    [FSL_IMX93_TSTMR2] = { 0x42480000, 64 * KiB, "tstmr2" },
+    [FSL_IMX93_SEMA42_1] = { 0x44260000, 64 * KiB, "sema42-1" },
+    [FSL_IMX93_SEMA42_2] = { 0x42450000, 64 * KiB, "sema42-2" },
+    [FSL_IMX93_FLEXIO1] = { 0x425c0000, 64 * KiB, "flexio1" },
+    [FSL_IMX93_FLEXIO2] = { 0x425d0000, 64 * KiB, "flexio2" },
     [FSL_IMX93_MIPI_CSI] = { 0x4ae00000, 64 * KiB, "mipi_csi" },
     [FSL_IMX93_DSI] = { 0x4ae10000, 64 * KiB, "dsi" },
     [FSL_IMX93_PXP] = { 0x4ae20000, 64 * KiB, "pxp" },
@@ -197,6 +203,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
         FSL_IMX93_FLEXSPI1, FSL_IMX93_XCVR,
+        FSL_IMX93_FLEXIO1, FSL_IMX93_FLEXIO2,
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
@@ -1125,6 +1132,25 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->mu2), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX93_MU2_IRQ));
 
+    /* TSTMR1/2 timestamp timers + SEMA42 hardware semaphores (Group A). */
+    {
+        const int tstmr_r[2] = { FSL_IMX93_TSTMR1, FSL_IMX93_TSTMR2 };
+        const int sema_r[2] = { FSL_IMX93_SEMA42_1, FSL_IMX93_SEMA42_2 };
+
+        for (i = 0; i < 2; i++) {
+            if (!sysbus_realize(SYS_BUS_DEVICE(&s->tstmr[i]), errp)) {
+                return;
+            }
+            sysbus_mmio_map(SYS_BUS_DEVICE(&s->tstmr[i]), 0,
+                            fsl_imx93_memmap[tstmr_r[i]].addr);
+            if (!sysbus_realize(SYS_BUS_DEVICE(&s->sema42[i]), errp)) {
+                return;
+            }
+            sysbus_mmio_map(SYS_BUS_DEVICE(&s->sema42[i]), 0,
+                            fsl_imx93_memmap[sema_r[i]].addr);
+        }
+    }
+
     /* LPSPI1-8: SPI masters (each exposes an SSI bus for slaves). */
     {
         static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
@@ -1171,6 +1197,12 @@ static void fsl_imx93_init(Object *obj)
         object_initialize_child(obj, name, &s->tpm[i], TYPE_IMX93_TPM);
     }
     object_initialize_child(obj, "mu2", &s->mu2, TYPE_IMX_MU);
+    for (i = 0; i < 2; i++) {
+        g_autofree char *tn = g_strdup_printf("tstmr%d", i + 1);
+        g_autofree char *sn = g_strdup_printf("sema42-%d", i + 1);
+        object_initialize_child(obj, tn, &s->tstmr[i], TYPE_IMX93_TSTMR);
+        object_initialize_child(obj, sn, &s->sema42[i], TYPE_IMX93_SEMA42);
+    }
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "pxp", &s->pxp, TYPE_IMX93_PXP);

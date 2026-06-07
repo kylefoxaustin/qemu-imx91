@@ -279,3 +279,6 @@ source macio/Kconfig
 
 config IMX93_TMU
     bool
+
+config IMX93_SEMA42
+    bool
