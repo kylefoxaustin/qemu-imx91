@@ -98,14 +98,17 @@ qpid=$!
 trap 'kill $qpid 2>/dev/null' EXIT
 for s in $(seq 1 60); do
     sleep 5
-    grep -qa "PXP-G2D-COPY:" "$LOG" 2>/dev/null && break
+    grep -qa "PXP-G2D-FILL:" "$LOG" 2>/dev/null && break
 done
 kill $qpid 2>/dev/null; trap - EXIT
 
-result=$(grep -a "PXP-G2D-COPY:" "$LOG" | head -1)
-echo "==> $result"
+copy=$(grep -a "PXP-G2D-COPY:" "$LOG" | head -1)
+fill=$(grep -a "PXP-G2D-FILL:" "$LOG" | head -1)
+echo "==> ${copy:-PXP-G2D-COPY: (no result)}"
+echo "==> ${fill:-PXP-G2D-FILL: (no result)}"
 [ "$CAPTURE" = 1 ] && echo "==> PXP register trace: $TRACE ($(grep -c '\[pxp\]' "$TRACE" 2>/dev/null) accesses)"
-case "$result" in
-    *PASS*) exit 0;;
-    *) echo "FAIL or no result; see $LOG" >&2; exit 1;;
-esac
+if [ "${copy#*PASS}" != "$copy" ] && [ "${fill#*PASS}" != "$fill" ]; then
+    exit 0
+fi
+echo "FAIL or missing result; see $LOG" >&2
+exit 1

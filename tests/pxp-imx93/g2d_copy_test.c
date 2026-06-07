@@ -16,10 +16,62 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <unistd.h>
 #include "g2d.h"
 
 #define COPY_BYTES (64 * 1024)
+
+#define FILL_W      64
+#define FILL_H      64
+#define FILL_COLOR  0x11223344    /* RGBA8888 clrcolor */
+
+/* g2d_clear(): fill a surface rectangle with a constant colour, verify it. */
+static int test_fill(void *handle)
+{
+    struct g2d_buf *buf = g2d_alloc(FILL_W * FILL_H * 4, 0);
+    struct g2d_surface s;
+    uint32_t *px;
+    int i, rc, bad = 0;
+
+    if (!buf) {
+        printf("PXP-G2D-FILL: FAIL (g2d_alloc)\n");
+        return 1;
+    }
+    px = buf->buf_vaddr;
+    for (i = 0; i < FILL_W * FILL_H; i++) {
+        px[i] = 0xdeadbeef;
+    }
+    g2d_cache_op(buf, G2D_CACHE_FLUSH);
+
+    memset(&s, 0, sizeof(s));
+    s.format = G2D_RGBA8888;
+    s.planes[0] = buf->buf_paddr;
+    s.left = 0; s.top = 0; s.right = FILL_W; s.bottom = FILL_H;
+    s.stride = FILL_W; s.width = FILL_W; s.height = FILL_H;
+    s.clrcolor = FILL_COLOR;
+
+    rc = g2d_clear(handle, &s);
+    if (rc == 0) {
+        rc = g2d_finish(handle);
+    }
+    g2d_cache_op(buf, G2D_CACHE_INVALIDATE);
+
+    if (rc != 0) {
+        printf("PXP-G2D-FILL: FAIL (g2d_clear/finish rc=%d)\n", rc);
+        bad = 1;
+    } else {
+        for (i = 0; i < FILL_W * FILL_H; i++) {
+            if (px[i] != FILL_COLOR) {
+                bad++;
+            }
+        }
+        printf("PXP-G2D-FILL: %s (%d/%d px wrong, px0=%#x)\n",
+               bad ? "FAIL" : "PASS", bad, FILL_W * FILL_H, px[0]);
+    }
+    g2d_free(buf);
+    return bad ? 1 : 0;
+}
 
 int main(void)
 {
@@ -71,6 +123,10 @@ int main(void)
 
     g2d_free(src);
     g2d_free(dst);
+
+    /* Second op: constant-colour fill (g2d_clear) via the Store engine. */
+    bad += test_fill(handle);
+
     g2d_close(handle);
     return bad ? 1 : 0;
 }

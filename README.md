@@ -98,8 +98,8 @@ This port holds that bar, and goes past it where the data path is the point:
   cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
   neither pumps real samples/frames yet.
 - **Deferred / not on silicon.** No 3D GPU; the 2D PXP does accelerated G2D
-  copies (see below) but not blend/compositing yet, so the Wayland desktop still
-  software-renders.
+  copy + fill (see below) but not blend/compositing yet, so the Wayland desktop
+  still software-renders.
 
 The per-device tags under **What runs today** make this split explicit.
 
@@ -176,15 +176,16 @@ enumerates — the registration bar, no working host data path yet).
   screen, and a real Ogg/Theora clip is `theoradec`-decoded and played to EOS.
   `tests/gstreamer-imx93/run.sh` stages the plugins (the BSP builds them but
   installs them in no image) into a throwaway rootfs and boots it.
-- **PXP 2D engine — functional (G2D copy).** The Pixel Pipeline (`hw/misc/
-  imx93_pxp.c`) executes a real surface blit: on the ENABLE kick it fetches the
-  PS source surface from guest memory, writes it to the OUT destination
-  (same-format copy) and raises the completion IRQ the driver's fence waits on.
-  Proven through the whole stack — `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` →
-  the built-in `pxp_dma_v3` driver → the model — by a `g2d_copy` that comes back
-  **byte-exact** (`tests/pxp-imx93/`, plus a kernel-free qtest). Scope is
-  single-source same-format copy; fill, CSC, blend, scale and rotate are not
-  modelled yet, so G2D-composited Weston (`use-g2d=true`) is future work.
+- **PXP 2D engine — functional (G2D copy + fill).** The Pixel Pipeline
+  (`hw/misc/imx93_pxp.c`) executes real surface ops: on the ENABLE kick it either
+  copies the PS source surface to the OUT destination (legacy registers,
+  same-format copy) or fills a destination with a constant colour through the
+  Store engine (`g2d_clear`, with the internal→RGBA byte conversion), then raises
+  the completion IRQ the driver's fence waits on. Proven through the whole stack —
+  `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` → the built-in `pxp_dma_v3` driver →
+  the model — by a `g2d_copy` and a `g2d_clear` that both come back **byte-exact**
+  (`tests/pxp-imx93/`, plus a kernel-free qtest). CSC, blend, scale and rotate
+  are not modelled yet, so G2D-composited Weston (`use-g2d=true`) is future work.
 - **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
   93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
@@ -292,7 +293,7 @@ env vars and print exactly which to set if an artifact is missing.
   gap before `Freeing initrd memory`); a small busybox initramfs boots far
   faster. Not a hang.
 - **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU. The PXP G2D
-  path models accelerated copies only (not blend/compositing), so a Wayland
+  path models accelerated copy + fill only (not blend/compositing), so a Wayland
   desktop still uses software rendering.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
@@ -333,7 +334,7 @@ behaviour.
 | `hw/char/imx_lpuart.c`      | LPUART model (console) |
 | `hw/misc/imx93_ccm.c`, `hw/misc/imx93_anatop.c` | CCM clock roots/gates; ANATOP PLLs |
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
-| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy blit + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
+| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + Store-engine fill + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
@@ -443,9 +444,9 @@ before the EDID could be read and a mode set.
   host-TFLite stand-in; end-to-end inference on the BSP model is bit-exact vs
   TFLite, gated by 19 unit subtests + a 12-case qtest escalation suite.
 - **GStreamer + PXP G2D** — a software GStreamer pipeline renders to the LCDIFv3
-  display via waylandsink; the PXP gains a real G2D copy blit (PS→OUT + completion
-  IRQ), proven byte-exact through `libg2d → /dev/pxp_device → pxp_dma_v3` end to
-  end plus a kernel-free qtest.
+  display via waylandsink; the PXP gains real G2D copy + fill (PS→OUT copy and
+  Store-engine constant-colour fill + completion IRQ), proven byte-exact through
+  `libg2d → /dev/pxp_device → pxp_dma_v3` end to end plus a kernel-free qtest.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 

@@ -31,6 +31,12 @@
 #define PXP_PS_BUF      0xc0
 #define PXP_PS_PITCH    0xf0
 
+/* Fetch/Store engine cluster used by the fill path. */
+#define PXP_STORE_SIZE  0x600
+#define PXP_STORE_PITCH 0x620
+#define PXP_STORE_ADDR  0x690
+#define PXP_STORE_FILL  0x6b0
+
 #define CTRL_ENABLE     0x1
 #define STAT_IRQ0       0x1
 #define FMT_RGB888      0x4     /* 32-bit stored */
@@ -95,9 +101,53 @@ static void test_copy(void)
     qtest_quit(qts);
 }
 
+/* Swap R and B bytes: the Store engine's internal-to-RGBA conversion. */
+static uint32_t swap_rb(uint32_t v)
+{
+    return (v & 0xff00ff00u) | ((v >> 16) & 0xffu) | ((v & 0xffu) << 16);
+}
+
+static void test_fill(void)
+{
+    QTestState *qts = qtest_init("-machine imx93-11x11-evk -display none");
+    const uint32_t fill = 0x11443322;          /* Store fill data */
+    const uint32_t want = swap_rb(fill);        /* what lands in memory */
+    g_autofree uint32_t *dst = g_malloc(FM_LEN);
+    uint32_t stat;
+    int i;
+
+    for (i = 0; i < (int)(FM_LEN / 4); i++) {
+        dst[i] = 0xdeadbeef;
+    }
+    qtest_memwrite(qts, DST_ADDR, dst, FM_LEN);
+
+    /* Program the Store engine for a fill. Writing STORE_ADDR arms the fill
+     * path (vs the legacy copy path) for the shared ENABLE kick. */
+    pxp_writel(qts, PXP_STORE_SIZE, ((W - 1) << 16) | (H - 1));
+    pxp_writel(qts, PXP_STORE_PITCH, PITCH);
+    pxp_writel(qts, PXP_STORE_FILL, fill);
+    pxp_writel(qts, PXP_STORE_ADDR, (uint32_t)DST_ADDR);
+
+    pxp_writel(qts, PXP_CTRL_SET, CTRL_ENABLE);
+
+    stat = qtest_readl(qts, PXP_BASE + PXP_STAT);
+    g_assert_cmphex(stat & STAT_IRQ0, ==, STAT_IRQ0);
+
+    qtest_memread(qts, DST_ADDR, dst, FM_LEN);
+    for (i = 0; i < (int)(FM_LEN / 4); i++) {
+        if (dst[i] != want) {
+            g_test_message("OFM[%d] = %#x, want %#x", i, dst[i], want);
+        }
+        g_assert_cmphex(dst[i], ==, want);
+    }
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/aarch64/imx93-pxp/copy", test_copy);
+    qtest_add_func("/aarch64/imx93-pxp/fill", test_fill);
     return g_test_run();
 }

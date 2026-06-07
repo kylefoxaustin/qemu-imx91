@@ -43,6 +43,17 @@
 #define HW_PXP_PS_BUF       0xc0    /* source physical address */
 #define HW_PXP_PS_PITCH     0xf0    /* source stride, bytes */
 
+/*
+ * Fetch/Store engine cluster (0x400..0x6ff). g2d_clear (fill) and g2d_blit
+ * (compositing) use this path instead of the legacy PS/OUT registers, kicked by
+ * the same HW_PXP_CTRL ENABLE. Only the Store fill registers are modelled.
+ */
+#define HW_PXP_STORE_SIZE   0x600   /* [31:16] width-1, [15:0] height-1 */
+#define HW_PXP_STORE_PITCH  0x620   /* dest stride, bytes */
+#define HW_PXP_STORE_CTRL   0x630   /* INPUT_STORE_CTRL_CH0 (FILL_DATA_EN, fmt) */
+#define HW_PXP_STORE_ADDR   0x690   /* dest physical address */
+#define HW_PXP_STORE_FILL   0x6b0   /* INPUT_STORE_FILL_DATA_CH0 */
+
 #define R(s, off)           ((s)->regs[(off) / 4])
 
 static void imx93_pxp_trace(const char *op, hwaddr offset, uint32_t value)
@@ -64,11 +75,15 @@ static int imx93_pxp_bpp(uint32_t ctrl)
     }
 }
 
-/*
- * Execute one PXP pass: copy the PS surface to the OUT surface (or, when the PS
- * source is disabled, fill OUT with a constant colour), then signal completion.
- */
-static void imx93_pxp_blit(IMX93PxpState *s)
+/* Swap the R and B bytes of a 32-bit pixel (RGBA8888 <-> the Store internal
+ * order, which the capture showed is byte-0/byte-2 swapped). */
+static inline uint32_t imx93_pxp_swap_rb(uint32_t v)
+{
+    return (v & 0xff00ff00u) | ((v >> 16) & 0xffu) | ((v & 0xffu) << 16);
+}
+
+/* Legacy PS->OUT same-format copy (g2d_copy path, registers 0x00..0x3ff). */
+static void imx93_pxp_copy(IMX93PxpState *s)
 {
     uint32_t lrc = R(s, HW_PXP_OUT_LRC);
     uint32_t width = ((lrc >> 16) & 0xffff) + 1;
@@ -82,27 +97,13 @@ static void imx93_pxp_blit(IMX93PxpState *s)
     g_autofree uint8_t *line = NULL;
     uint32_t y;
 
-    if (!out_buf || width == 0 || height == 0 || line_bytes == 0) {
-        goto done;
+    if (!out_buf || !ps_buf || line_bytes == 0) {
+        return;
     }
-    if (!out_pitch) {
-        out_pitch = line_bytes;
-    }
-    if (!ps_pitch) {
-        ps_pitch = line_bytes;
-    }
+    out_pitch = out_pitch ? out_pitch : line_bytes;
+    ps_pitch = ps_pitch ? ps_pitch : line_bytes;
     line = g_malloc(line_bytes);
 
-    if (!ps_buf) {
-        /*
-         * No PS source surface programmed: this is a constant-colour fill
-         * (INPUT_STORE_FILL_DATA path), which is not modelled yet. Signal
-         * completion so the driver's fence is not left waiting.
-         */
-        goto done;
-    }
-
-    line = g_malloc(line_bytes);
     for (y = 0; y < height; y++) {
         if (dma_memory_read(&address_space_memory,
                             ps_buf + (uint64_t)y * ps_pitch, line,
@@ -113,8 +114,49 @@ static void imx93_pxp_blit(IMX93PxpState *s)
                          out_buf + (uint64_t)y * out_pitch, line, line_bytes,
                          MEMTXATTRS_UNSPECIFIED);
     }
+}
 
-done:
+/* Store-engine constant-colour fill (g2d_clear, registers 0x400..0x6ff). */
+static void imx93_pxp_fill(IMX93PxpState *s)
+{
+    uint32_t size = R(s, HW_PXP_STORE_SIZE);
+    uint32_t width = ((size >> 16) & 0xffff) + 1;
+    uint32_t height = (size & 0xffff) + 1;
+    uint64_t out_buf = R(s, HW_PXP_STORE_ADDR);
+    uint32_t pitch = R(s, HW_PXP_STORE_PITCH) & 0xffff;
+    uint32_t pixel = imx93_pxp_swap_rb(R(s, HW_PXP_STORE_FILL));
+    size_t line_bytes = (size_t)width * 4;     /* 32bpp fill */
+    g_autofree uint32_t *line = NULL;
+    uint32_t x, y;
+
+    if (!out_buf || line_bytes == 0) {
+        return;
+    }
+    pitch = pitch ? pitch : line_bytes;
+    line = g_malloc(line_bytes);
+    for (x = 0; x < width; x++) {
+        line[x] = pixel;
+    }
+    for (y = 0; y < height; y++) {
+        dma_memory_write(&address_space_memory,
+                         out_buf + (uint64_t)y * pitch, line, line_bytes,
+                         MEMTXATTRS_UNSPECIFIED);
+    }
+}
+
+/*
+ * Execute one PXP pass on the ENABLE kick and post the completion interrupt.
+ * The legacy copy and Store fill share the kick; dispatch on whichever output
+ * path the driver armed last (Store address vs legacy OUT/PS buffers).
+ */
+static void imx93_pxp_blit(IMX93PxpState *s)
+{
+    if (s->store_armed) {
+        imx93_pxp_fill(s);
+    } else {
+        imx93_pxp_copy(s);
+    }
+
     /* Hardware clears ENABLE when the frame completes and posts IRQ0. */
     s->ctrl &= ~BM_PXP_CTRL_ENABLE;
     s->stat |= BM_PXP_STAT_IRQ0;
@@ -175,6 +217,16 @@ static void imx93_pxp_write(void *opaque, hwaddr offset, uint64_t value,
         }
     } else {
         imx93_pxp_mxs(&s->regs[base / 4], offset, value);
+        /*
+         * Both the legacy copy and the Store fill are kicked by the shared CTRL
+         * ENABLE, so remember which output path the driver armed most recently:
+         * a Store dest address means a fill, a legacy OUT/PS buffer means a copy.
+         */
+        if (base == HW_PXP_STORE_ADDR) {
+            s->store_armed = true;
+        } else if (base == HW_PXP_OUT_BUF || base == HW_PXP_PS_BUF) {
+            s->store_armed = false;
+        }
     }
 }
 
@@ -192,6 +244,7 @@ static void imx93_pxp_reset(DeviceState *dev)
 
     s->ctrl = 0;
     s->stat = 0;
+    s->store_armed = false;
     memset(s->regs, 0, sizeof(s->regs));
     qemu_set_irq(s->irq, 0);
 }
@@ -208,11 +261,12 @@ static void imx93_pxp_init(Object *obj)
 
 static const VMStateDescription vmstate_imx93_pxp = {
     .name = TYPE_IMX93_PXP,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(ctrl, IMX93PxpState),
         VMSTATE_UINT32(stat, IMX93PxpState),
+        VMSTATE_BOOL(store_armed, IMX93PxpState),
         VMSTATE_UINT32_ARRAY(regs, IMX93PxpState, IMX93_PXP_NUM_REGS),
         VMSTATE_END_OF_LIST()
     },

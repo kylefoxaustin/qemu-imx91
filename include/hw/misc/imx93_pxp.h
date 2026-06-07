@@ -40,6 +40,7 @@ struct IMX93PxpState {
 
     MemoryRegion iomem;
     qemu_irq irq;               /* WAKEUPMIX PXP interrupt 0 (completion) */
+    bool store_armed;           /* last-armed output path: Store fill vs legacy copy */
     uint32_t ctrl;
     uint32_t stat;
     uint32_t regs[IMX93_PXP_NUM_REGS];
