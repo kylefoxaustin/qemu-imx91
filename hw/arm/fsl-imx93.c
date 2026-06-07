@@ -202,7 +202,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
         FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
         FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
-        FSL_IMX93_XCVR,
         FSL_IMX93_FLEXIO1, FSL_IMX93_FLEXIO2,
     };
 
@@ -1157,6 +1156,15 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         qdev_connect_gpio_out_named(DEVICE(&s->flexspi), "cs", 0, cs_line);
     }
 
+    /* XCVR SPDIF audio transceiver (registration model). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->xcvr), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->xcvr), 0,
+                    fsl_imx93_memmap[FSL_IMX93_XCVR].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->xcvr), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_XCVR_IRQ));
+
     /* TSTMR1/2 timestamp timers + SEMA42 hardware semaphores (Group A). */
     {
         const int tstmr_r[2] = { FSL_IMX93_TSTMR1, FSL_IMX93_TSTMR2 };
@@ -1223,6 +1231,7 @@ static void fsl_imx93_init(Object *obj)
     }
     object_initialize_child(obj, "mu2", &s->mu2, TYPE_IMX_MU);
     object_initialize_child(obj, "flexspi", &s->flexspi, TYPE_IMX93_FLEXSPI);
+    object_initialize_child(obj, "xcvr", &s->xcvr, TYPE_IMX93_XCVR);
     for (i = 0; i < 2; i++) {
         g_autofree char *tn = g_strdup_printf("tstmr%d", i + 1);
         g_autofree char *sn = g_strdup_printf("sema42-%d", i + 1);

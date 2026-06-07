@@ -65,3 +65,6 @@ config IMX93_MICFIL
 config WM8962
     bool
     depends on I2C
+
+config IMX93_XCVR
+    bool

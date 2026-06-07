@@ -655,6 +655,7 @@ config FSL_IMX93
     select IMX93_TSTMR
     select IMX93_SEMA42
     select IMX93_FLEXSPI
+    select IMX93_XCVR
     select IMX_FEC
     select IMX_LPI2C
     select IMX_LPUART

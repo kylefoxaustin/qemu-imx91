@@ -52,6 +52,7 @@
 #include "hw/timer/imx93_tstmr.h"
 #include "hw/misc/imx93_sema42.h"
 #include "hw/ssi/imx93_flexspi.h"
+#include "hw/audio/imx93_xcvr.h"
 #include "hw/dma/imx93_edma.h"
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
@@ -165,6 +166,7 @@ struct FslImx93State {
     IMX93TstmrState tstmr[2];            /* TSTMR1/2 timestamp timers       */
     IMX93Sema42State sema42[2];          /* SEMA42 (AON + WAKEUP)           */
     IMX93FlexSpiState flexspi;           /* FlexSPI @ 0x425e0000 (NOR flash) */
+    IMX93XcvrState xcvr;                 /* SPDIF transceiver @ 0x42680000  */
     MemoryRegion    m33_view;            /* the M33's 4 GiB address space    */
     MemoryRegion    m33_sysmem_alias;    /* low-prio window onto system mem  */
     MemoryRegion    m33_secure_periph;   /* 0x5xxxxxxx secure alias of 0x4... */
@@ -360,6 +362,7 @@ enum FslImx93Irqs {
     FSL_IMX93_SYSCTR_IRQ    = 74,    /* system counter compare */
     FSL_IMX93_MU2_IRQ       = 23,    /* MU2 -> A55 GIC SPI */
     FSL_IMX93_FLEXSPI1_IRQ  = 55,    /* FlexSPI */
+    FSL_IMX93_XCVR_IRQ      = 203,   /* XCVR SPDIF */
     FSL_IMX93_ELE_TX_IRQ    = 31,   /* s4muap "tx" */
     FSL_IMX93_ELE_RX_IRQ    = 30,   /* s4muap "rx" */
     FSL_IMX93_MU1_IRQ       = 22,   /* MU1_MUB -> A55 GIC SPI */
