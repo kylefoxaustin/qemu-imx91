@@ -198,6 +198,69 @@ static int test_blend(void *handle)
     return bad ? 1 : 0;
 }
 
+/* g2d_blit with rotation; src pixel encodes (y<<8|x) so the mapping is visible.
+ * Prints the dst corners to deduce the rotation direction per angle. */
+static int test_rotate(void *handle, int rot, const char *name)
+{
+    struct g2d_buf *src = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_buf *dst = g2d_alloc(BLIT_W * BLIT_H * 4, 0);
+    struct g2d_surface s, d;
+    uint32_t *sp, *dp;
+    int x, y, rc;
+
+    if (!src || !dst) {
+        printf("PXP-G2D-ROT%s: FAIL (g2d_alloc)\n", name);
+        return 1;
+    }
+    sp = src->buf_vaddr; dp = dst->buf_vaddr;
+    for (y = 0; y < BLIT_H; y++) {
+        for (x = 0; x < BLIT_W; x++) {
+            sp[y * BLIT_W + x] = 0xff000000u | ((uint32_t)y << 8) | (uint32_t)x;
+        }
+    }
+    memset(dp, 0, BLIT_W * BLIT_H * 4);
+    g2d_cache_op(src, G2D_CACHE_FLUSH);
+    g2d_cache_op(dst, G2D_CACHE_FLUSH);
+
+    memset(&s, 0, sizeof(s));
+    s.format = G2D_RGBA8888; s.planes[0] = src->buf_paddr;
+    s.left = 0; s.top = 0; s.right = BLIT_W; s.bottom = BLIT_H;
+    s.stride = BLIT_W; s.width = BLIT_W; s.height = BLIT_H;
+    s.blendfunc = G2D_ONE; s.rot = G2D_ROTATION_0;
+    d = s;
+    d.planes[0] = dst->buf_paddr;
+    d.blendfunc = G2D_ZERO;
+    d.rot = rot;
+
+    rc = g2d_blit(handle, &s, &d);
+    if (rc == 0) {
+        rc = g2d_finish(handle);
+    }
+    g2d_cache_op(dst, G2D_CACHE_INVALIDATE);
+
+    int bad = 0;
+    if (rc != 0) {
+        printf("PXP-G2D-ROT%s: FAIL (rc=%d)\n", name, rc);
+        bad = 1;
+    } else {
+        /* dst(ox,oy) maps to src(sx,sy) per the rotation; src encodes y<<8|x. */
+        for (y = 0; y < BLIT_H && bad < 1; y++) {
+            for (x = 0; x < BLIT_W; x++) {
+                int sx, sy;
+                if (rot == G2D_ROTATION_90)      { sx = y; sy = BLIT_H - 1 - x; }
+                else if (rot == G2D_ROTATION_180){ sx = BLIT_W - 1 - x; sy = BLIT_H - 1 - y; }
+                else                             { sx = BLIT_W - 1 - y; sy = x; }
+                uint32_t want = 0xff000000u | ((uint32_t)sy << 8) | (uint32_t)sx;
+                if (dp[y * BLIT_W + x] != want) { bad++; break; }
+            }
+        }
+        printf("PXP-G2D-ROT%s: %s (d[0,0]=%#x)\n", name,
+               bad ? "FAIL" : "PASS", dp[0]);
+    }
+    g2d_free(src); g2d_free(dst);
+    return bad ? 1 : 0;
+}
+
 int main(void)
 {
     void *handle = NULL;
@@ -257,6 +320,11 @@ int main(void)
 
     /* Fourth op: alpha-blended blit (g2d_blit + G2D_BLEND, src-over). */
     bad += test_blend(handle);
+
+    /* Fifth: rotations 90/180/270 (capture/observe the angle encoding). */
+    bad += test_rotate(handle, G2D_ROTATION_90, "90");
+    bad += test_rotate(handle, G2D_ROTATION_180, "180");
+    bad += test_rotate(handle, G2D_ROTATION_270, "270");
 
     g2d_close(handle);
     return bad ? 1 : 0;

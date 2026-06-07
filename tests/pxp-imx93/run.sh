@@ -98,7 +98,7 @@ qpid=$!
 trap 'kill $qpid 2>/dev/null' EXIT
 for s in $(seq 1 60); do
     sleep 5
-    grep -qa "PXP-G2D-BLEND:" "$LOG" 2>/dev/null && break
+    grep -qa "PXP-G2D-ROT270:" "$LOG" 2>/dev/null && break
 done
 kill $qpid 2>/dev/null; trap - EXIT
 

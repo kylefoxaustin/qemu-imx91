@@ -98,9 +98,9 @@ This port holds that bar, and goes past it where the data path is the point:
   cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
   neither pumps real samples/frames yet.
 - **Deferred / not on silicon.** No 3D GPU; the 2D PXP does accelerated G2D
-  copy + fill + blit + src-over blend (see below), enough for `use-g2d=true`
-  Weston to composite opaque *and* alpha-blended surfaces. CSC / scale / rotate
-  are not modelled.
+  copy + fill + blit + src-over blend + rotation (see below), enough for
+  `use-g2d=true` Weston to composite opaque *and* alpha-blended surfaces. CSC is
+  not modelled; g2d scale is rejected by the driver.
 
 The per-device tags under **What runs today** make this split explicit.
 
@@ -182,13 +182,15 @@ enumerates — the registration bar, no working host data path yet).
   a legacy PS→OUT same-format **copy** (`g2d_copy`), a Store-engine constant-colour
   **fill** (`g2d_clear`), an opaque Fetch→Store **blit** (`g2d_blit`), or a
   two-channel **src-over alpha blend** (`g2d_blit` + `G2D_BLEND`: Fetch CH1
-  foreground over Fetch CH0 background → Store) — then raises the completion IRQ
-  the driver's fence waits on. All four are proven **byte-exact** through the whole
-  stack — `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` → the built-in `pxp_dma_v3`
-  driver → the model — by a copy/clear/blit/blend oracle (`tests/pxp-imx93/`, plus
-  a kernel-free qtest). With the full op set, **`use-g2d=true` Weston composites
-  through the PXP** (opaque *and* alpha-blended surfaces) instead of pixman. CSC,
-  scale and rotate are not modelled yet.
+  foreground over Fetch CH0 background → Store), or a **90/180/270 rotation**
+  (`FETCH_CTRL[13:12]`) — then raises the completion IRQ the driver's fence waits
+  on. All are proven **byte-exact** through the whole stack — `libg2d` (imx-pxp-g2d)
+  → `/dev/pxp_device` → the built-in `pxp_dma_v3` driver → the model — by a
+  copy/clear/blit/blend/rotate oracle (`tests/pxp-imx93/`, plus a kernel-free
+  qtest). With the op set, **`use-g2d=true` Weston composites through the PXP**
+  (opaque *and* alpha-blended surfaces) instead of pixman. CSC (YUV→RGB) is not
+  modelled; g2d **scale** is rejected by the driver (`unsupport 2d operation`) and
+  unused by Weston, so it is not exercisable here.
 - **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
   93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
@@ -296,8 +298,9 @@ env vars and print exactly which to set if an artifact is missing.
   gap before `Freeing initrd memory`); a small busybox initramfs boots far
   faster. Not a hang.
 - **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU. The PXP G2D
-  path models copy + fill + blit + src-over blend (so `use-g2d=true` Weston
-  composites opaque and alpha-blended surfaces); CSC / scale / rotate are not.
+  path models copy + fill + blit + src-over blend + 90/180/270 rotation (so
+  `use-g2d=true` Weston composites opaque and alpha-blended surfaces); CSC is not
+  modelled and g2d scale is rejected by the driver.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
 - On the framebuffer console, the shell prints a cosmetic
@@ -337,7 +340,7 @@ behaviour.
 | `hw/char/imx_lpuart.c`      | LPUART model (console) |
 | `hw/misc/imx93_ccm.c`, `hw/misc/imx93_anatop.c` | CCM clock roots/gates; ANATOP PLLs |
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
-| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + fill + Fetch→Store blit + src-over blend + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
+| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + fill + Fetch→Store blit + src-over blend + 90/180/270 rotation + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |

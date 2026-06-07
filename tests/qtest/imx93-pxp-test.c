@@ -31,7 +31,8 @@
 #define PXP_PS_BUF      0xc0
 #define PXP_PS_PITCH    0xf0
 
-/* Fetch/Store engine cluster used by the fill, blit and blend paths. */
+/* Fetch/Store engine cluster used by the fill, blit, blend and rotate paths. */
+#define PXP_FETCH_CTRL  0x450       /* [13:12] = rotation (1=90, 2=180, 3=270) */
 #define PXP_FETCH_SIZE  0x4a0
 #define PXP_FETCH_PITCH 0x510
 #define PXP_FETCH_ADDR  0x580       /* CH0 (blit src / blend background) */
@@ -240,6 +241,48 @@ static void test_blend(void)
     qtest_quit(qts);
 }
 
+/* 90-degree rotation: dst(ox,oy) maps to src(oy, RH-1-ox). */
+static void test_rotate(void)
+{
+    QTestState *qts = qtest_init("-machine imx93-11x11-evk -display none");
+    enum { RW = 32, RH = 32, RP = RW * 4, RLEN = RP * RH };
+    g_autofree uint32_t *sbuf = g_malloc(RLEN);
+    g_autofree uint32_t *dbuf = g_malloc(RLEN);
+    uint32_t stat;
+    int x, y;
+
+    for (y = 0; y < RH; y++) {
+        for (x = 0; x < RW; x++) {
+            sbuf[y * RW + x] = 0xff000000u | ((uint32_t)y << 8) | (uint32_t)x;
+        }
+    }
+    qtest_memwrite(qts, SRC_ADDR, sbuf, RLEN);
+    memset(dbuf, 0, RLEN);
+    qtest_memwrite(qts, DST_ADDR, dbuf, RLEN);
+
+    pxp_writel(qts, PXP_FETCH_SIZE, ((RW - 1) << 16) | (RH - 1));
+    pxp_writel(qts, PXP_FETCH_PITCH, RP);
+    pxp_writel(qts, PXP_FETCH_CTRL, 0x1000);             /* rotate 90 */
+    pxp_writel(qts, PXP_STORE_SIZE, ((RW - 1) << 16) | (RH - 1));
+    pxp_writel(qts, PXP_STORE_PITCH, RP);
+    pxp_writel(qts, PXP_STORE_ADDR, (uint32_t)DST_ADDR);
+    pxp_writel(qts, PXP_FETCH_ADDR, (uint32_t)SRC_ADDR);
+
+    pxp_writel(qts, PXP_CTRL_SET, CTRL_ENABLE);
+
+    stat = qtest_readl(qts, PXP_BASE + PXP_STAT);
+    g_assert_cmphex(stat & STAT_IRQ0, ==, STAT_IRQ0);
+
+    qtest_memread(qts, DST_ADDR, dbuf, RLEN);
+    for (y = 0; y < RH; y++) {
+        for (x = 0; x < RW; x++) {
+            uint32_t want = 0xff000000u | ((uint32_t)(RH - 1 - x) << 8) | y;
+            g_assert_cmphex(dbuf[y * RW + x], ==, want);
+        }
+    }
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -247,5 +290,6 @@ int main(int argc, char **argv)
     qtest_add_func("/aarch64/imx93-pxp/fill", test_fill);
     qtest_add_func("/aarch64/imx93-pxp/blit", test_blit);
     qtest_add_func("/aarch64/imx93-pxp/blend", test_blend);
+    qtest_add_func("/aarch64/imx93-pxp/rotate", test_rotate);
     return g_test_run();
 }

@@ -13,8 +13,10 @@
  * interrupt (WAKEUPMIX PXP interrupt 0) that the driver's fence waits on. Every
  * register is MXS SET/CLR/TOG aliased; set PXP_DBG to trace accesses. The op
  * register layouts were captured from the live driver (see tests/pxp-imx93).
- * Scope is same-format copy, constant-colour fill, opaque Fetch->Store blit and
- * src-over alpha blend; CSC / scale / rotate are not modelled.
+ * Scope is same-format copy, constant-colour fill, opaque Fetch->Store blit,
+ * src-over alpha blend and 90/180/270 rotation. CSC is not modelled; g2d scale is
+ * rejected by the pxp_dma_v3 driver ("unsupport 2d operation") so it is not
+ * exercisable here.
  */
 
 #include "qemu/osdep.h"
@@ -49,6 +51,7 @@
  * (compositing) use this path instead of the legacy PS/OUT registers, kicked by
  * the same HW_PXP_CTRL ENABLE. Only the Store fill registers are modelled.
  */
+#define HW_PXP_FETCH_CTRL   0x450   /* INPUT_FETCH CH0 ctrl; [13:12] = rotation */
 #define HW_PXP_FETCH_SIZE   0x4a0   /* INPUT_FETCH size: w-1<<16 | h-1 */
 #define HW_PXP_FETCH_PITCH  0x510   /* stride: [31:16] CH1, [15:0] CH0, bytes */
 #define HW_PXP_FETCH_ADDR   0x580   /* INPUT_FETCH CH0 source (blit src / blend bg) */
@@ -154,35 +157,73 @@ static void imx93_pxp_fill(IMX93PxpState *s)
     }
 }
 
-/* Fetch->Store surface blit (g2d_blit, opaque same-format). The Fetch input
- * conversion and the Store output conversion cancel for a same-format blit, so
- * the source surface lands in the destination unchanged. */
+/* Fetch->Store surface blit (g2d_blit), with optional 90/180/270 rotation from
+ * FETCH_CTRL[13:12]. The Fetch input conversion and the Store output conversion
+ * cancel for a same-format blit, so the surface lands unchanged (just rotated).
+ */
 static void imx93_pxp_fetch_store(IMX93PxpState *s)
 {
-    uint32_t size = R(s, HW_PXP_FETCH_SIZE);
-    uint32_t width = ((size >> 16) & 0xffff) + 1;
-    uint32_t height = (size & 0xffff) + 1;
+    uint32_t fsize = R(s, HW_PXP_FETCH_SIZE);
+    uint32_t sw = ((fsize >> 16) & 0xffff) + 1;     /* source width  */
+    uint32_t sh = (fsize & 0xffff) + 1;             /* source height */
+    uint32_t dsize = R(s, HW_PXP_STORE_SIZE);
+    uint32_t dw = ((dsize >> 16) & 0xffff) + 1;     /* dest width  */
+    uint32_t dh = (dsize & 0xffff) + 1;             /* dest height */
     uint64_t src = R(s, HW_PXP_FETCH_ADDR);
     uint64_t dst = R(s, HW_PXP_STORE_ADDR);
     uint32_t src_pitch = R(s, HW_PXP_FETCH_PITCH) & 0xffff;
     uint32_t dst_pitch = R(s, HW_PXP_STORE_PITCH) & 0xffff;
-    size_t line_bytes = (size_t)width * 4;     /* 32bpp */
-    g_autofree uint8_t *line = NULL;
-    uint32_t y;
+    uint32_t rot = (R(s, HW_PXP_FETCH_CTRL) >> 12) & 0x3;
+    g_autofree uint8_t *sbuf = NULL;
+    g_autofree uint32_t *dl = NULL;
+    uint32_t ox, oy;
 
-    if (!src || !dst || line_bytes == 0) {
+    if (!src || !dst || sw == 0 || sh == 0) {
         return;
     }
-    src_pitch = src_pitch ? src_pitch : line_bytes;
-    dst_pitch = dst_pitch ? dst_pitch : line_bytes;
-    line = g_malloc(line_bytes);
-    for (y = 0; y < height; y++) {
-        if (dma_memory_read(&address_space_memory, src + (uint64_t)y * src_pitch,
-                            line, line_bytes, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
-            break;
+    src_pitch = src_pitch ? src_pitch : sw * 4;
+    dst_pitch = dst_pitch ? dst_pitch : dw * 4;
+
+    if (rot == 0) {                 /* fast path: straight line copy */
+        g_autofree uint8_t *line = g_malloc((size_t)sw * 4);
+        for (oy = 0; oy < sh; oy++) {
+            if (dma_memory_read(&address_space_memory,
+                                src + (uint64_t)oy * src_pitch, line,
+                                (size_t)sw * 4, MEMTXATTRS_UNSPECIFIED)
+                    != MEMTX_OK) {
+                break;
+            }
+            dma_memory_write(&address_space_memory,
+                             dst + (uint64_t)oy * dst_pitch, line,
+                             (size_t)sw * 4, MEMTXATTRS_UNSPECIFIED);
         }
-        dma_memory_write(&address_space_memory, dst + (uint64_t)y * dst_pitch,
-                         line, line_bytes, MEMTXATTRS_UNSPECIFIED);
+        return;
+    }
+
+    /* Rotated: read the whole source, then remap each dest pixel from it. */
+    sbuf = g_malloc((size_t)sh * src_pitch);
+    if (dma_memory_read(&address_space_memory, src, sbuf,
+                        (size_t)sh * src_pitch, MEMTXATTRS_UNSPECIFIED)
+            != MEMTX_OK) {
+        return;
+    }
+    dl = g_malloc((size_t)dw * 4);
+    for (oy = 0; oy < dh; oy++) {
+        for (ox = 0; ox < dw; ox++) {
+            uint32_t sx, sy;
+            switch (rot) {
+            case 1: sx = oy;          sy = sh - 1 - ox; break;  /* 90  */
+            case 2: sx = sw - 1 - ox; sy = sh - 1 - oy; break;  /* 180 */
+            default: sx = sw - 1 - oy; sy = ox;         break;  /* 270 */
+            }
+            if (sx < sw && sy < sh) {
+                memcpy(&dl[ox], sbuf + (size_t)sy * src_pitch + (size_t)sx * 4, 4);
+            } else {
+                dl[ox] = 0;
+            }
+        }
+        dma_memory_write(&address_space_memory, dst + (uint64_t)oy * dst_pitch,
+                         dl, (size_t)dw * 4, MEMTXATTRS_UNSPECIFIED);
     }
 }
 
