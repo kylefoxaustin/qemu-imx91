@@ -4,13 +4,16 @@
 #
 # The NXP BSP builds the ASoC stack as modules, so this chains a tiny overlay
 # initramfs (/myinit, see ./myinit) onto the imx-image-core rootfs, modprobes
-# the SAI/MICFIL drivers + codecs, and dumps /proc/asound. Expect two cards:
+# the SAI/MICFIL drivers + codecs, and dumps /proc/asound. Expect:
 #
-#   0 [btscoaudio ]: simple-card - bt-sco-audio   (SAI1, playback+capture)
-#   1 [micfilaudio]: micfil-audio - micfil-audio  (MICFIL, PDM capture)
+#   0 [btscoaudio  ]: simple-card  - bt-sco-audio   (SAI1, playback+capture)
+#   1 [wm8962audio ]: fsl-asoc-card - wm8962-audio  (SAI3 -> wm8962 codec)
+#   wm8962 0-001a: customer id 0 revision A
 #
-# The wm8962 card (SAI3) needs eDMA2 + a modeled wm8962 codec and is not yet
-# expected to come up.
+# The wm8962 codec model on lpi2c1 + the SAI register/FIFO model let the card
+# register. The SAI transmit-FIFO datapath is exercised kernel-free by
+# tests/qtest/imx93-sai-test.c; full end-to-end PCM playback (cyclic eDMA3
+# feeding the FIFO) is the remaining datapath work.
 #
 # Override any path via env:  KERNEL=/path/Image DTB=/path.dtb BASE_INITRD=...
 set -u
