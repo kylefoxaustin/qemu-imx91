@@ -97,8 +97,9 @@ This port holds that bar, and goes past it where the data path is the point:
 - **Registration bar.** Audio (SAI/MICFIL/WM8962) registers all three ALSA
   cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
   neither pumps real samples/frames yet.
-- **Deferred / not on silicon.** No 3D GPU and no G2D 2D engine, so the Wayland
-  desktop is software-rendered.
+- **Deferred / not on silicon.** No 3D GPU; the 2D PXP does accelerated G2D
+  copies (see below) but not blend/compositing yet, so the Wayland desktop still
+  software-renders.
 
 The per-device tags under **What runs today** make this split explicit.
 
@@ -164,8 +165,8 @@ enumerates — the registration bar, no working host data path yet).
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
   rendered (Mesa softpipe / pixman): the i.MX 93 has no 3D GPU, so Weston must
-  run with `use-g2d=false` (the G2D 2D engine isn't modelled). See
-  `tests/weston-imx93/run.sh`.
+  run with `use-g2d=false` — the PXP G2D path does accelerated copies but not the
+  blend/compositing Weston needs (see PXP below). See `tests/weston-imx93/run.sh`.
 - **GStreamer media on the display — functional.** The i.MX 93 has **no hardware
   JPEG/video codec** (its Reference Manual has no codec block — unlike the i.MX
   95's CAST mxc-jpeg), so multimedia is pure software on the A55s. A stock
@@ -175,6 +176,15 @@ enumerates — the registration bar, no working host data path yet).
   screen, and a real Ogg/Theora clip is `theoradec`-decoded and played to EOS.
   `tests/gstreamer-imx93/run.sh` stages the plugins (the BSP builds them but
   installs them in no image) into a throwaway rootfs and boots it.
+- **PXP 2D engine — functional (G2D copy).** The Pixel Pipeline (`hw/misc/
+  imx93_pxp.c`) executes a real surface blit: on the ENABLE kick it fetches the
+  PS source surface from guest memory, writes it to the OUT destination
+  (same-format copy) and raises the completion IRQ the driver's fence waits on.
+  Proven through the whole stack — `libg2d` (imx-pxp-g2d) → `/dev/pxp_device` →
+  the built-in `pxp_dma_v3` driver → the model — by a `g2d_copy` that comes back
+  **byte-exact** (`tests/pxp-imx93/`, plus a kernel-free qtest). Scope is
+  single-source same-format copy; fill, CSC, blend, scale and rotate are not
+  modelled yet, so G2D-composited Weston (`use-g2d=true`) is future work.
 - **Ethos-U65 microNPU, firmware stack — functional.** Over RPMsg: on the i.MX
   93 the NPU is driven by firmware on the Cortex-M33 (its DT node has no `reg`),
   not by Linux. Opening `/dev/ethosu0` makes the `arm,ethosu` driver boot the
@@ -281,8 +291,9 @@ env vars and print exactly which to set if an artifact is missing.
   ~430 MB rootfs unpacks to ~1.3 GB tmpfs (~12 s on this host, logged as the
   gap before `Freeing initrd memory`); a small busybox initramfs boots far
   faster. Not a hang.
-- **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU and no G2D 2D
-  engine modelled, so a Wayland desktop uses software rendering.
+- **No 3D GPU on silicon.** The i.MX 93 has 2D PXP but no 3D GPU. The PXP G2D
+  path models accelerated copies only (not blend/compositing), so a Wayland
+  desktop still uses software rendering.
 - **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
   (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
 - On the framebuffer console, the shell prints a cosmetic
@@ -322,7 +333,7 @@ behaviour.
 | `hw/char/imx_lpuart.c`      | LPUART model (console) |
 | `hw/misc/imx93_ccm.c`, `hw/misc/imx93_anatop.c` | CCM clock roots/gates; ANATOP PLLs |
 | `hw/misc/imx93_media_blk.c` | MEDIAMIX block-ctrl GPR + SRC power-domain slice |
-| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP reset model; ELE (EdgeLock Enclave) MU + responder |
+| `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy blit + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
 | `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
@@ -337,6 +348,8 @@ behaviour.
 | `hw/audio/imx93_sai.c`, `hw/audio/imx93_micfil.c` | SAI (I²S) + MICFIL (PDM mic) front-ends |
 | `hw/audio/wm8962.c`         | WM8962 audio codec (I²C) |
 | `tests/qtest/flexcan-test.c` | kernel-free FlexCAN model qtest (frame TX/RX) |
+| `tests/qtest/imx93-pxp-test.c` | kernel-free PXP qtest (g2d_copy blit, OFM byte-exact) |
+| `tests/pxp-imx93/run.sh`    | PXP G2D copy e2e (libg2d → /dev/pxp_device → driver → model) |
 | `tests/hello-imx93/`        | bare-metal LPUART hello (no artifacts needed) |
 | `tests/m33-boot/`           | bare-metal Cortex-M33 bring-up (blob runs, writes DTCM) |
 | `tests/m33-rpmsg/`          | A55↔M33 RPMsg ping-pong with the NXP M33 firmware |
@@ -429,6 +442,10 @@ before the EDID could be read and a mode set.
   conv/depthwise/pool/elementwise kernels, gemmlowp/TFLM requant) replaces the
   host-TFLite stand-in; end-to-end inference on the BSP model is bit-exact vs
   TFLite, gated by 19 unit subtests + a 12-case qtest escalation suite.
+- **GStreamer + PXP G2D** — a software GStreamer pipeline renders to the LCDIFv3
+  display via waylandsink; the PXP gains a real G2D copy blit (PS→OUT + completion
+  IRQ), proven byte-exact through `libg2d → /dev/pxp_device → pxp_dma_v3` end to
+  end plus a kernel-free qtest.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 

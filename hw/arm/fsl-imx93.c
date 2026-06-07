@@ -620,12 +620,14 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->anatop), 0,
                     fsl_imx93_memmap[FSL_IMX93_ANATOP].addr);
 
-    /* PXP: reset-only model so the driver's unbounded soft-reset poll ends. */
+    /* PXP 2D engine: soft-reset + register window + completion IRQ. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pxp), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->pxp), 0,
                     fsl_imx93_memmap[FSL_IMX93_PXP].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->pxp), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_PXP_IRQ));
 
     /*
      * ELE (EdgeLock Enclave) s4muap MU + success responder. Lets the fsl-se

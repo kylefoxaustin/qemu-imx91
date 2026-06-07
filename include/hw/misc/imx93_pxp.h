@@ -1,21 +1,25 @@
 /*
- * NXP i.MX 93 PXP (Pixel Pipeline) — minimal reset model
+ * NXP i.MX 93 PXP (Pixel Pipeline) 2D engine
  *
  * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * The PXP 2D engine is not functionally modeled, but its driver's
- * pxp_soft_reset() spins in an UNBOUNDED loop waiting for the MXS-style
- * HW_PXP_CTRL.CLKGATE bit to assert after software reset:
+ * The i.MX 93 PXP uses the Fetch-Engine / Store-Engine architecture (per-channel
+ * INPUT_FETCH_* source and INPUT_STORE_* dest registers), with the legacy
+ * MXS-style HW_PXP_CTRL at offset 0 retained for soft reset. The pxp_dma_v3
+ * driver's pxp_soft_reset() spins in an UNBOUNDED loop waiting for HW_PXP_CTRL
+ * CLKGATE to assert after software reset:
  *
  *     writel(SFTRST, CTRL_SET);
  *     while (!(readl(CTRL) & CLKGATE)) ;   // no timeout
  *
- * A plain return-0 stub hangs here forever. This model implements just the
- * HW_PXP_CTRL register with its SET/CLR/TOG aliases and the hardware
- * behaviour that asserting SFTRST also asserts CLKGATE, so the reset poll
- * completes. All other registers are read-what-you-write backing store.
+ * so that behaviour (asserting SFTRST also asserts CLKGATE) is modelled. All
+ * registers are a read-what-you-write backing store; set the PXP_DBG environment
+ * variable to trace every register access (used to capture the driver's exact
+ * programming sequence while bringing up the blit datapath). The completion IRQ
+ * (WAKEUPMIX PXP interrupt 0, GIC SPI 173) is wired but only raised once the
+ * blit datapath drives it.
  */
 
 #ifndef IMX93_PXP_H
@@ -35,7 +39,9 @@ struct IMX93PxpState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
+    qemu_irq irq;               /* WAKEUPMIX PXP interrupt 0 (completion) */
     uint32_t ctrl;
+    uint32_t stat;
     uint32_t regs[IMX93_PXP_NUM_REGS];
 };
 
