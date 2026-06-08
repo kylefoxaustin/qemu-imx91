@@ -166,7 +166,7 @@ end-to-end not yet re-validated on the 91).
 
 | Feature | What | Target |
 |---|---|---|
-| Re-validate kept paths | Confirm audio playback, camera capture, CAN, USB, SPI end to end on the i.MX 91 | next |
+| Re-validate kept paths | Confirm audio playback, camera capture, and LPSPI end to end on the i.MX 91 (CAN + USB now done) | next |
 | SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
 
@@ -230,6 +230,7 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/boot-imx91/run.sh` | boot Linux to the serial console (Path-C probe pass) |
 | `tests/functest-imx91/` | end-to-end smoke test: uSDHC r/w, I²C, both Ethernets (DHCP) |
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPI2C, ISI, SAI, FlexSPI, FlexIO |
 
 ## Building
 
@@ -278,6 +279,9 @@ now injects.
   (the dtb tamper-IRQ fix-up), the LCDIF parallel-RGB display scanout, FlexCAN
   (`can0` loopback round-trip), and ChipIdea USB host (`usb-storage` → `/dev/sda`
   mount), all validated end to end.
+- **Deterministic CI** — kernel-free qtests on the imx91-11x11-evk machine for
+  FlexCAN (incl. inter-controller TX/RX + a 1000-frame stress), LPI2C, ISI, SAI,
+  FlexSPI and FlexIO; all green.
 
 ## License & credits
 
