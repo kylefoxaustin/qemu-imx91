@@ -200,7 +200,7 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
-        FSL_IMX93_FLEXIO1, FSL_IMX93_FLEXIO2,
+        FSL_IMX93_FLEXIO2,
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
@@ -961,6 +961,20 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
     }
 
     /*
+     * FlexIO1: a configurable shifter/timer fabric. The EVK's flexio-i2c device
+     * tree routes an extra I2C master through it (nxp,imx-flexio MFD +
+     * i2c-flexio); modelling its register file lets that adapter register, so a
+     * custom board can grow an I2C bus the reference design runs over LPI2C.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexio1), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexio1),
+                    0, fsl_imx93_memmap[FSL_IMX93_FLEXIO1].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexio1), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX93_FLEXIO1_IRQ));
+
+    /*
      * virtio-mmio transports (not real i.MX93 hardware). These give the guest
      * a place to attach virtio devices - notably a virtio-keyboard so the
      * emulated HDMI/LCDIF console gets real keyboard input. Matching DTB nodes
@@ -1311,6 +1325,7 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "lpi2c1", &s->lpi2c1, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c8", &s->lpi2c8, TYPE_IMX_LPI2C);
+    object_initialize_child(obj, "flexio1", &s->flexio1, TYPE_IMX93_FLEXIO);
     for (i = 0; i < ARRAY_SIZE(s->lpi2c_exp); i++) {
         g_autofree char *name = g_strdup_printf("lpi2c%d", i + 3);
         object_initialize_child(obj, name, &s->lpi2c_exp[i], TYPE_IMX_LPI2C);

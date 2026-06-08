@@ -38,6 +38,7 @@
 #include "hw/gpio/imx93_gpio.h"
 #include "hw/display/imx93_lcdif.h"
 #include "hw/display/imx93_isi.h"
+#include "hw/misc/imx93_flexio.h"
 #include "hw/display/imx93_dsi.h"
 #include "hw/misc/imx93_media_blk.h"
 #include "hw/misc/imx_mu.h"
@@ -192,6 +193,7 @@ struct FslImx93State {
     IMXLPI2CState   lpi2c2;
     IMXLPI2CState   lpi2c8;
     IMXLPI2CState   lpi2c_exp[5];        /* LPI2C3-7: open expansion buses  */
+    IMX93FlexioState flexio1;            /* FlexIO1 (configurable I/O / I2C) */
     IMX93GPIOState  gpio[FSL_IMX93_NUM_GPIOS];
     IMX93MediaBlkCtrlState media_blk_ctrl;
     IMX93SrcSliceState     mediamix;
@@ -381,6 +383,7 @@ enum FslImx93Irqs {
     FSL_IMX93_LPI2C6_IRQ    = 196,
     FSL_IMX93_LPI2C7_IRQ    = 197,
     FSL_IMX93_LPI2C8_IRQ    = 198,
+    FSL_IMX93_FLEXIO1_IRQ   = 53,
     FSL_IMX93_FLEXCAN1_IRQ  = 8,
     FSL_IMX93_FLEXCAN2_IRQ  = 51,
     FSL_IMX93_USB1_IRQ      = 187,

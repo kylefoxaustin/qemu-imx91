@@ -627,6 +627,7 @@ config FSL_IMX93
     select FSL_IMX93_ELE
     select FSL_IMX93_GPIO
     select FSL_IMX93_PXP
+    select FSL_IMX93_FLEXIO
     select FSL_IMX93_DWMAC
     select FSL_IMX93_LCDIF
     select FSL_IMX93_DSI

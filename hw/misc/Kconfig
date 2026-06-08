@@ -113,6 +113,9 @@ config FSL_IMX93_ANATOP
 config FSL_IMX93_PXP
     bool
 
+config FSL_IMX93_FLEXIO
+    bool
+
 config FSL_IMX93_ELE
     bool
 
