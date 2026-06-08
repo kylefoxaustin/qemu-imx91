@@ -25,6 +25,10 @@
 #define SAI_TCR3        0x14
 #define SAI_TDR0        0x20
 #define SAI_TFR0        0x40
+#define SAI_RCSR        0x88
+#define SAI_RCR1        0x8c
+#define SAI_RDR0        0xa0
+#define SAI_RFR0        0xc0
 
 #define TCSR_TE         (1u << 31)
 #define TCSR_FR         (1u << 25)
@@ -33,6 +37,7 @@
 #define TCSR_FRF        (1u << 16)
 #define TCSR_FEIE       (1u << 10)
 #define TCSR_FRIE       (1u << 8)
+#define RCSR_RE         (1u << 31)   /* receive enable (TCSR_TE layout) */
 
 /* Must match SAI_TX_WORD_NS in the model (48 kHz stereo: 96000 words/s). */
 #define WORD_NS         (1000000000LL / 96000)
@@ -119,9 +124,68 @@ static void test_tx_fifo(void)
     qtest_quit(qts);
 }
 
+static uint32_t rx_fill(QTestState *qts)
+{
+    uint32_t rfr = rd(qts, SAI_RFR0);
+    return ((rfr >> 16) & 0xffff) - (rfr & 0xffff);   /* wptr - rptr */
+}
+
+/*
+ * Receive (capture) path: with no codec wired, the model synthesises a
+ * sawtooth into the RX FIFO at the audio word rate once RCSR.RE is set. Enable
+ * the receiver, advance the virtual clock, and read RDR0 - the words must be
+ * the ramp (non-silent, varying, identical in both S16 channels). This is the
+ * capture analogue of the transmit-FIFO test; the eDMA drains RDR0 the same way
+ * it fills TDR0 for playback.
+ */
+static void test_rx_capture(void)
+{
+    QTestState *qts = qtest_init("-machine imx91-11x11-evk -display none");
+    uint32_t rcsr, prev = 0;
+    int i, nonzero = 0, varied = 0, chan_eq = 1;
+
+    /* Program a watermark and enable the receiver. */
+    wr(qts, SAI_RCR1, WATERMARK);
+    wr(qts, SAI_RCSR, RCSR_RE);
+
+    /* Clock in ~64 words. */
+    qtest_clock_step(qts, 64 * WORD_NS + WORD_NS / 2);
+
+    /* Filled past the watermark -> the receive request flag asserts. */
+    rcsr = rd(qts, SAI_RCSR);
+    g_assert_cmphex(rcsr & TCSR_FRF, ==, TCSR_FRF);
+    g_assert_cmpuint(rx_fill(qts), >, WATERMARK);
+
+    /* Read words out of RDR0: the synthesised sawtooth. */
+    for (i = 0; i < 32; i++) {
+        uint32_t w = rd(qts, SAI_RDR0);
+
+        if (w) {
+            nonzero++;
+        }
+        if ((w & 0xffff) != (w >> 16)) {
+            chan_eq = 0;                 /* L and R must match */
+        }
+        if (i && w != prev) {
+            varied++;                    /* ramping, not stuck */
+        }
+        prev = w;
+    }
+    g_assert_cmpint(nonzero, >, 16);
+    g_assert_cmpint(varied, >, 8);
+    g_assert_cmpint(chan_eq, ==, 1);
+
+    /* FIFO reset drains it. */
+    wr(qts, SAI_RCSR, TCSR_FR);
+    g_assert_cmpuint(rx_fill(qts), ==, 0);
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/imx93/sai/tx-fifo", test_tx_fifo);
+    qtest_add_func("/imx91/sai/rx-capture", test_rx_capture);
     return g_test_run();
 }

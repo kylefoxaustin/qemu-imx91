@@ -31,6 +31,9 @@
 #define SAI_TDR0        0x20    /* Transmit Data 0 (FIFO push)       */
 #define SAI_TFR0        0x40    /* Transmit FIFO 0 (R/W pointers)    */
 #define SAI_RCSR        0x88    /* Receive Control/Status            */
+#define SAI_RCR1        0x8c    /* Receive Config 1 (watermark)      */
+#define SAI_RDR0        0xa0    /* Receive Data 0 (FIFO pop)         */
+#define SAI_RFR0        0xc0    /* Receive FIFO 0 (R/W pointers)     */
 
 /* TCSR bits. */
 #define TCSR_TE         (1u << 31)  /* transmitter enable             */
@@ -49,6 +52,9 @@
 #define TCSR_STATUS     (TCSR_WSF | TCSR_SEF | TCSR_FEF | TCSR_FWF | TCSR_FRF)
 #define TCSR_W1C        (TCSR_WSF | TCSR_SEF | TCSR_FEF)
 #define TCSR_RO         (TCSR_FWF | TCSR_FRF)
+
+/* RCSR shares TCSR's bit layout; RE (receive enable) is the TE bit. */
+#define RCSR_RE         TCSR_TE
 
 #define R(s, off)       ((s)->regs[(off) / 4])
 
@@ -85,9 +91,15 @@ static void imx93_sai_tx_update_flags(IMX93SaiState *s)
 static void imx93_sai_update_irq(IMX93SaiState *s)
 {
     uint32_t tcsr = R(s, SAI_TCSR);
+    uint32_t rcsr = R(s, SAI_RCSR);
     bool req = (tcsr & TCSR_FRF) && (tcsr & TCSR_FRIE);
     bool warn = (tcsr & TCSR_FWF) && (tcsr & TCSR_FWIE);
     bool err = (tcsr & TCSR_FEF) && (tcsr & TCSR_FEIE);
+
+    /* RCSR uses the same bit layout; OR the receive-side interrupt sources. */
+    req |= (rcsr & TCSR_FRF) && (rcsr & TCSR_FRIE);
+    warn |= (rcsr & TCSR_FWF) && (rcsr & TCSR_FWIE);
+    err |= (rcsr & TCSR_FEF) && (rcsr & TCSR_FEIE);
 
     qemu_set_irq(s->irq, (req || warn || err) ? 1 : 0);
 }
@@ -151,6 +163,68 @@ static void imx93_sai_tx_reset_fifo(IMX93SaiState *s)
     imx93_sai_tx_update_flags(s);
 }
 
+/* RX (capture) flags: FRF = data at/over the watermark, FWF = FIFO full. */
+static void imx93_sai_rx_update_flags(IMX93SaiState *s)
+{
+    uint32_t rcsr = R(s, SAI_RCSR) & ~TCSR_RO;
+    uint32_t watermark = R(s, SAI_RCR1) & 0xff;
+
+    if (s->rx_count > watermark) {
+        rcsr |= TCSR_FRF;
+    }
+    if (s->rx_count >= IMX93_SAI_FIFO_DEPTH) {
+        rcsr |= TCSR_FWF;
+    }
+    R(s, SAI_RCSR) = rcsr;
+}
+
+static void imx93_sai_rx_reset_fifo(IMX93SaiState *s)
+{
+    s->rx_rptr = 0;
+    s->rx_wptr = 0;
+    s->rx_count = 0;
+    imx93_sai_rx_update_flags(s);
+}
+
+/*
+ * Receive tick: with RCSR.RE set, the SAI clocks one word in per audio word
+ * period. There is no codec wired, so the model synthesises the captured
+ * stream - a low-frequency sawtooth, identical in both S16 channels - so a
+ * recorder gets real, non-silent, periodic samples. As the FIFO fills past the
+ * watermark, request an eDMA drain (the eDMA reads RDR0 -> memory, paced by
+ * this fill, mirroring the transmit path).
+ */
+static void imx93_sai_rx_tick(void *opaque)
+{
+    IMX93SaiState *s = opaque;
+    bool dma = R(s, SAI_RCSR) & TCSR_FRDE;
+    uint32_t watermark = R(s, SAI_RCR1) & 0xff;
+
+    if (!(R(s, SAI_RCSR) & RCSR_RE)) {
+        return;
+    }
+
+    if (s->rx_count < IMX93_SAI_FIFO_DEPTH) {
+        /* ~375 Hz sawtooth at 48 kHz: ramp over 128 frames, both channels. */
+        uint16_t s16 = (uint16_t)((s->rx_words & 0x7f) << 9);
+
+        s->rx_fifo[s->rx_wptr] = ((uint32_t)s16 << 16) | s16;
+        s->rx_wptr = (s->rx_wptr + 1) % IMX93_SAI_FIFO_DEPTH;
+        s->rx_count++;
+        s->rx_words++;
+    }
+
+    if (dma && s->rx_count > watermark) {
+        qemu_irq_pulse(s->rx_dma_req);
+    }
+
+    imx93_sai_rx_update_flags(s);
+    imx93_sai_update_irq(s);
+
+    timer_mod(s->rx_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
+}
+
 /* Queue the exact bytes the DMA wrote to TDR0 for the audio backend. */
 static void imx93_sai_cap_push(IMX93SaiState *s, uint32_t value, unsigned size)
 {
@@ -204,6 +278,21 @@ static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
     case SAI_TFR0:
         /* Read/write FIFO pointers so the driver can compute the fill. */
         return ((uint32_t)s->tx_wptr << 16) | s->tx_rptr;
+    case SAI_RDR0: {
+        /* Pop one received word; the eDMA reads here to drain the RX FIFO. */
+        uint32_t word = 0;
+
+        if (s->rx_count > 0) {
+            word = s->rx_fifo[s->rx_rptr];
+            s->rx_rptr = (s->rx_rptr + 1) % IMX93_SAI_FIFO_DEPTH;
+            s->rx_count--;
+            imx93_sai_rx_update_flags(s);
+            imx93_sai_update_irq(s);
+        }
+        return word;
+    }
+    case SAI_RFR0:
+        return ((uint32_t)s->rx_wptr << 16) | s->rx_rptr;
     default:
         if ((offset >> 2) >= IMX93_SAI_REGS) {
             return 0;
@@ -257,10 +346,29 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
         return;
     }
 
-    case SAI_RCSR:
-        /* Receive path is not modelled; keep its reset bits self-clearing. */
-        value &= ~(TCSR_FR | TCSR_SR);
-        break;
+    case SAI_RCSR: {
+        uint32_t old = R(s, SAI_RCSR);
+        uint32_t v = value;
+
+        if (v & TCSR_FR) {
+            imx93_sai_rx_reset_fifo(s);
+        }
+        v &= ~(TCSR_FR | TCSR_SR);
+        v = (v & ~TCSR_STATUS) | (old & TCSR_RO) |
+            (old & TCSR_W1C & ~((uint32_t)value & TCSR_W1C));
+        R(s, SAI_RCSR) = v;
+
+        if ((v & RCSR_RE) && !(old & RCSR_RE)) {
+            /* Receiver enabled: start clocking synthesised words in. */
+            imx93_sai_rx_update_flags(s);
+            timer_mod(s->rx_timer,
+                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
+        } else if (!(v & RCSR_RE) && (old & RCSR_RE)) {
+            timer_del(s->rx_timer);
+        }
+        imx93_sai_update_irq(s);
+        return;
+    }
 
     default:
         break;
@@ -285,9 +393,12 @@ static void imx93_sai_reset(DeviceState *dev)
     IMX93SaiState *s = IMX93_SAI(dev);
 
     timer_del(s->tx_timer);
+    timer_del(s->rx_timer);
     memset(s->regs, 0, sizeof(s->regs));
     imx93_sai_tx_reset_fifo(s);
+    imx93_sai_rx_reset_fifo(s);
     s->tx_words = 0;
+    s->rx_words = 0;
     s->cap_head = 0;
     s->cap_count = 0;
     imx93_sai_voice_set(s, false);
@@ -309,7 +420,9 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
     qdev_init_gpio_out_named(dev, &s->dma_req, "dma-req", 1);
+    qdev_init_gpio_out_named(dev, &s->rx_dma_req, "rx-dma-req", 1);
     s->tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_tx_tick, s);
+    s->rx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_rx_tick, s);
 
     /*
      * Audio backend: clocked-out samples are handed to the default audio
@@ -326,8 +439,8 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_imx93_sai = {
     .name = TYPE_IMX93_SAI,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, IMX93SaiState, IMX93_SAI_REGS),
         VMSTATE_UINT32_ARRAY(tx_fifo, IMX93SaiState, IMX93_SAI_FIFO_DEPTH),
@@ -335,6 +448,11 @@ static const VMStateDescription vmstate_imx93_sai = {
         VMSTATE_UINT32(tx_wptr, IMX93SaiState),
         VMSTATE_UINT32(tx_count, IMX93SaiState),
         VMSTATE_UINT64(tx_words, IMX93SaiState),
+        VMSTATE_UINT32_ARRAY(rx_fifo, IMX93SaiState, IMX93_SAI_FIFO_DEPTH),
+        VMSTATE_UINT32(rx_rptr, IMX93SaiState),
+        VMSTATE_UINT32(rx_wptr, IMX93SaiState),
+        VMSTATE_UINT32(rx_count, IMX93SaiState),
+        VMSTATE_UINT64(rx_words, IMX93SaiState),
         VMSTATE_END_OF_LIST()
     },
 };

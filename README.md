@@ -103,8 +103,13 @@ end to end:
   i.MX 93 and re-confirmed on the 91 with the `tests/audio-imx91` /
   `tests/camera-imx91` harnesses (the `imx-image-core` rootfs lacks `aplay` /
   `v4l2-ctl`, so the tests cross-compile a tiny ALSA/V4L2 client).
-- **Registration bar only.** MICFIL / SAI *capture* register their ALSA devices
-  but don't pump real samples yet.
+- **Modeled + qtested, Linux e2e pending.** The SAI *receive* path now
+  synthesises a captured sawtooth into the RX FIFO at the audio rate, drained by
+  the eDMA exactly as the transmit path is filled — covered by a qtest. A full
+  `arecord` capture additionally needs the WM8962 ADC/DAPM capture route (not
+  wired yet), so end-to-end Linux capture is not there.
+- **Registration bar only.** MICFIL (PDM) registers its ALSA device but doesn't
+  pump real samples yet.
 - **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
   Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
   HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
@@ -176,7 +181,7 @@ end-to-end not yet re-validated on the 91).
 
 | Feature | What | Target |
 |---|---|---|
-| SAI/MICFIL capture | Pump real RX samples (the playback path is functional; capture registers only) | next |
+| Linux capture e2e | Wire the WM8962 ADC/DAPM capture route so `arecord` drives the (already modeled + qtested) SAI RX path; pump MICFIL PDM samples | next |
 | SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
 
@@ -247,7 +252,7 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
 | `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
 | `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
-| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), LPI2C, ISI, SAI, FlexSPI, FlexIO |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), LPI2C, ISI, FlexSPI, FlexIO |
 
 ## Building
 

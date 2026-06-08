@@ -42,6 +42,7 @@ struct IMX93SaiState {
     MemoryRegion iomem;
     qemu_irq irq;
     qemu_irq dma_req;           /* TX FIFO-needs-data request to the eDMA */
+    qemu_irq rx_dma_req;        /* RX FIFO-has-data request to the eDMA */
     uint32_t regs[IMX93_SAI_REGS];
 
     /* Transmit FIFO (data line 0). */
@@ -51,6 +52,14 @@ struct IMX93SaiState {
     uint32_t tx_wptr;           /* write (TDR0) pointer */
     uint32_t tx_count;          /* words currently in the FIFO */
     uint64_t tx_words;          /* total words clocked out (bookkeeping) */
+
+    /* Receive FIFO (data line 0): the model synthesises captured samples. */
+    QEMUTimer *rx_timer;
+    uint32_t rx_fifo[IMX93_SAI_FIFO_DEPTH];
+    uint32_t rx_rptr;           /* read (RDR0) pointer */
+    uint32_t rx_wptr;           /* write (capture) pointer */
+    uint32_t rx_count;          /* words currently in the FIFO */
+    uint64_t rx_words;          /* total words received (drives the waveform) */
 
     /* Audio backend: clocked-out samples go to an -audiodev (e.g. wav). */
     AudioBackend *audio_be;

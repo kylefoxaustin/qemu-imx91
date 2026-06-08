@@ -851,6 +851,13 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
          */
         qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req", 0,
             qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+        /*
+         * SAI3 RX (capture) requests share the same eDMA2 request input: the
+         * eDMA services whichever cyclic channel is armed, so an arecord-only
+         * capture stream advances as the RX FIFO fills.
+         */
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "rx-dma-req", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
