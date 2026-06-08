@@ -91,14 +91,19 @@ end to end:
   **LCDIF parallel-RGB display** (framebuffer scanout to `/dev/fb0`,
   screendump-verified), I²C (the WM8962 codec answers on LPI2C1), and the
   **EdgeLock Enclave** (the secure-enclave driver configures `hsm0`, which
-  resolves the OCOTP fuse nvmem the ENET_QoS MAC depends on).
+  resolves the OCOTP fuse nvmem the ENET_QoS MAC depends on), **FlexCAN** (a
+  frame round-trips through `can0` loopback), **ChipIdea USB host** (a
+  `-device usb-storage` enumerates via `ci_hdrc` and its disk mounts as
+  `/dev/sda`), and **command-line-attachable I²C** (a `-device tmp105,bus=lpi2c1`
+  is enumerated and read from Linux, so the machine hosts peripherals beyond the
+  EVK).
 - **Ported from the i.MX 93 (binds / registers; not yet re-validated end to
-  end on the 91).** SAI / MICFIL / WM8962 audio (ASoC cards register), the
-  parallel camera path (MT9M114 → parallel-CSI → ISI / V4L2), FlexCAN, ChipIdea
-  USB host, and the full set of 8 LPI2C / 8 LPSPI controllers
-  (`-device`-attachable beyond the EVK). These device models are inherited from
-  the i.MX 93 unchanged and the stock 91 dtb exercises them, but their
-  end-to-end data paths have not yet been re-confirmed on the 91.
+  end on the 91).** SAI / MICFIL / WM8962 audio (ASoC cards register; no `aplay`
+  in `imx-image-core` to drive playback yet), the parallel camera path
+  (MT9M114 → parallel-CSI → ISI / V4L2; needs `v4l2-ctl` / a media-ctl client),
+  inter-controller FlexCAN TX/RX (the EVK dtb enables one CAN; covered by a
+  qtest, to be ported), and LPSPI (needs a spidev DT node). These device models
+  are inherited from the i.MX 93 unchanged and the stock 91 dtb exercises them.
 - **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
   Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
   HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
@@ -122,6 +127,9 @@ end-to-end not yet re-validated on the 91).
   ext4 image (`mmcblk0`) and reads/writes/syncs it.
 - **I²C — functional.** LPI2C masters with the board's WM8962 codec (answers at
   0x1a on LPI2C1), the PCA9451A PMIC, and the PCAL6524 / ADP5585 expanders.
+  Command-line-attachable: `-device tmp105,bus=lpi2c1,address=0x49` is enumerated
+  by `i2cdetect` and read by `i2cget` from Linux — the machine hosts peripherals
+  the EVK never wired.
 - **GPIO + ELE — functional.** GPIO controllers (the i.MX 91 uses the same
   `fsl,imx93-gpio` model — its imx7ulp two-aperture DT layout maps onto the same
   registers, no model change needed); **ELE** (EdgeLock Enclave) s4 MU +
@@ -136,15 +144,23 @@ end-to-end not yet re-validated on the 91).
   device), sets an 800×480 mode and creates `/dev/fb0`; the LCDIFv3 model DMAs
   the framebuffer out of guest DRAM and scans it out to the emulated display
   (a written pattern is captured byte-correct via QMP screendump).
+- **USB host (ChipIdea OTG) — functional.** A `-device usb-storage,drive=…`
+  enumerates through `ci_hdrc` (`new full-speed USB device … using ci_hdrc`) and
+  attaches as a SCSI disk; its ext4 image mounts as `/dev/sda` and reads back
+  byte-correct. `lsusb` lists it.
+- **CAN (FlexCAN) — functional.** The `flexcan` driver brings `can0` up and a
+  frame round-trips through controller loopback (`cansend` → `candump`). The EVK
+  dtb enables one of the two FlexCAN controllers; inter-controller TX/RX over
+  QEMU's CAN bus (`-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`) is
+  covered by a kernel-free qtest (to be ported from the i.MX 93).
 - **Audio (SAI / MICFIL / WM8962) — brings up.** The ASoC stack registers the
-  EVK ALSA cards (ported from the i.MX 93; PCM playback not yet re-validated on
-  the 91).
+  EVK ALSA cards (ported from the i.MX 93; `imx-image-core` has no `aplay` to
+  drive PCM playback yet).
 - **Camera (parallel path) — brings up.** MT9M114 → parallel-CSI → ISI / V4L2
-  media graph registers (ported from the 93; frame capture not yet re-validated
-  on the 91).
-- **CAN / USB / LPSPI — brings up.** FlexCAN, ChipIdea USB host, and the 8 LPSPI
-  controllers are inherited from the 93 and bind on the 91; not yet re-exercised
-  end to end here.
+  media graph registers (ported from the 93; needs `v4l2-ctl` / a media-ctl
+  client to stream frames).
+- **LPSPI — brings up.** The 8 LPSPI controllers bind (ported from the 93);
+  end-to-end needs a spidev DT node + an SSI slave.
 
 ## Roadmap
 
@@ -258,8 +274,10 @@ now injects.
   display chain; retargeted to single-core. Validated boot-to-userspace after
   each stage; checkpatch clean throughout.
 - **Functional bring-up** — uSDHC storage (r/w/sync), both Ethernets (DHCP),
-  I²C (WM8962), the EdgeLock secure enclave (the dtb tamper-IRQ fix-up), and the
-  LCDIF parallel-RGB display scanout, all validated end to end.
+  I²C (WM8962 + command-line-attachable tmp105), the EdgeLock secure enclave
+  (the dtb tamper-IRQ fix-up), the LCDIF parallel-RGB display scanout, FlexCAN
+  (`can0` loopback round-trip), and ChipIdea USB host (`usb-storage` → `/dev/sda`
+  mount), all validated end to end.
 
 ## License & credits
 
