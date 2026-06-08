@@ -31,6 +31,7 @@ struct IMXLPI2CState {
     MemoryRegion iomem;
     I2CBus      *bus;
     qemu_irq     irq;
+    char        *bus_name;  /* optional unique bus name for -device bus= */
 
     uint32_t mcr;       /* master control */
     uint32_t msr;       /* master status (latched flags) */

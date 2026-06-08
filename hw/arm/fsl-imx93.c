@@ -200,8 +200,6 @@ static void fsl_imx93_install_unimplemented(FslImx93State *s)
         FSL_IMX93_TRDC,
         FSL_IMX93_MIPI_CSI,
         FSL_IMX93_I3C1, FSL_IMX93_I3C2,
-        FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C4,
-        FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C7,
         FSL_IMX93_FLEXIO1, FSL_IMX93_FLEXIO2,
     };
 
@@ -710,6 +708,7 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c2);
         I2CSlave *pmic;
 
+        qdev_prop_set_string(DEVICE(&s->lpi2c2), "bus-name", "lpi2c2");
         if (!sysbus_realize(sbd, errp)) {
             return;
         }
@@ -868,6 +867,7 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         I2CSlave *adv, *aux;
         DeviceState *ddc;
 
+        qdev_prop_set_string(DEVICE(&s->lpi2c1), "bus-name", "lpi2c1");
         if (!sysbus_realize(sbd, errp)) {
             return;
         }
@@ -909,6 +909,7 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c8);
         I2CSlave *pca;
 
+        qdev_prop_set_string(DEVICE(&s->lpi2c8), "bus-name", "lpi2c8");
         if (!sysbus_realize(sbd, errp)) {
             return;
         }
@@ -922,6 +923,41 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         i2c_slave_realize_and_unref(
             i2c_slave_new(TYPE_MT9M114, FSL_IMX93_MT9M114_ADDR),
             s->lpi2c8.bus, &error_abort);
+    }
+
+    /*
+     * LPI2C3-7: functional but unpopulated on the EVK. Bring them up as real
+     * controllers (rather than logging stubs) so the i2c-N adapters register
+     * and the machine can host I2C peripherals the stock EVK never defined -
+     * e.g. -device <i2c-dev>,bus=/machine/soc/lpi2c5/i2c-bus.0. This is the
+     * expandability goal: a board that grows beyond its reference design.
+     */
+    {
+        static const struct {
+            int region, irq;
+        } lpi2c_exp_tbl[5] = {
+            { FSL_IMX93_LPI2C3, FSL_IMX93_LPI2C3_IRQ },
+            { FSL_IMX93_LPI2C4, FSL_IMX93_LPI2C4_IRQ },
+            { FSL_IMX93_LPI2C5, FSL_IMX93_LPI2C5_IRQ },
+            { FSL_IMX93_LPI2C6, FSL_IMX93_LPI2C6_IRQ },
+            { FSL_IMX93_LPI2C7, FSL_IMX93_LPI2C7_IRQ },
+        };
+
+        for (i = 0; i < ARRAY_SIZE(s->lpi2c_exp); i++) {
+            SysBusDevice *sbd = SYS_BUS_DEVICE(&s->lpi2c_exp[i]);
+            g_autofree char *bus_name = g_strdup_printf("lpi2c%d", i + 3);
+
+            /* Name the bus so peripherals attach via -device bus=lpi2cN. */
+            qdev_prop_set_string(DEVICE(&s->lpi2c_exp[i]), "bus-name",
+                                 bus_name);
+            if (!sysbus_realize(sbd, errp)) {
+                return;
+            }
+            sysbus_mmio_map(sbd, 0,
+                            fsl_imx93_memmap[lpi2c_exp_tbl[i].region].addr);
+            sysbus_connect_irq(sbd, 0,
+                qdev_get_gpio_in(gicdev, lpi2c_exp_tbl[i].irq));
+        }
     }
 
     /*
@@ -1275,6 +1311,10 @@ static void fsl_imx93_init(Object *obj)
     object_initialize_child(obj, "lpi2c1", &s->lpi2c1, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c2", &s->lpi2c2, TYPE_IMX_LPI2C);
     object_initialize_child(obj, "lpi2c8", &s->lpi2c8, TYPE_IMX_LPI2C);
+    for (i = 0; i < ARRAY_SIZE(s->lpi2c_exp); i++) {
+        g_autofree char *name = g_strdup_printf("lpi2c%d", i + 3);
+        object_initialize_child(obj, name, &s->lpi2c_exp[i], TYPE_IMX_LPI2C);
+    }
     object_initialize_child(obj, "mediamix", &s->mediamix,
                             TYPE_IMX93_SRC_SLICE);
     object_initialize_child(obj, "media-blk-ctrl", &s->media_blk_ctrl,
