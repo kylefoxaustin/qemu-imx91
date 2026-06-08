@@ -989,6 +989,13 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         static const int lpspi_irq[8] = { 16, 17, 65, 66, 191, 192, 193, 194 };
 
         for (i = 0; i < 8; i++) {
+            g_autofree char *name = g_strdup_printf("lpspi%d", i + 1);
+
+            /*
+             * Name each SSI bus so peripherals attach at runtime:
+             * -device <ssi-dev>,bus=lpspiN.
+             */
+            qdev_prop_set_string(DEVICE(&s->lpspi[i]), "bus-name", name);
             if (!sysbus_realize(SYS_BUS_DEVICE(&s->lpspi[i]), errp)) {
                 return;
             }

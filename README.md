@@ -103,9 +103,8 @@ end to end:
   i.MX 93 and re-confirmed on the 91 with the `tests/audio-imx91` /
   `tests/camera-imx91` harnesses (the `imx-image-core` rootfs lacks `aplay` /
   `v4l2-ctl`, so the tests cross-compile a tiny ALSA/V4L2 client).
-- **Registration bar only.** MICFIL / SAI capture register their ALSA devices
-  but don't pump real samples; LPSPI binds but needs a spidev DT node + SSI
-  slave for an end-to-end path.
+- **Registration bar only.** MICFIL / SAI *capture* register their ALSA devices
+  but don't pump real samples yet.
 - **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
   Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
   HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
@@ -167,18 +166,17 @@ end-to-end not yet re-validated on the 91).
   ping-pong buffers; a V4L2 client enabling the (default-disabled) sensor link
   and propagating the pad formats streams 5/5 byte-checked 1280×720 YUYV frames.
   See `tests/camera-imx91/run.sh`.
-- **LPSPI — controller validated (qtest).** The 8 LPSPI masters bind, and the
-  transfer engine is covered by a kernel-free qtest (CR.MEN gate, TDR → SSI-bus
-  frame → TCF/FCF + RX-word latch, RX-FIFO reset). A Linux-driven slave
-  round-trip is not yet exercised: the stock EVK dtb disables all LPSPI nodes,
-  and the model does not yet drive chip-select or expose a `bus-name` for
-  `-device <ssi-slave>,bus=…` attach (see Known limitations).
+- **LPSPI — functional (SSI slave round-trip).** Each of the 8 LPSPI masters
+  exposes a named SSI bus, so an SPI peripheral attaches at runtime:
+  `-device is25lp064,bus=lpspi1,drive=…`. A qtest reads the flash's JEDEC ID
+  (0x9d 0x60 0x17) byte-exact through the controller (TDR → SSI transfer →
+  RDR), and also covers the CR.MEN gate, TCF/FCF latch and RX-FIFO reset.
 
 ## Roadmap
 
 | Feature | What | Target |
 |---|---|---|
-| LPSPI slave round-trip | Add chip-select + a `bus-name` to the LPSPI model, a spidev/flash DT node, and an SSI slave (controller engine is already qtested) | next |
+| SAI/MICFIL capture | Pump real RX samples (the playback path is functional; capture registers only) | next |
 | SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
 
@@ -213,11 +211,11 @@ env vars and print exactly which to set if an artifact is missing.
   to be corrected to the 91's real value.
 - The base `imx91-11x11-evk.dtb` has no display panel (`display-subsystem: no
   available port`); use the `…-tianma-wvga-panel` variant for the display.
-- **LPSPI has no chip-select / `bus-name` yet.** The transfer engine works (and
-  is qtested), but the model neither drives a per-`TCR.PCS` chip-select nor
-  exposes a named SSI bus, so a CS-gated slave (e.g. `m25p80`) attached with
-  `-device …,bus=…` won't round-trip. Adding CS + a `bus-name` property (as the
-  LPI2C model has) is the remaining LPSPI work.
+- **LPSPI models one chip-select per bus.** Each LPSPI exposes a named SSI bus
+  and a single attached slave round-trips (its CS is asserted by default). The
+  model does not yet decode `TCR.PCS` to select among *multiple* slaves on one
+  bus — fine for the usual one-slave-per-controller case, a gap only if a board
+  muxes several SPI devices on a single LPSPI.
 - Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
 
 ## Architecture overview
@@ -249,7 +247,7 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
 | `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
 | `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
-| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine), LPI2C, ISI, SAI, FlexSPI, FlexIO |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), LPI2C, ISI, SAI, FlexSPI, FlexIO |
 
 ## Building
 

@@ -33,6 +33,7 @@
 #define CR_RRF   (1u << 9)
 #define SR_FCF   (1u << 9)
 #define SR_TCF   (1u << 10)
+#define TCR_CONT (1u << 21)
 
 #define VERID_VALUE 0x02000004
 #define PARAM_VALUE 0x00000404
@@ -92,6 +93,51 @@ static void test_rxfifo_reset(void)
     qtest_quit(qts);
 }
 
+/*
+ * Full slave round-trip: attach an ISSI is25lp064 SPI NOR flash on the lpspi1
+ * SSI bus (via the model's bus-name), then read its JEDEC ID (opcode 0x9F + 3
+ * reads) through the controller and check it byte-exact (0x9d 0x60 0x17). This
+ * exercises the TDR -> ssi_transfer -> slave -> RDR path against a real device,
+ * proving -device <ssi-slave>,bus=lpspiN attach + transfer works end to end.
+ */
+static void test_flash_jedec(void)
+{
+    char tmp[] = "/tmp/imx91-lpspi-flash-XXXXXX";
+    int fd = mkstemp(tmp);
+    QTestState *qts;
+    uint8_t id0, id1, id2;
+
+    g_assert_cmpint(fd, >=, 0);
+    g_assert_cmpint(ftruncate(fd, 8 << 20), ==, 0);
+    close(fd);
+
+    qts = qtest_initf("-machine imx91-11x11-evk -accel qtest "
+                      "-blockdev driver=file,filename=%s,node-name=sf "
+                      "-device is25lp064,bus=lpspi1,drive=sf", tmp);
+
+    /* 8-bit frames, continuous (CS stays asserted across the command). */
+    qtest_writel(qts, LPSPI1 + CR, CR_MEN);
+    qtest_writel(qts, LPSPI1 + TCR, 7 | TCR_CONT);
+
+    /* JEDEC read: opcode 0x9F, then clock out three ID bytes. */
+    qtest_writel(qts, LPSPI1 + TDR, 0x9f);
+    qtest_writel(qts, LPSPI1 + TDR, 0x00);
+    qtest_writel(qts, LPSPI1 + TDR, 0x00);
+    qtest_writel(qts, LPSPI1 + TDR, 0x00);
+
+    (void)qtest_readl(qts, LPSPI1 + RDR);          /* response to the opcode */
+    id0 = qtest_readl(qts, LPSPI1 + RDR) & 0xff;   /* manufacturer */
+    id1 = qtest_readl(qts, LPSPI1 + RDR) & 0xff;   /* memory type */
+    id2 = qtest_readl(qts, LPSPI1 + RDR) & 0xff;   /* capacity */
+
+    g_assert_cmphex(id0, ==, 0x9d);
+    g_assert_cmphex(id1, ==, 0x60);
+    g_assert_cmphex(id2, ==, 0x17);
+
+    qtest_quit(qts);
+    unlink(tmp);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -99,5 +145,6 @@ int main(int argc, char **argv)
     qtest_add_func("/imx91-lpspi/men-gate-and-transfer",
                    test_men_gate_and_transfer);
     qtest_add_func("/imx91-lpspi/rxfifo-reset", test_rxfifo_reset);
+    qtest_add_func("/imx91-lpspi/flash-jedec", test_flash_jedec);
     return g_test_run();
 }
