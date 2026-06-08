@@ -10,8 +10,10 @@
 #define IMX93_FLEXIO_H
 
 #include "hw/core/sysbus.h"
+#include "hw/i2c/i2c.h"
 #include "qom/object.h"
 #include "qemu/units.h"
+#include "qemu/timer.h"
 
 #define TYPE_IMX93_FLEXIO "imx93.flexio"
 OBJECT_DECLARE_SIMPLE_TYPE(IMX93FlexioState, IMX93_FLEXIO)
@@ -26,6 +28,16 @@ struct IMX93FlexioState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[IMX93_FLEXIO_NUM_REGS];
+
+    /* FlexIO-as-I2C-master datapath (i2c-flexio driver). */
+    I2CBus *i2c_bus;
+    QEMUTimer *shift_timer;
+    bool     i2c_started;       /* a transfer is open on the I2C bus */
+    bool     i2c_dead;          /* address NAK'd: no slave, swallow the rest */
+    bool     i2c_read;          /* current transfer direction */
+    uint8_t  i2c_tx_byte;       /* byte loaded into the transmit shifter */
+    bool     i2c_tx_pending;    /* a shift of that byte is scheduled */
+    uint8_t  i2c_rx_byte;       /* byte presented to SHIFTBUFBIS_1 */
 };
 
 #endif /* IMX93_FLEXIO_H */
