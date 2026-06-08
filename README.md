@@ -97,13 +97,15 @@ end to end:
   `/dev/sda`), and **command-line-attachable I²C** (a `-device tmp105,bus=lpi2c1`
   is enumerated and read from Linux, so the machine hosts peripherals beyond the
   EVK).
-- **Ported from the i.MX 93 (binds / registers; not yet re-validated end to
-  end on the 91).** SAI / MICFIL / WM8962 audio (ASoC cards register; no `aplay`
-  in `imx-image-core` to drive playback yet), the parallel camera path
-  (MT9M114 → parallel-CSI → ISI / V4L2; needs `v4l2-ctl` / a media-ctl client),
-  inter-controller FlexCAN TX/RX (the EVK dtb enables one CAN; covered by a
-  qtest, to be ported), and LPSPI (needs a spidev DT node). These device models
-  are inherited from the i.MX 93 unchanged and the stock 91 dtb exercises them.
+- **Functional, validated via cross-compiled oracles.** SAI3/WM8962 audio
+  playback (a square wave round-trips to a captured `.wav`) and the parallel
+  camera path (5/5 real V4L2 frames off `/dev/video0`) — both ported from the
+  i.MX 93 and re-confirmed on the 91 with the `tests/audio-imx91` /
+  `tests/camera-imx91` harnesses (the `imx-image-core` rootfs lacks `aplay` /
+  `v4l2-ctl`, so the tests cross-compile a tiny ALSA/V4L2 client).
+- **Registration bar only.** MICFIL / SAI capture register their ALSA devices
+  but don't pump real samples; LPSPI binds but needs a spidev DT node + SSI
+  slave for an end-to-end path.
 - **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
   Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
   HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
@@ -153,12 +155,18 @@ end-to-end not yet re-validated on the 91).
   dtb enables one of the two FlexCAN controllers; inter-controller TX/RX over
   QEMU's CAN bus (`-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`) is
   covered by a kernel-free qtest (to be ported from the i.MX 93).
-- **Audio (SAI / MICFIL / WM8962) — brings up.** The ASoC stack registers the
-  EVK ALSA cards (ported from the i.MX 93; `imx-image-core` has no `aplay` to
-  drive PCM playback yet).
-- **Camera (parallel path) — brings up.** MT9M114 → parallel-CSI → ISI / V4L2
-  media graph registers (ported from the 93; needs `v4l2-ctl` / a media-ctl
-  client to stream frames).
+- **Audio playback (SAI3 + WM8962) — functional.** The ASoC stack registers the
+  three EVK ALSA cards (SAI1 bt-sco, MICFIL, and the WM8962/SAI3 card via the
+  modelled WM8962 codec on LPI2C1). A generated square wave plays on the
+  WM8962/SAI3 card: the SAI3 TX FIFO drains the samples through eDMA, and with
+  QEMU's wav audio backend the played PCM comes back in a real `.wav`
+  (peak-checked square wave). See `tests/audio-imx91/run.sh`.
+- **Camera capture — functional.** Booting the `…-mt9m114` dtb, the parallel
+  path runs end to end — MT9M114 → parallel-CSI → ISI → V4L2 — delivering real
+  frames off `/dev/video0`. The ISI model DMAs a moving test pattern into the
+  ping-pong buffers; a V4L2 client enabling the (default-disabled) sensor link
+  and propagating the pad formats streams 5/5 byte-checked 1280×720 YUYV frames.
+  See `tests/camera-imx91/run.sh`.
 - **LPSPI — brings up.** The 8 LPSPI controllers bind (ported from the 93);
   end-to-end needs a spidev DT node + an SSI slave.
 
@@ -166,7 +174,7 @@ end-to-end not yet re-validated on the 91).
 
 | Feature | What | Target |
 |---|---|---|
-| Re-validate kept paths | Confirm audio playback, camera capture, and LPSPI end to end on the i.MX 91 (CAN + USB now done) | next |
+| LPSPI end to end | A spidev DT node + SSI slave to exercise LPSPI on the 91 (CAN, USB, audio, camera now done) | next |
 | SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
 
@@ -230,6 +238,8 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/boot-imx91/run.sh` | boot Linux to the serial console (Path-C probe pass) |
 | `tests/functest-imx91/` | end-to-end smoke test: uSDHC r/w, I²C, both Ethernets (DHCP) |
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
+| `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
+| `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
 | `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPI2C, ISI, SAI, FlexSPI, FlexIO |
 
 ## Building
@@ -282,6 +292,10 @@ now injects.
 - **Deterministic CI** — kernel-free qtests on the imx91-11x11-evk machine for
   FlexCAN (incl. inter-controller TX/RX + a 1000-frame stress), LPI2C, ISI, SAI,
   FlexSPI and FlexIO; all green.
+- **Audio + camera re-validated** — SAI3/WM8962 plays a square wave back to a
+  captured `.wav`, and the MT9M114 → parallel-CSI → ISI path streams 5/5 real
+  V4L2 frames off `/dev/video0`, both via cross-compiled ALSA/V4L2 oracles
+  (the `imx-image-core` rootfs ships no `aplay`/`v4l2-ctl`).
 
 ## License & credits
 

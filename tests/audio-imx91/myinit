@@ -1,0 +1,24 @@
+#!/bin/sh
+PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+echo "=== AUDIO: loading SAI/codec drivers ==="
+for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
+         snd-soc-dmic snd-soc-wm8962 snd-soc-fsl-asoc-card \
+         snd-soc-simple-card snd-soc-simple-card-utils; do
+    /sbin/modprobe "$m" 2>&1 | sed "s/^/modprobe $m: /"
+done
+sleep 4
+echo "=== /proc/asound/cards ==="
+cat /proc/asound/cards 2>/dev/null
+echo "=== /proc/asound/pcm ==="
+cat /proc/asound/pcm 2>/dev/null
+CARD=$(awk '/wm8962|imx-audio-wm8962/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
+echo "wm8962 card index = ${CARD:-NONE}"
+if [ -x /pcm_play ] && [ -n "$CARD" ]; then
+    echo "=== PLAYBACK on wm8962/SAI3 (hw:$CARD,0) ==="
+    /pcm_play hw:$CARD,0 1
+fi
+echo "=== AUDIO TEST DONE ==="
+sleep 3
