@@ -13,6 +13,8 @@
 #
 # A clean PASS with "drain -> Success" means the eDMA3 cyclic datapath paced
 # the whole stream into the SAI3 TX FIFO at the audio rate, with no under-run.
+# Set WAV=/path/out.wav to also capture the played samples (the square wave)
+# through QEMU's audio backend to a real wav file.
 #
 # There is no aplay in the BSP, so pcm_play.c is cross-compiled here. It needs
 # ALSA headers and the on-target libasound.so.2 (extracted from the rootfs):
@@ -33,6 +35,7 @@ DTB=${DTB:-$DEPLOY/imx93-11x11-evk.dtb}
 BASE_INITRD=${BASE_INITRD:-$HOME/Documents/nxp/imx93-initramfs.cpio.gz}
 CROSS=${CROSS:-aarch64-linux-gnu-}
 ALSA_SYSROOT=${ALSA_SYSROOT:-}
+WAV=${WAV:-}
 
 need() { [ -e "$2" ] || { echo "error: $3 not found: $2" >&2; exit 1; }; }
 need QEMU        "$QEMU"        "qemu-system-aarch64 (build it first)"
@@ -68,8 +71,11 @@ fi
     > overlay.cpio )
 cat "$BASE_INITRD" "$TMP/overlay.cpio" > "$TMP/combined.cpio.gz"
 
+AUDIO=()
+[ -n "$WAV" ] && AUDIO=(-audio "driver=wav,path=$WAV")
+
 set -x
-exec "$QEMU" -M imx93-11x11-evk -m 4G -display none \
+exec "$QEMU" -M imx93-11x11-evk -m 4G -display none "${AUDIO[@]}" \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/combined.cpio.gz" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel" \
     -serial mon:stdio -serial null

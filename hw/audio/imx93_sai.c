@@ -105,7 +105,7 @@ static void imx93_sai_tx_tick(void *opaque)
     }
 
     if (s->tx_count > 0) {
-        /* Clock one word out of the FIFO (the played sample). */
+        /* Clock one word out of the FIFO. */
         s->tx_rptr = (s->tx_rptr + 1) % IMX93_SAI_FIFO_DEPTH;
         s->tx_count--;
         s->tx_words++;
@@ -151,6 +151,47 @@ static void imx93_sai_tx_reset_fifo(IMX93SaiState *s)
     imx93_sai_tx_update_flags(s);
 }
 
+/* Queue the exact bytes the DMA wrote to TDR0 for the audio backend. */
+static void imx93_sai_cap_push(IMX93SaiState *s, uint32_t value, unsigned size)
+{
+    unsigned i;
+
+    for (i = 0; i < size && s->cap_count < IMX93_SAI_CAP_SIZE; i++) {
+        uint32_t tail = (s->cap_head + s->cap_count) % IMX93_SAI_CAP_SIZE;
+        s->cap[tail] = (value >> (8 * i)) & 0xff;
+        s->cap_count++;
+    }
+}
+
+/* The audio backend can take 'free' bytes: hand it the played PCM. */
+static void imx93_sai_audio_cb(void *opaque, int free)
+{
+    IMX93SaiState *s = opaque;
+
+    while (free > 0 && s->cap_count > 0) {
+        uint32_t chunk = MIN((uint32_t)free, s->cap_count);
+        size_t wrote;
+
+        chunk = MIN(chunk, IMX93_SAI_CAP_SIZE - s->cap_head);   /* ring wrap */
+        wrote = audio_be_write(s->audio_be, s->voice, s->cap + s->cap_head,
+                               chunk);
+        if (wrote == 0) {
+            break;
+        }
+        s->cap_head = (s->cap_head + wrote) % IMX93_SAI_CAP_SIZE;
+        s->cap_count -= wrote;
+        free -= wrote;
+    }
+}
+
+static void imx93_sai_voice_set(IMX93SaiState *s, bool on)
+{
+    if (s->voice && on != s->voice_active) {
+        audio_be_set_active_out(s->audio_be, s->voice, on);
+        s->voice_active = on;
+    }
+}
+
 static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
 {
     IMX93SaiState *s = opaque;
@@ -184,6 +225,7 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
 
     case SAI_TDR0:
         imx93_sai_tx_push(s, (uint32_t)value);
+        imx93_sai_cap_push(s, (uint32_t)value, size);
         return;
 
     case SAI_TCSR: {
@@ -204,10 +246,12 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
         if ((v & TCSR_TE) && !(old & TCSR_TE)) {
             /* Transmitter enabled: start clocking words out. */
             imx93_sai_tx_update_flags(s);
+            imx93_sai_voice_set(s, true);
             timer_mod(s->tx_timer,
                       qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
         } else if (!(v & TCSR_TE) && (old & TCSR_TE)) {
             timer_del(s->tx_timer);
+            imx93_sai_voice_set(s, false);
         }
         imx93_sai_update_irq(s);
         return;
@@ -231,8 +275,9 @@ static const MemoryRegionOps imx93_sai_ops = {
     .read = imx93_sai_read,
     .write = imx93_sai_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid = { .min_access_size = 4, .max_access_size = 4 },
-    .impl = { .min_access_size = 4, .max_access_size = 4 },
+    /* Allow 16-bit access: the eDMA writes S16 samples to TDR0. */
+    .valid = { .min_access_size = 2, .max_access_size = 4 },
+    .impl = { .min_access_size = 2, .max_access_size = 4 },
 };
 
 static void imx93_sai_reset(DeviceState *dev)
@@ -243,12 +288,21 @@ static void imx93_sai_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
     imx93_sai_tx_reset_fifo(s);
     s->tx_words = 0;
+    s->cap_head = 0;
+    s->cap_count = 0;
+    imx93_sai_voice_set(s, false);
     qemu_set_irq(s->irq, 0);
 }
 
 static void imx93_sai_realize(DeviceState *dev, Error **errp)
 {
     IMX93SaiState *s = IMX93_SAI(dev);
+    struct audsettings as = {
+        .freq = 48000,
+        .nchannels = 2,
+        .fmt = AUDIO_FORMAT_S16,
+        .big_endian = false,
+    };
 
     memory_region_init_io(&s->iomem, OBJECT(dev), &imx93_sai_ops, s,
                           TYPE_IMX93_SAI, IMX93_SAI_SIZE);
@@ -256,6 +310,18 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
     qdev_init_gpio_out_named(dev, &s->dma_req, "dma-req", 1);
     s->tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_tx_tick, s);
+
+    /*
+     * Audio backend: clocked-out samples are handed to the default audio
+     * backend, so "-audio driver=wav,path=out.wav" captures the playback. The
+     * model assumes the EVK's common 48 kHz S16 stereo format. This is best
+     * effort - with no audio configured there is simply no backend and the
+     * samples are dropped, leaving the (DMA-paced) datapath unchanged.
+     */
+    if (audio_be_check(&s->audio_be, NULL)) {
+        s->voice = audio_be_open_out(s->audio_be, NULL, "imx93-sai-tx", s,
+                                     imx93_sai_audio_cb, &as);
+    }
 }
 
 static const VMStateDescription vmstate_imx93_sai = {

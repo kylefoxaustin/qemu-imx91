@@ -9,9 +9,10 @@
  * front-end whose FIFOs are drained/filled by eDMA3. This model carries the
  * register file the fsl-sai driver needs to probe and the ASoC card to
  * register (VERID/PARAM, self-clearing reset bits) plus a functional transmit
- * FIFO: words pushed to TDR0 are clocked out at the audio word rate once the
- * transmitter is enabled, maintaining the request/warning/error flags and the
- * FIFO-request interrupt the driver and (future) eDMA datapath rely on.
+ * FIFO: words pushed to TDR0 (by the eDMA) are clocked out at the audio word
+ * rate, maintaining the request/warning/error flags and FIFO-request interrupt
+ * the driver relies on, requesting eDMA bursts as the FIFO drains, and handing
+ * the played samples to the audio backend (so -audio captures the playback).
  */
 
 #ifndef IMX93_SAI_H
@@ -20,6 +21,7 @@
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
 #include "qemu/timer.h"
+#include "qemu/audio.h"
 
 #define TYPE_IMX93_SAI "imx93.sai"
 OBJECT_DECLARE_SIMPLE_TYPE(IMX93SaiState, IMX93_SAI)
@@ -30,6 +32,9 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93SaiState, IMX93_SAI)
 
 /* PARAM reports WPF=7 -> a 128-word transmit FIFO per data line. */
 #define IMX93_SAI_FIFO_DEPTH 128
+
+/* Capture ring decoupling the FIFO drain from the audio backend's callback. */
+#define IMX93_SAI_CAP_SIZE 16384
 
 struct IMX93SaiState {
     SysBusDevice parent_obj;
@@ -46,6 +51,14 @@ struct IMX93SaiState {
     uint32_t tx_wptr;           /* write (TDR0) pointer */
     uint32_t tx_count;          /* words currently in the FIFO */
     uint64_t tx_words;          /* total words clocked out (bookkeeping) */
+
+    /* Audio backend: clocked-out samples go to an -audiodev (e.g. wav). */
+    AudioBackend *audio_be;
+    SWVoiceOut *voice;
+    bool      voice_active;
+    uint8_t   cap[IMX93_SAI_CAP_SIZE];   /* played PCM awaiting the backend */
+    uint32_t  cap_head;
+    uint32_t  cap_count;
 };
 
 #endif /* IMX93_SAI_H */
