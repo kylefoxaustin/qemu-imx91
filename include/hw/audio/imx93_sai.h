@@ -36,6 +36,7 @@ struct IMX93SaiState {
 
     MemoryRegion iomem;
     qemu_irq irq;
+    qemu_irq dma_req;           /* TX FIFO-needs-data request to the eDMA */
     uint32_t regs[IMX93_SAI_REGS];
 
     /* Transmit FIFO (data line 0). */

@@ -97,18 +97,32 @@ static void imx93_sai_tx_tick(void *opaque)
 {
     IMX93SaiState *s = opaque;
 
+    bool dma = R(s, SAI_TCSR) & TCSR_FRDE;
+    uint32_t watermark = R(s, SAI_TCR1) & 0xff;
+
     if (!(R(s, SAI_TCSR) & TCSR_TE)) {
         return;
     }
 
     if (s->tx_count > 0) {
-        /* No audio backend yet: count the word and drop it. */
+        /* Clock one word out of the FIFO (the played sample). */
         s->tx_rptr = (s->tx_rptr + 1) % IMX93_SAI_FIFO_DEPTH;
         s->tx_count--;
         s->tx_words++;
-    } else {
-        /* Transmit underrun: latch the sticky error flag. */
+    } else if (!dma) {
+        /* PIO underrun: latch the sticky error flag. */
         R(s, SAI_TCSR) |= TCSR_FEF;
+    }
+
+    /*
+     * DMA-driven playback: as the FIFO drains past the watermark, request a
+     * burst from the eDMA. The eDMA services the request synchronously, writing
+     * the next samples back into this FIFO via TDR0 - so the transfer is paced
+     * by this drain (the audio word rate), which is what keeps the period
+     * interrupts coming at real time and the playback from under-running.
+     */
+    if (dma && s->tx_count <= watermark) {
+        qemu_irq_pulse(s->dma_req);
     }
 
     imx93_sai_tx_update_flags(s);
@@ -240,6 +254,7 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
                           TYPE_IMX93_SAI, IMX93_SAI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    qdev_init_gpio_out_named(dev, &s->dma_req, "dma-req", 1);
     s->tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_tx_tick, s);
 }
 

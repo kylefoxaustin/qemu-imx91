@@ -1,13 +1,14 @@
 #!/bin/sh
-# Audio bring-up check: load the (modular) ASoC drivers, then dump the
-# registered ALSA cards / PCMs. Proves the SAI + MICFIL models let the
-# fsl-sai / fsl-micfil drivers probe and their cards register.
+# Audio playback check: load the (modular) ASoC drivers so the cards register,
+# then play a square wave on the wm8962/SAI3 card to drive the eDMA3 cyclic ->
+# SAI3 TX FIFO datapath. A clean "PASS" with "drain -> Success" means the DMA
+# paced the whole stream at the audio rate without under-running.
 PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
 
-echo "=== AUDIO TEST: loading SAI/MICFIL drivers ==="
+echo "=== AUDIO: loading SAI/codec drivers ==="
 for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
          snd-soc-dmic snd-soc-imx-card snd-soc-fsl-asoc-card \
          snd-soc-simple-card snd-soc-simple-card-utils; do
@@ -19,7 +20,10 @@ echo "=== /proc/asound/cards ==="
 cat /proc/asound/cards 2>/dev/null
 echo "=== /proc/asound/pcm ==="
 cat /proc/asound/pcm 2>/dev/null
-echo "=== deferred probe ==="
-cat /sys/kernel/debug/devices_deferred 2>/dev/null
+
+if [ -x /pcm_play ]; then
+    echo "=== PLAYBACK on wm8962/SAI3 (hw:1,0) ==="
+    /pcm_play hw:1,0 1
+fi
 echo "=== AUDIO TEST DONE ==="
 while true; do sleep 5; done

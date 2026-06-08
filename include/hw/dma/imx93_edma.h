@@ -30,6 +30,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93EdmaState, IMX93_EDMA)
 typedef struct IMX93EdmaChan {
     uint8_t  regs[IMX93_EDMA_CHAN_REGS_SZ];     /* byte-addressable page head */
     bool     armed;             /* dev->mem deferred until data */
+    bool     cyclic;            /* scatter/gather (ESG): paced by peripheral */
 } IMX93EdmaChan;
 
 struct IMX93EdmaState {

@@ -60,6 +60,12 @@
 #define CH_SBR_WR       (1u << 21)      /* tx: memory -> device */
 #define CH_SBR_RD       (1u << 22)      /* rx: device -> memory */
 
+#define TCD_CSR_START   (1u << 0)
+#define TCD_CSR_INTMAJ  (1u << 1)
+#define TCD_CSR_INTHALF (1u << 2)
+#define TCD_CSR_DREQ    (1u << 3)
+#define TCD_CSR_ESG     (1u << 4)       /* enable scatter/gather (cyclic) */
+
 #define ATTR_DSIZE(a)   ((a) & 0x7)
 #define ATTR_SSIZE(a)   (((a) >> 8) & 0x7)
 #define ITER_MASK       0x7fff
@@ -138,6 +144,95 @@ static void edma_run_channel(IMX93EdmaState *s, int ch)
     }
 }
 
+/*
+ * Service one minor loop of a cyclic (scatter/gather) channel - the way audio
+ * playback runs: the peripheral (SAI) requests a burst as its FIFO drains, and
+ * each request moves NBYTES from the ring buffer to the peripheral's data
+ * register. At the end of a major loop (one period) the channel raises its
+ * interrupt, reloads CITER, and follows DLAST_SGA to the next period's TCD -
+ * looping forever until the driver clears ERQ. This keeps the transfer paced by
+ * the peripheral instead of running the whole ring at once.
+ */
+static void edma_service_minor(IMX93EdmaState *s, int ch)
+{
+    IMX93EdmaChan *c = &s->chan[ch];
+    uint8_t *t = c->regs;
+    uint64_t saddr = ld32(t + TCD_SADDR);
+    uint64_t daddr = ld32(t + TCD_DADDR);
+    int16_t soff = (int16_t)ld16(t + TCD_SOFF);
+    int16_t doff = (int16_t)ld16(t + TCD_DOFF);
+    uint16_t attr = ld16(t + TCD_ATTR);
+    uint32_t nbytes = ld32(t + TCD_NBYTES) & 0x3fffffff;
+    uint16_t citer = ld16(t + TCD_CITER) & ITER_MASK;
+    uint16_t biter = ld16(t + TCD_BITER) & ITER_MASK;
+    uint16_t csr = ld16(t + TCD_CSR);
+    uint32_t ssize = 1u << ATTR_SSIZE(attr);
+    uint32_t dsize = 1u << ATTR_DSIZE(attr);
+    uint32_t esize = MAX(ssize, dsize);
+    uint8_t buf[8];
+
+    if (!(ld32(t + CH_CSR) & CH_CSR_ERQ)) {
+        return;                 /* stream stopped between request and service */
+    }
+    if (nbytes == 0 || esize == 0 || esize > sizeof(buf)) {
+        return;
+    }
+
+    /* One minor loop: NBYTES, element by element (peripheral side is fixed). */
+    for (uint64_t done = 0; done + esize <= nbytes; done += esize) {
+        address_space_read(&address_space_memory, saddr,
+                           MEMTXATTRS_UNSPECIFIED, buf, esize);
+        address_space_write(&address_space_memory, daddr,
+                            MEMTXATTRS_UNSPECIFIED, buf, esize);
+        saddr += soff;
+        daddr += doff;
+    }
+    st32(t + TCD_SADDR, (uint32_t)saddr);
+
+    if (citer > 1) {
+        citer--;
+        t[TCD_CITER] = citer;
+        t[TCD_CITER + 1] = citer >> 8;
+        return;
+    }
+
+    /* Major loop complete: one period delivered. */
+    if (csr & TCD_CSR_INTMAJ) {
+        st32(t + CH_INT, 1);
+        if (ch < s->num_channels) {
+            qemu_irq_raise(s->irq[ch]);
+        }
+    }
+    if (csr & TCD_CSR_ESG) {
+        /* Follow DLAST_SGA to the next period's TCD (32 bytes). */
+        uint64_t next = ld32(t + TCD_DLAST);
+        address_space_read(&address_space_memory, next, MEMTXATTRS_UNSPECIFIED,
+                           t + TCD_SADDR, 0x20);
+    } else {
+        t[TCD_CITER] = biter;
+        t[TCD_CITER + 1] = biter >> 8;
+    }
+}
+
+/* A peripheral DMA request: advance the cyclic channel that serves it. */
+static void edma_dma_request(void *opaque, int n, int level)
+{
+    IMX93EdmaState *s = opaque;
+    int i;
+
+    if (!level) {
+        return;
+    }
+    for (i = 0; i < s->num_channels; i++) {
+        IMX93EdmaChan *c = &s->chan[i];
+
+        if (c->cyclic && (ld32(c->regs + CH_CSR) & CH_CSR_ERQ)) {
+            edma_service_minor(s, i);
+            return;
+        }
+    }
+}
+
 static void edma_drain_armed_rx(IMX93EdmaState *s)
 {
     for (int i = 0; i < s->num_channels; i++) {
@@ -148,6 +243,25 @@ static void edma_drain_armed_rx(IMX93EdmaState *s)
     }
 }
 
+static void edma_trace_tcd(IMX93EdmaState *s, int ch)
+{
+    IMX93EdmaChan *c = &s->chan[ch];
+    uint8_t *t = c->regs;
+
+    if (!getenv("EDMA_DBG")) {
+        return;
+    }
+    fprintf(stderr, "[edma] ch%d ERQ sbr=0x%08x mux=0x%08x csr(tcd)=0x%04x "
+            "saddr=0x%08x daddr=0x%08x soff=%d doff=%d nbytes=0x%x "
+            "citer=%u biter=%u dlast=0x%08x\n", ch,
+            ld32(t + CH_SBR), ld32(t + CH_MUX), ld16(t + TCD_CSR),
+            ld32(t + TCD_SADDR), ld32(t + TCD_DADDR),
+            (int16_t)ld16(t + TCD_SOFF), (int16_t)ld16(t + TCD_DOFF),
+            ld32(t + TCD_NBYTES) & 0x3fffffff,
+            ld16(t + TCD_CITER) & ITER_MASK, ld16(t + TCD_BITER) & ITER_MASK,
+            ld32(t + TCD_DLAST));
+}
+
 /* CH_CSR was written with ERQ set: arm or run the channel. */
 static void edma_trigger(IMX93EdmaState *s, int ch)
 {
@@ -155,6 +269,19 @@ static void edma_trigger(IMX93EdmaState *s, int ch)
     uint32_t sbr = ld32(c->regs + CH_SBR);
     int16_t soff = (int16_t)ld16(c->regs + TCD_SOFF);
     bool is_rx;
+
+    edma_trace_tcd(s, ch);
+
+    /*
+     * Scatter/gather (ESG) means a cyclic, peripheral-paced transfer (audio):
+     * don't run it now, wait for the peripheral's DMA requests to drive it one
+     * minor loop at a time. Non-SG transfers keep the run-it-now behaviour.
+     */
+    if (ld16(c->regs + TCD_CSR) & TCD_CSR_ESG) {
+        c->cyclic = true;
+        return;
+    }
+    c->cyclic = false;
 
     /* Prefer CH_SBR direction; fall back to "source offset fixed" = rx. */
     if (sbr & (CH_SBR_RD | CH_SBR_WR)) {
@@ -239,11 +366,13 @@ static void imx93_edma_write(void *opaque, hwaddr offset, uint64_t value,
         s->chan[ch].regs[coff + i] = (value >> (8 * i)) & 0xff;
     }
 
-    /* Writing CH_CSR with ERQ set kicks the channel. */
+    /* Writing CH_CSR with ERQ set kicks the channel; clearing it stops it. */
     if (coff == CH_CSR) {
         uint32_t csr = ld32(s->chan[ch].regs + CH_CSR);
         if (csr & CH_CSR_ERQ) {
             edma_trigger(s, ch);
+        } else {
+            s->chan[ch].cyclic = false;
         }
     }
 }
@@ -264,6 +393,7 @@ static void imx93_edma_reset(DeviceState *dev)
     for (int i = 0; i < IMX93_EDMA_MAX_CHANNELS; i++) {
         memset(s->chan[i].regs, 0, sizeof(s->chan[i].regs));
         s->chan[i].armed = false;
+        s->chan[i].cyclic = false;
         if (i < s->num_channels) {
             qemu_irq_lower(s->irq[i]);
         }
@@ -296,6 +426,9 @@ static void imx93_edma_realize(DeviceState *dev, Error **errp)
     for (int i = 0; i < s->num_channels; i++) {
         sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq[i]);
     }
+
+    /* Peripheral DMA request line (e.g. the SAI's FIFO-needs-data request). */
+    qdev_init_gpio_in_named(dev, edma_dma_request, "dma-req", 1);
 }
 
 static const Property imx93_edma_properties[] = {

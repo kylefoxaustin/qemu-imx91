@@ -1087,6 +1087,14 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
                 qdev_get_gpio_in(gicdev, sai_table[i].irq));
         }
 
+        /*
+         * SAI3 TX FIFO requests are serviced by eDMA2 (the wm8962 playback
+         * path): wire its DMA-request line so the cyclic channel advances as
+         * the FIFO drains, pacing PCM playback at the audio word rate.
+         */
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
         }
