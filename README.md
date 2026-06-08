@@ -32,7 +32,7 @@ functionally here rather than served by an M33 firmware over SCMI. Structural
 conventions follow the upstream i.MX 8MP code (`hw/arm/fsl-imx8mp.{c,h}`); the
 long-term aim is to be upstream-mergeable into QEMU mainline.
 
-**Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
+**Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin)) (see `MAINTAINERS` for the canonical entry)
 
 ![i.MX93 booting Linux on the emulated HDMI display — dual-A55 SMP Tux logos](docs/images/hdmi-boot-logo.png)
 
