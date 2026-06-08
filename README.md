@@ -17,13 +17,14 @@ whole EVK: **networking** (FEC + eQOS, both with DHCP), **SD/eMMC storage**,
 **GPIO/PMIC**, the **EdgeLock Enclave** mailbox, **eDMA3/4**, a full
 **LCDIFv3 → MIPI-DSI → ADV7535 → HDMI** (and LVDS) **display** you can log into
 and type on, a **Weston/Wayland desktop**, **FlexCAN**, **USB host** (real
-devices enumerate), **audio** (SAI + MICFIL + WM8962, all three ALSA cards), the
-**MIPI camera** capture pipeline, the **Cortex-M33 real-time core running
-real NXP firmware with working A55↔M33 RPMsg**, and an **Ethos-U65 microNPU**
-with a real in-QEMU command-stream executor that runs **bit-exact int8
-inference**. Intended use cases are BSP development, peripheral-driver
-development, multicore/RPMsg work, NPU/accelerator bring-up, and CI for the
-above. It is not cycle-accurate.
+devices enumerate), **SAI3/WM8962 audio playback** (real PCM, capturable to a
+`.wav`), **camera V4L2 capture** (real frames off `/dev/video0`), **expandable
+I²C/SPI** (all 8 LPI2C/LPSPI + a FlexIO I²C master, `-device`-attachable beyond
+the EVK), the **Cortex-M33 real-time core running real NXP firmware with working
+A55↔M33 RPMsg**, and an **Ethos-U65 microNPU** with a real in-QEMU command-stream
+executor that runs **bit-exact int8 inference**. Intended use cases are BSP
+development, peripheral-driver development, multicore/RPMsg work,
+NPU/accelerator bring-up, and CI for the above. It is not cycle-accurate.
 
 Unlike the i.MX 95, the **i.MX 93 has no System Manager** — Linux programs the
 CCM / ANATOP / SRC / power domains directly, so those blocks are modelled
@@ -92,15 +93,20 @@ This port holds that bar, and goes past it where the data path is the point:
 - **Functional data paths.** Networking (FEC + eQOS, both DHCP), storage
   (uSDHC → ext4 mount), the full display (LCDIFv3 → DSI → ADV7535 → HDMI scanout
   to `/dev/fb0`, plus LVDS), interactive input/login, CAN frame TX/RX, the
-  Cortex-M33 + A55↔M33 RPMsg transport, and the **in-QEMU Ethos-U65 executor**
-  (a real int8 inference, bit-exact vs TFLite) all move real data end to end.
-- **Registration bar.** Audio (SAI/MICFIL/WM8962) registers all three ALSA
-  cards; the camera (MT9M114 → CSI → ISI) registers the V4L2 media graph —
-  neither pumps real samples/frames yet.
+  Cortex-M33 + A55↔M33 RPMsg transport, the **in-QEMU Ethos-U65 executor**
+  (a real int8 inference, bit-exact vs TFLite), **camera V4L2 capture** (real
+  frames out of `/dev/video0`), **SAI3 audio playback** (real PCM, capturable to
+  a `.wav`), and an **extra FlexIO I²C master** all move real data end to end.
+- **Expandable beyond the EVK.** All 8 LPI2C and 8 LPSPI controllers are real and
+  command-line attachable (`-device tmp105,bus=lpi2c5,…`), so the machine can
+  host peripherals the reference board never wired.
+- **Registration bar.** MICFIL (PDM mic) and the SAI receive path register their
+  ALSA cards but don't pump real capture samples yet.
 - **Deferred / not on silicon.** No 3D GPU; the 2D PXP does accelerated G2D
   copy + fill + blit + src-over blend + rotation (see below), enough for
   `use-g2d=true` Weston to composite opaque *and* alpha-blended surfaces. CSC is
-  not modelled; g2d scale is rejected by the driver.
+  not modelled; g2d scale is rejected by the driver. MIPI-CSI (the parallel
+  camera path is functional), I3C and FlexIO2 are unmodelled stubs.
 
 The per-device tags under **What runs today** make this split explicit.
 
@@ -123,7 +129,14 @@ enumerates — the registration bar, no working host data path yet).
 - **Clocks / power — functional.** CCM clock roots+gates, ANATOP fractional-N
   PLLs, the MEDIAMIX power domain (genpd) and block-control GPR.
 - **I²C + PMIC — functional.** LPI2C master with the board's PCA9451A PMIC and
-  PCAL6524 I/O expander; regulators register and unblock uSDHC.
+  PCAL6524 I/O expander; regulators register and unblock uSDHC. **All 8 LPI2C
+  controllers** are real (was 3) and each I²C bus is named, so peripherals attach
+  at runtime — `-device tmp105,bus=lpi2c5,address=0x49` is read/written from
+  Linux byte-exact. (LPSPI1–8 expose SSI buses the same way.)
+- **FlexIO I²C — functional.** Booting the `…-flexio-i2c` DTB, the FlexIO
+  shifter/timer fabric is driven as an extra I²C master (`nxp,imx-flexio` +
+  `i2c-flexio`) → `/dev/i2c-8`. The model clocks the I²C handshake against a real
+  QEMU I²C bus, so `-device tmp105,bus=flexio1-i2c,…` round-trips read/write.
 - **GPIO + ELE — functional.** GPIO controllers; **ELE** (EdgeLock Enclave) s4
   MU + responder, so the OCOTP MAC nvmem cells resolve.
 - **eDMA3 — functional.** (`hw/dma/imx93_edma.c`) real TCD execution (drives the
@@ -150,18 +163,24 @@ enumerates — the registration bar, no working host data path yet).
   binds as a HID input and `-device usb-storage,drive=…` attaches as a SCSI
   disk (`sda`). The stock EVK device tree's Type-C role switch is unmodelled,
   but the controller falls back to host mode, so no DT override is needed.
-- **Audio (SAI + MICFIL + WM8962) — brings up.** The SAI (I2S) and MICFIL (PDM mic)
-  front-ends are modelled, so the ASoC stack registers all three EVK ALSA
-  cards: the SAI1 bt-sco card (playback+capture), the MICFIL PDM capture card,
-  and the **WM8962** headphone/speaker/mic card on SAI3 (playback+capture, via
-  a modelled WM8962 codec on LPI2C1 and the WAKEUPMIX eDMA4). Their FIFOs ride
-  the eDMA datapath. See `tests/audio-imx93/run.sh`.
-- **Camera capture pipeline — brings up.** Booting the `…-mt9m114` DTB, the parallel
-  camera path binds end to end — MT9M114 sensor → parallel-CSI → ISI — and the
-  V4L2 media graph registers `/dev/media0`, four subdevs, and the two ISI
-  `/dev/video*` capture nodes (modelled MT9M114 sensor + PCA9538 expander on
-  LPI2C8). See `tests/camera-imx93/run.sh`. No frames are captured (no V4L2
-  capture backend) — the pipeline binds and the graph registers.
+- **Audio playback (SAI3 + WM8962) — functional.** The ASoC stack registers all
+  three EVK ALSA cards (SAI1 bt-sco, MICFIL PDM capture, and the **WM8962**
+  speaker/headphone card on SAI3, via a modelled WM8962 codec on LPI2C1).
+  **Playback on the WM8962/SAI3 card moves real PCM end to end:** the SAI3 TX
+  FIFO drains at the audio word rate and requests bursts from a **cyclic eDMA3
+  scatter-gather** channel, which paces the whole stream into the FIFO with no
+  under-run. The clocked-out samples are handed to QEMU's audio backend, so
+  `-audio driver=wav,path=out.wav` captures the playback to a real `.wav` (a
+  played square wave comes back byte-correct). See `tests/audio-imx93/run.sh`
+  (set `WAV=out.wav`). Capture (SAI RX / MICFIL) still registers only.
+- **Camera capture — functional.** Booting the `…-mt9m114` DTB, the parallel
+  camera path runs end to end — MT9M114 sensor → parallel-CSI → ISI → V4L2 —
+  delivering **real frames out of `/dev/video0`**. The ISI model DMAs frames into
+  the driver's ping-pong buffers and raises the frame-done IRQ; a V4L2 client
+  enabling the (default-disabled) sensor link and propagating the pad formats
+  streams a moving test pattern (5/5 frames, MMAP buffers, byte-checked). The
+  V4L2 media graph (`/dev/media0`, four subdevs, two ISI `/dev/video*` nodes)
+  registers as before. See `tests/camera-imx93/run.sh`.
 - **Wayland desktop — functional.** A `core-image-weston` rootfs boots to the Weston
   compositor on the emulated display — desktop, panel/clock, and apps
   (e.g. `weston-terminal`), driven by the virtio keyboard + pointer. Software
@@ -254,10 +273,12 @@ i.MX 93 has no hardware codec, so the whole media path runs on the A55s.*
 
 Everything on the EVK's roadmap is **done** and described under "What runs
 today" above: networking, storage, the full **display (HDMI + LVDS) + input**
-stack, **CAN**, **USB host**, **audio (SAI + MICFIL + WM8962)**, the **camera
-capture pipeline**, the **Cortex-M33** core with **A55↔M33 RPMsg**, the
-**Ethos-U65** NPU — firmware stack *and* a real in-QEMU command-stream executor
-running bit-exact int8 inference — and a **Weston/Wayland desktop**.
+stack, **CAN**, **USB host**, **SAI3 audio playback** (real PCM, wav-capturable),
+**camera V4L2 capture** (real frames), an extra **FlexIO I²C** master,
+**command-line-attachable I²C/SPI** buses, the **Cortex-M33** core with **A55↔M33
+RPMsg**, the **Ethos-U65** NPU — firmware stack *and* a real in-QEMU
+command-stream executor running bit-exact int8 inference — and a **Weston/Wayland
+desktop**.
 
 | Feature | What | Target |
 |---|---|---|
@@ -301,8 +322,10 @@ env vars and print exactly which to set if an artifact is missing.
   path models copy + fill + blit + src-over blend + 90/180/270 rotation (so
   `use-g2d=true` Weston composites opaque and alpha-blended surfaces); CSC is not
   modelled and g2d scale is rejected by the driver.
-- **adp5585 I/O expander (0x34) is not modelled**, so a few board rails
-  (audio/CAN/LCD power) stay in deferred-probe — non-fatal.
+- **The second adp5585 I/O expander (`2-0034`, on LPI2C3) is not modelled**, so a
+  few ISP/camera board rails stay in deferred-probe — non-fatal (it gates neither
+  the parallel-camera capture path nor audio, whose rails sit on the modelled
+  first adp5585).
 - On the framebuffer console, the shell prints a cosmetic
   `cannot set terminal process group / no job control` (controlling-tty quirk);
   commands run fine.
@@ -343,19 +366,24 @@ behaviour.
 | `hw/misc/imx93_pxp.c`, `hw/misc/imx93_ele.c` | PXP 2D engine (G2D copy + fill + Fetch→Store blit + src-over blend + 90/180/270 rotation + completion IRQ); ELE (EdgeLock Enclave) MU + responder |
 | `hw/misc/imx_mu.c`          | Messaging Unit (A55↔M33 mailbox, peer-linked endpoints) |
 | `hw/npu/ethos_u*.c`, `hw/npu/mlw/` | Generic Arm Ethos-U executor (`TYPE_ETHOS_U`): cmd-stream parse → DMA marshal → mlw decode → int8 conv/dw/pool/elementwise → OFM writeback + IRQ; instantiated as the i.MX 93's Ethos-U65-256 |
-| `hw/i2c/imx_lpi2c.c`        | LPI2C master (bridges to QEMU I2C bus) |
+| `hw/i2c/imx_lpi2c.c`        | LPI2C master ×8 (bridges to QEMU I2C bus; per-instance `bus-name` for `-device` attach) |
+| `hw/ssi/imx93_lpspi.c`      | LPSPI master ×8 (bridges to QEMU SSI bus) |
+| `hw/misc/imx93_flexio.c`    | FlexIO shifter/timer fabric, driven as an I²C master onto a QEMU I2C bus |
 | `hw/i2c/mt9m114.c`          | MT9M114 camera sensor (I²C) |
 | `hw/gpio/imx93_gpio.c`      | GPIO controllers |
 | `hw/net/imx93_dwmac.c`      | eQOS dwmac4 Ethernet (from scratch) |
 | `hw/net/can/flexcan.c`      | FlexCAN controller (QEMU CAN bus) |
-| `hw/dma/imx93_edma.c`       | eDMA3 / eDMA4 controller (TCD execution, parameterised stride) |
+| `hw/dma/imx93_edma.c`       | eDMA3 / eDMA4 controller (one-shot TCD execution + cyclic/scatter-gather for audio) |
 | `hw/display/imx93_lcdif.c`  | LCDIFv3 display controller + framebuffer scanout |
 | `hw/display/imx93_dsi.c`    | MIPI-DSI host (dw-mipi-dsi core) |
+| `hw/display/imx93_isi.c`    | ISI image-sensing interface (V4L2 capture: ping-pong frame DMA + frame-done IRQ) |
 | `hw/display/adv7535.c`      | ADV7535 DSI-to-HDMI bridge (I²C) |
-| `hw/audio/imx93_sai.c`, `hw/audio/imx93_micfil.c` | SAI (I²S) + MICFIL (PDM mic) front-ends |
+| `hw/audio/imx93_sai.c`, `hw/audio/imx93_micfil.c` | SAI (I²S, TX FIFO + DMA-request pacing + audio-backend capture) + MICFIL (PDM mic) |
 | `hw/audio/wm8962.c`         | WM8962 audio codec (I²C) |
 | `tests/qtest/flexcan-test.c` | kernel-free FlexCAN model qtest (frame TX/RX) |
 | `tests/qtest/imx93-pxp-test.c` | kernel-free PXP qtest (g2d_copy blit, OFM byte-exact) |
+| `tests/qtest/imx93-isi-test.c`, `imx93-sai-test.c` | kernel-free ISI capture + SAI TX-FIFO qtests |
+| `tests/qtest/imx93-lpi2c-test.c`, `imx93-flexio-test.c` | kernel-free LPI2C (all 8 real) + FlexIO register qtests |
 | `tests/pxp-imx93/run.sh`    | PXP G2D copy e2e (libg2d → /dev/pxp_device → driver → model) |
 | `tests/hello-imx93/`        | bare-metal LPUART hello (no artifacts needed) |
 | `tests/m33-boot/`           | bare-metal Cortex-M33 bring-up (blob runs, writes DTCM) |
@@ -364,8 +392,9 @@ behaviour.
 | `tests/login-imx93/run.sh`  | interactive login on the emulated HDMI display |
 | `tests/weston-imx93/run.sh` | Weston/Wayland desktop on the emulated display |
 | `tests/gstreamer-imx93/run.sh` | GStreamer software media pipeline → waylandsink → display (no HW codec) |
-| `tests/audio-imx93/run.sh`  | ALSA card registration (SAI/MICFIL/WM8962) |
-| `tests/camera-imx93/run.sh` | V4L2 camera pipeline (MT9M114 → CSI → ISI) |
+| `tests/audio-imx93/run.sh`  | SAI3/WM8962 PCM playback (cyclic eDMA → FIFO; `WAV=` captures a .wav) |
+| `tests/camera-imx93/run.sh` | V4L2 camera capture (MT9M114 → CSI → ISI → real frames on `/dev/video0`) |
+| `tests/flexio-imx93/run.sh` | FlexIO-as-I²C round-trip (tmp105 read/write over `/dev/i2c-8`) |
 | `tests/npu-imx93/run.sh`    | Ethos-U65 driver bind check (no firmware) |
 | `tests/ethosu-rpmsg/run.sh` | Ethos-U65: Linux boots the M33 on demand, channel up |
 | `tests/ethosu-caps/run.sh`  | Ethos-U65: A55→M33→NPU capabilities round-trip (fork demo) |
@@ -436,8 +465,8 @@ before the EDID could be read and a mode set.
   `core-image-weston` Wayland desktop (software-rendered).
 - **CAN + USB** — FlexCAN on the QEMU CAN bus (qtest + live driver); ChipIdea
   USB host enumerating real `usb-kbd` / `usb-storage`.
-- **Audio + camera** — SAI/MICFIL/WM8962 register all three ALSA cards; the
-  MT9M114 → parallel-CSI → ISI pipeline brings up the V4L2 media graph.
+- **Audio + camera bring-up** — SAI/MICFIL/WM8962 register all three ALSA cards;
+  the MT9M114 → parallel-CSI → ISI pipeline brings up the V4L2 media graph.
 - **Cortex-M33 + RPMsg** — the M33 runs the real NXP FreeRTOS firmware and
   ping-pongs RPMsg messages with Linux over MU1 + shared vrings.
 - **Ethos-U65 NPU firmware stack** — Linux boots the M33 on demand (the i.MX
@@ -451,10 +480,18 @@ before the EDID could be read and a mode set.
   TFLite, gated by 19 unit subtests + a 12-case qtest escalation suite.
 - **GStreamer + PXP G2D** — a software GStreamer pipeline renders to the LCDIFv3
   display via waylandsink; the PXP gains the full G2D op set — copy, fill,
-  Fetch→Store opaque blit and two-channel src-over alpha blend (+ completion
-  IRQ) — all proven byte-exact through `libg2d → /dev/pxp_device → pxp_dma_v3`
-  end to end plus a kernel-free qtest, so `use-g2d=true` Weston composites
-  (opaque and alpha-blended) through the PXP instead of pixman.
+  Fetch→Store opaque blit, two-channel src-over alpha blend, and 90/180/270
+  rotation (+ completion IRQ) — all proven byte-exact through `libg2d →
+  /dev/pxp_device → pxp_dma_v3` end to end plus a kernel-free qtest, so
+  `use-g2d=true` Weston composites (opaque and alpha-blended) through the PXP.
+- **Functional capture, playback & expandability** — the **camera** path now
+  delivers real V4L2 frames (ISI ping-pong DMA + frame-done IRQ; a media-ctl-in-C
+  oracle streams 5/5 byte-checked frames). **SAI3 audio playback** moves real PCM
+  (SAI-drain-paced cyclic eDMA3 scatter-gather, gated on `TCD_CSR.ESG` so the
+  one-shot path is untouched) and is capturable to a `.wav`. All **8 LPI2C** + 8
+  LPSPI controllers are real and `-device`-attachable, and the **FlexIO** fabric
+  runs as an extra I²C master (`-device tmp105,bus=flexio1-i2c,…`, byte-exact
+  round-trip) — each backed by a kernel-free qtest.
 - **Upstream-clean pass** — 0 checkpatch errors/warnings, MAINTAINERS entry,
   docs; tagged releases `imx93-v1.0`/`v1.1`/`v1.2`.
 
