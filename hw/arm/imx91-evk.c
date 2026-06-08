@@ -1,5 +1,5 @@
 /*
- * NXP i.MX 91 11x11 Evaluation Kit (LPDDR4X) - QEMU machine
+ * NXP i.MX 91 11x11 Evaluation Kit (LPDDR4) - QEMU machine
  *
  * Modeled on hw/arm/imx8mp-evk.c (Bernhard Beschow) and the i.MX 95 port.
  *
@@ -156,7 +156,7 @@ static const char *imx93_evk_get_default_cpu_type(const MachineState *ms)
 
 static void imx91_11x11_evk_machine_init(MachineClass *mc)
 {
-    mc->desc                  = "NXP i.MX 91 11x11 EVK (LPDDR4X)";
+    mc->desc                  = "NXP i.MX 91 11x11 EVK (LPDDR4)";
     mc->init                  = imx93_evk_init;
     /* The i.MX 91 is single-core (one Cortex-A55, no M33). */
     mc->default_cpus          = FSL_IMX91_NUM_A55_CPUS;

@@ -975,6 +975,14 @@ F: include/hw/net/flexcan.h
 F: docs/system/arm/imx93-evk.rst
 F: tests/qtest/flexcan-test.c
 
+NXP i.MX91 11x11 EVK / i.MX91
+M: Kyle Fox <13992031+kylefoxaustin@users.noreply.github.com>
+L: qemu-arm@nongnu.org
+S: Maintained
+F: hw/arm/imx91-evk.c
+F: hw/arm/fsl-imx91.c
+F: include/hw/arm/fsl-imx91.h
+
 MPS2 / MPS3
 M: Peter Maydell <peter.maydell@linaro.org>
 L: qemu-arm@nongnu.org

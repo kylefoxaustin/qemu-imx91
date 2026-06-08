@@ -56,8 +56,8 @@ static const struct {
     [FSL_IMX91_GIC_DIST] = { 0x48000000, 64 * KiB, "gic_dist" },
     [FSL_IMX91_GIC_REDIST] = { 0x48040000, 768 * KiB, "gic_redist" },
 
-    /* On-chip RAM. TODO: confirm exact OCRAM size from RM (512 KiB used). */
-    [FSL_IMX91_OCRAM] = { 0x20480000, 512 * KiB, "ocram" },
+    /* On-chip RAM: 384 KiB on the i.MX 91 (the i.MX 93 has 640 KiB). */
+    [FSL_IMX91_OCRAM] = { 0x20480000, 384 * KiB, "ocram" },
 
     /* LPUART console block. lpuart1/2 in AONMIX, lpuart3 in WAKEUPMIX. */
     [FSL_IMX91_LPUART1] = { 0x44380000, 64 * KiB, "lpuart1" },
