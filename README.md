@@ -106,6 +106,14 @@ end to end:
   (Silvaco master bridging to legacy I2C) so its audio card registers, and
   `flexspi-flash=gd5f4gq4` runs the flexspi-nand DTB (the SPI-NAND enumerates +
   reads). Covered by `tests/dtb-matrix-imx91`.
+- **Complete DT-referenced SoC surface.** Every peripheral any of those DTBs
+  enables is now modelled; the last gap, the DDR controller + DDR PMU, has a
+  register/perf-interface compat model so `imx9_ddr0` registers and `perf`
+  opens its events — though the counters read 0, because QEMU can't measure
+  real DDR bandwidth (DRAM is plain host memory, no controller in the path, no
+  cache model). What remains unmodelled is only RM blocks no DTB brings up
+  (LPTMR/LPIT/TRGMUX/GPC/CoreSight/boot-ROM/USB-PHY) and deliberate register
+  stubs (IOMUXC/SRC/TRDC/block-controls).
 - **Functional, validated via cross-compiled oracles.** SAI3/WM8962 audio
   playback (a square wave round-trips to a captured `.wav`) and the parallel
   camera path (5/5 real V4L2 frames off `/dev/video0`) — both ported from the
