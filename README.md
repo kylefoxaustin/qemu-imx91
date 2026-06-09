@@ -102,9 +102,10 @@ end to end:
   variants (mqs, i3c, 8mic, lpuart, flexspi-nand, panels, usbwifi) — to
   userspace; a catch-all background region keeps even a hand-edited DTB poking
   an unmodeled address from data-aborting. The MQS card plays (SAI1→eDMA1), the
-  8-mic MICFIL card captures 8 channels, and `flexspi-flash=gd5f4gq4` runs the
-  flexspi-nand DTB (the SPI-NAND enumerates + reads). Covered by
-  `tests/dtb-matrix-imx91`.
+  8-mic MICFIL card captures 8 channels, the i3c DTB's wm8962-on-I3C probes
+  (Silvaco master bridging to legacy I2C) so its audio card registers, and
+  `flexspi-flash=gd5f4gq4` runs the flexspi-nand DTB (the SPI-NAND enumerates +
+  reads). Covered by `tests/dtb-matrix-imx91`.
 - **Functional, validated via cross-compiled oracles.** SAI3/WM8962 audio
   playback (a square wave round-trips to a captured `.wav`) and the parallel
   camera path (5/5 real V4L2 frames off `/dev/video0`) — both ported from the
