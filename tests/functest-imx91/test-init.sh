@@ -7,6 +7,10 @@ echo "===================== IMX91 FUNCTIONAL TEST ====================="
 uname -a
 echo "nproc=$(nproc)  model=$(cat /sys/firmware/devicetree/base/model 2>/dev/null)"
 
+echo "----- SoC: identity (SiP SoC-info SMC -> soc-imx9) -----"
+echo "soc_id=$(cat /sys/devices/soc0/soc_id 2>/dev/null)" \
+     "revision=$(cat /sys/devices/soc0/revision 2>/dev/null)"
+
 echo "----- NET: interfaces + DHCP -----"
 ip -o link 2>/dev/null
 for i in eth0 eth1; do

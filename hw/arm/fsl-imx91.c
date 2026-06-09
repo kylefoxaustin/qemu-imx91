@@ -204,20 +204,25 @@ static void fsl_imx91_install_unimplemented(FslImx91State *s)
  * i.MX SiP SoC-info SMC (used by Linux/U-Boot to read the SoC id + revision).
  * The i.MX 91 has no Cortex-M33, so the RPROC SMCs the i.MX 93 served are gone.
  *
- * TODO: these SoC-info constants are inherited from the i.MX 93 port and should
- * be verified against the i.MX 91's real ATF SiP values.
+ * On real hardware TF-A's imx9_soc_info_handler() (plat/imx/common/ele_api.c)
+ * returns the soc word + 128-bit UID the ELE firmware reports; Linux decodes
+ * a1 in drivers/soc/imx/soc-imx9.c as:
+ *   soc id  = (a1 & 0xffff) >> 8   (when a1 & 0xff == 0)
+ *   rev maj = ((a1 >> 28) & 0xf) - 9,  rev min = (a1 >> 24) & 0xf
+ * so 0xa0009100 reads back as "i.MX91" rev 1.0 (A0). The 93 port reported
+ * 0x9300 here; the only SoC-specific field is the id, which must be 0x91. The
+ * UID is a per-chip serial (synthesised - there is no fixed i.MX 91 value).
  */
 #define IMX_SIP_GET_SOC_INFO    0xc2000006
-/* a1[31:16]=revision (major=[31:28]-9, minor=[27:24]), a1[15:0]=soc id<<8. */
-#define IMX93_SOC_INFO_A1       0xa0009300
+#define IMX91_SOC_INFO_A1       0xa0009100
 
 static bool fsl_imx91_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
                                   uint64_t a3, uint64_t ret[4])
 {
     if (fid == IMX_SIP_GET_SOC_INFO) {
         ret[0] = 0;                          /* SMCCC_RET_SUCCESS */
-        ret[1] = IMX93_SOC_INFO_A1;
-        ret[2] = 0x00049f9300000000ULL;      /* uid[127:64] */
+        ret[1] = IMX91_SOC_INFO_A1;
+        ret[2] = 0x00049f9100000000ULL;      /* uid[127:64] */
         ret[3] = 0x0000000000000001ULL;      /* uid[63:0] */
         return true;
     }
