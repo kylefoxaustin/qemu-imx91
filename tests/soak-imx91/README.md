@@ -57,11 +57,14 @@ panel / frdm / 9x9-qsb), the battery verifies:
 
 ## Notes
 
-- **soc-id** can SKIP: in this init flow the shared `imx93_ele` model answers
-  the ELE GET_INFO with the 93's soc_id (0x9300), so `se_ctrl` logs "No matching
-  index" and can race soc-imx9's probe, leaving `/sys/devices/soc0` absent. The
-  SiP SoC-info value (i.MX91) is verified independently (functest + a minimal
-  boot), so the soak doesn't fail over this probe-order artifact.
+- **soc-id** can SKIP: `/sys/devices/soc0` is built by the soc-imx9 driver from
+  the SiP SoC-info SMC alone (which correctly returns i.MX91 - verified in the
+  functest and a minimal boot). In this heavy modules-injected initramfs flow
+  soc0 sometimes doesn't register - a Linux-side probe artifact (it registers
+  fine in a minimal boot), not a QEMU inaccuracy. The unrelated kernel log "No
+  matching index found for soc_id = 37632" is the SE driver keying off the
+  `fsl,imx93-se` DT compatible (the i.MX 91 uses the 93's SE block); it does not
+  affect soc0. The soak skips soc-id rather than fail over a kernel probe quirk.
 - FlexIO is intentionally not exercised (the 93 documents a ~1/1000
   atomic-shift-event timing flake under sustained load; the 91 dodges it).
 - `-audio driver=wav` writes the played PCM to a file, never the host backend
