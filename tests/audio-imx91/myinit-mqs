@@ -1,0 +1,27 @@
+#!/bin/sh
+PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+
+echo "=== MQS: depmod + load SAI/MQS drivers ==="
+/sbin/depmod -a 2>/dev/null
+# MQS is a SAI1-fed PWM "codec": fsl-mqs + fsl-asoc-card + fsl-sai.
+for m in snd-soc-fsl-utils snd-soc-fsl-sai imx-pcm-dma snd-soc-fsl-mqs \
+         snd-soc-fsl-asoc-card snd-soc-simple-card snd-soc-simple-card-utils; do
+    /sbin/modprobe "$m" 2>&1 | sed "s/^/modprobe $m: /"
+done
+sleep 3
+echo "=== /proc/asound/cards ==="
+cat /proc/asound/cards 2>/dev/null
+echo "=== /proc/asound/pcm ==="
+cat /proc/asound/pcm 2>/dev/null
+CARD=$(awk '/mqs/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
+echo "mqs card index = ${CARD:-NONE}"
+
+if [ -x /pcm_play ] && [ -n "$CARD" ]; then
+    echo "=== PLAYBACK on MQS (hw:$CARD,0) ==="
+    /pcm_play hw:$CARD,0 1
+fi
+echo "=== AUDIO-MQS TEST DONE ==="
+sleep 3

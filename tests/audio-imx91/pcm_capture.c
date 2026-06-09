@@ -12,7 +12,7 @@
  * real signal. Prints "CAP[...]: PASS (non-silent)" on success. There is no
  * arecord in the BSP image, hence this. Cross-compile against an ALSA sysroot.
  *
- * Usage: pcm_capture <dev> [frames] [S16|S32]   (format defaults to S16)
+ * Usage: pcm_capture <dev> [frames] [S16|S32] [channels]  (S16/2ch default)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     long frames = argc > 2 ? atol(argv[2]) : 4096;
     int s32 = argc > 3 && strcmp(argv[3], "S32") == 0;
     snd_pcm_format_t fmt = s32 ? SND_PCM_FORMAT_S32_LE : SND_PCM_FORMAT_S16_LE;
-    unsigned int rate = 48000, chans = 2;
+    unsigned int rate = 48000, chans = argc > 4 ? (unsigned)atoi(argv[4]) : 2;
     snd_pcm_t *pcm;
     void *buf;
     snd_pcm_sframes_t r;

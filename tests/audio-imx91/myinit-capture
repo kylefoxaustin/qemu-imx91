@@ -32,15 +32,18 @@ if [ -x /pcm_capture ] && [ -n "$WCARD" ]; then
     /pcm_capture hw:$WCARD,0 4096
 fi
 
-# MICFIL (PDM) capture - the new path under test.
+# MICFIL (PDM) capture - the new path under test. Try 2ch (stock) and 8ch
+# (the 8mic-reve DTB); the card's dmic-codec num-channels caps what succeeds.
 if [ -n "$MCARD" ]; then
     if [ -x /pcm_capdiag ]; then
         echo "=== CAPTURE DIAG on MICFIL (hw:$MCARD,0) ==="
         /pcm_capdiag hw:$MCARD,0
     fi
     if [ -x /pcm_capture ]; then
-        echo "=== CAPTURE on MICFIL (hw:$MCARD,0) ==="
-        /pcm_capture hw:$MCARD,0 4096 S32
+        for ch in 2 8; do
+            echo "=== CAPTURE on MICFIL (hw:$MCARD,0) ${ch}ch ==="
+            /pcm_capture hw:$MCARD,0 4096 S32 $ch
+        done
     fi
 fi
 

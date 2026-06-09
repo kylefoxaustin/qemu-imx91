@@ -892,6 +892,17 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
          */
         qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "rx-dma-req", 0,
             qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+        /*
+         * SAI1 (AONMIX) is the cpu DAI for the bt-sco card and, on the
+         * imx91-...-mqs DTB, for the MQS PWM "codec": MQS has no data path of
+         * its own, it just converts SAI1's I2S stream, so MQS playback rides
+         * SAI1 TX. Its FIFO requests are serviced by eDMA1 (shared with MICFIL,
+         * as the eDMA advances whichever cyclic channel is armed).
+         */
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "dma-req", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "rx-dma-req", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
