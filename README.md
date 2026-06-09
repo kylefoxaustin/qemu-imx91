@@ -97,6 +97,14 @@ end to end:
   `/dev/sda`), and **command-line-attachable I²C** (a `-device tmp105,bus=lpi2c1`
   is enumerated and read from Linux, so the machine hosts peripherals beyond the
   EVK).
+- **Runs non-stock device trees.** The machine boots the BSP's ~100 variant
+  DTBs — the other boards (FRDM-IMX91, FRDM-IMX91S, 9x9 QSB) and per-peripheral
+  variants (mqs, i3c, 8mic, lpuart, flexspi-nand, panels, usbwifi) — to
+  userspace; a catch-all background region keeps even a hand-edited DTB poking
+  an unmodeled address from data-aborting. The MQS card plays (SAI1→eDMA1), the
+  8-mic MICFIL card captures 8 channels, and `flexspi-flash=gd5f4gq4` runs the
+  flexspi-nand DTB (the SPI-NAND enumerates + reads). Covered by
+  `tests/dtb-matrix-imx91`.
 - **Functional, validated via cross-compiled oracles.** SAI3/WM8962 audio
   playback (a square wave round-trips to a captured `.wav`) and the parallel
   camera path (5/5 real V4L2 frames off `/dev/video0`) — both ported from the
@@ -260,7 +268,7 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
 | `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
 | `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
-| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), LPI2C, ISI, FlexSPI, FlexIO |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), MICFIL (PDM capture), LPI2C, ISI, FlexSPI (NOR + SPI-NAND read-id), FlexIO |
 
 ## Building
 
