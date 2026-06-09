@@ -187,7 +187,15 @@ static void edma_service_minor(IMX93EdmaState *s, int ch)
         saddr += soff;
         daddr += doff;
     }
+    /*
+     * Persist both pointers. The fixed (peripheral) side has off==0 so it is
+     * unchanged; the advancing (memory) side must carry over to the next minor
+     * loop. Saving only SADDR works for transmit (mem->FIFO) but loses the
+     * destination for receive (FIFO->mem), where DADDR is the one that walks
+     * the ring - without this every minor loop overwrites the same bytes.
+     */
     st32(t + TCD_SADDR, (uint32_t)saddr);
+    st32(t + TCD_DADDR, (uint32_t)daddr);
 
     if (citer > 1) {
         citer--;
