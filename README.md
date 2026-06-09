@@ -190,8 +190,8 @@ end-to-end not yet re-validated on the 91).
 
 | Feature | What | Target |
 |---|---|---|
-| SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
-| Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
+| Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | next |
+| Timers / MQS | LPTMR / LPIT / TRGMUX, and MQS for the `…-mqs` audio variant — only if a non-stock DTB needs them | as needed |
 
 ## Required artifacts
 
