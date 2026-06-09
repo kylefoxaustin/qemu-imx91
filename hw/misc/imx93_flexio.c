@@ -17,20 +17,14 @@
  * (transmit) from SHIFTBUFBBS_0 and reads shifter 1 (receive/ACK) from
  * SHIFTBUFBIS_1, waiting on the SHIFTSTAT transmit-empty / receive-full flags
  * and the shifter interrupt. The model represents one byte clock as a single
- * atomic "shift": it performs the I2C-bus operation (the first byte addresses
- * the slave, later bytes send or receive) and raises both shifter flags
- * together.
- *
- * The shift is driven by the driver's own register handshake, not by a clock.
- * The driver's interrupt handler samples SHIFTSTAT once, then loads the next
- * transmit byte and drains the current receive byte; a shift must therefore
- * land between handler invocations, never inside one. Rather than assume a
- * timer fires in that gap (which a busy host can violate, desynchronising the
- * transmit/receive lock-step), the next byte is clocked only once both halves
- * of the handshake have happened: a byte is loaded (SHIFTBUFBBS_0 written) and
- * the previous receive byte has been drained (SHIFTBUFBIS_1 read). Gating the
- * shift on receive-drain makes the lock-step exact and timing-independent - the
- * datapath can never advance past a byte the driver has not yet consumed.
+ * atomic "shift" event on a timer: it performs the I2C-bus operation (the first
+ * byte addresses the slave, later bytes send or receive) and raises both flags
+ * together. Crucially the shift fires one realistic I2C byte period after the
+ * byte is loaded - long enough that the driver's interrupt handler has returned
+ * first - so the receive flag is set before the next handler entry and the
+ * driver does exactly one transmit + one receive per byte (it samples SHIFTSTAT
+ * once on entry). A sub-microsecond delay would let the timer fire mid-handler
+ * and desynchronise that lock-step.
  *
  * Set FLEXIO_DBG to trace I2C operations, FLEXIO_REGDBG for register access.
  */
@@ -57,6 +51,13 @@
 #define FLEXIO_PINSTAT          0x50
 #define FLEXIO_SHIFTBUFBIS_1    0x284   /* shifter 1 receive buffer */
 #define FLEXIO_SHIFTBUFBBS_0    0x380   /* shifter 0 transmit buffer */
+
+/*
+ * One I2C byte at 100 kHz is ~90 us. Using a realistic byte period (rather than
+ * a token delay) is what keeps the shift event landing between the driver's
+ * interrupt handlers instead of racing inside one.
+ */
+#define FLEXIO_SHIFT_NS         100000
 
 #define FLEXIO_VERID_VALUE      0x02010000
 #define FLEXIO_PARAM_VALUE      0x04200808
@@ -94,17 +95,22 @@ static void imx93_flexio_i2c_end(IMX93FlexioState *s)
 }
 
 /*
- * Clock the loaded transmit byte onto the I2C bus and capture the receive byte,
- * then raise both shifter flags together. The first byte of a transfer is the
- * addressing byte (i2c_start_transfer); later bytes are sent, or a dummy clock
- * receives. Doing the bus operation and the flag update atomically here keeps
- * the transmit/receive handshake in lock-step.
+ * One byte clock has elapsed: clock the loaded transmit byte onto the I2C bus
+ * and capture the receive byte, then raise both shifter flags together. The
+ * first byte of a transfer is the addressing byte (i2c_start_transfer); later
+ * bytes are sent, or a dummy clock receives. Doing the bus operation and the
+ * flag update atomically here - between the driver's interrupt handlers - is
+ * what keeps the transmit/receive handshake in lock-step.
  */
-static void imx93_flexio_do_shift(IMX93FlexioState *s)
+static void imx93_flexio_shift(void *opaque)
 {
+    IMX93FlexioState *s = opaque;
     uint8_t byte = s->i2c_tx_byte;
     bool ack;
 
+    if (!s->i2c_tx_pending) {
+        return;
+    }
     s->i2c_tx_pending = false;
 
     if (!s->i2c_started) {
@@ -137,7 +143,6 @@ static void imx93_flexio_do_shift(IMX93FlexioState *s)
         }
     }
 
-    s->i2c_rx_full = true;
     R(s, FLEXIO_SHIFTSTAT) |= SHIFTSTAT_TX | SHIFTSTAT_RX;
     if (ack) {
         R(s, FLEXIO_SHIFTERR) &= ~(uint32_t)SHIFTERR_RX_NAK;
@@ -145,20 +150,6 @@ static void imx93_flexio_do_shift(IMX93FlexioState *s)
         R(s, FLEXIO_SHIFTERR) |= SHIFTERR_RX_NAK;
     }
     imx93_flexio_update_irq(s);
-}
-
-/*
- * Clock the next byte only once the driver has both loaded a transmit byte and
- * drained the previous receive byte. Gating on receive-drain is what makes the
- * lock-step timing-independent: the datapath cannot overrun a byte the driver
- * has not yet read out of SHIFTBUFBIS_1.
- */
-static void imx93_flexio_try_shift(IMX93FlexioState *s)
-{
-    if (s->i2c_tx_pending && !s->i2c_rx_full &&
-        (R(s, FLEXIO_SHIFTSIEN) & 0x3)) {
-        imx93_flexio_do_shift(s);
-    }
 }
 
 static void imx93_flexio_tx_write(IMX93FlexioState *s, uint32_t byte)
@@ -171,7 +162,8 @@ static void imx93_flexio_tx_write(IMX93FlexioState *s, uint32_t byte)
     s->i2c_tx_pending = true;
     R(s, FLEXIO_SHIFTSTAT) &= ~(uint32_t)SHIFTSTAT_TX;   /* buffer loaded */
     imx93_flexio_update_irq(s);
-    imx93_flexio_try_shift(s);
+    timer_mod(s->shift_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + FLEXIO_SHIFT_NS);
 }
 
 static uint64_t imx93_flexio_read(void *opaque, hwaddr offset, unsigned size)
@@ -193,10 +185,8 @@ static uint64_t imx93_flexio_read(void *opaque, hwaddr offset, unsigned size)
         break;
     case FLEXIO_SHIFTBUFBIS_1:
         val = s->i2c_rx_byte;
-        s->i2c_rx_full = false;
         R(s, FLEXIO_SHIFTSTAT) &= ~(uint32_t)SHIFTSTAT_RX;   /* read clears */
         imx93_flexio_update_irq(s);
-        imx93_flexio_try_shift(s);   /* drained: the next byte may now clock */
         break;
     default:
         val = (offset / 4) < IMX93_FLEXIO_NUM_REGS ? s->regs[offset / 4] : 0;
@@ -221,9 +211,9 @@ static void imx93_flexio_write(void *opaque, hwaddr offset, uint64_t value,
     case FLEXIO_CTRL:
         if (value & FLEXIO_CTRL_SWRST) {
             imx93_flexio_i2c_end(s);
+            timer_del(s->shift_timer);
             memset(s->regs, 0, sizeof(s->regs));
             s->i2c_tx_pending = false;
-            s->i2c_rx_full = false;
             /* Reset leaves the transmit shifter empty (the driver polls it). */
             R(s, FLEXIO_SHIFTSTAT) = SHIFTSTAT_TX;
             value &= ~(uint64_t)FLEXIO_CTRL_SWRST;
@@ -243,7 +233,7 @@ static void imx93_flexio_write(void *opaque, hwaddr offset, uint64_t value,
             /* Driver disarmed interrupts: the transfer is complete. */
             imx93_flexio_i2c_end(s);
             s->i2c_tx_pending = false;
-            s->i2c_rx_full = false;
+            timer_del(s->shift_timer);
             R(s, FLEXIO_SHIFTSTAT) = SHIFTSTAT_TX;   /* shifter idle/empty */
             R(s, FLEXIO_TIMSTAT) |= 0x1;     /* transfer-done poll succeeds */
         } else if (value & 0x3) {
@@ -254,7 +244,6 @@ static void imx93_flexio_write(void *opaque, hwaddr offset, uint64_t value,
              */
             imx93_flexio_i2c_end(s);
             s->i2c_tx_pending = false;
-            s->i2c_rx_full = false;
             R(s, FLEXIO_SHIFTSTAT) = SHIFTSTAT_TX;
         }
         imx93_flexio_update_irq(s);
@@ -285,9 +274,9 @@ static void imx93_flexio_reset(DeviceState *dev)
     IMX93FlexioState *s = IMX93_FLEXIO(dev);
 
     imx93_flexio_i2c_end(s);
+    timer_del(s->shift_timer);
     memset(s->regs, 0, sizeof(s->regs));
     s->i2c_tx_pending = false;
-    s->i2c_rx_full = false;
     /* Transmit shifter starts empty so the driver's idle poll succeeds. */
     R(s, FLEXIO_SHIFTSTAT) = SHIFTSTAT_TX;
     qemu_set_irq(s->irq, 0);
@@ -310,12 +299,13 @@ static void imx93_flexio_realize(DeviceState *dev, Error **errp)
     IMX93FlexioState *s = IMX93_FLEXIO(dev);
 
     s->i2c_bus = i2c_init_bus(dev, "flexio1-i2c");
+    s->shift_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_flexio_shift, s);
 }
 
 static const VMStateDescription vmstate_imx93_flexio = {
     .name = TYPE_IMX93_FLEXIO,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 1,
+    .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, IMX93FlexioState, IMX93_FLEXIO_NUM_REGS),
         VMSTATE_BOOL(i2c_started, IMX93FlexioState),
@@ -324,7 +314,6 @@ static const VMStateDescription vmstate_imx93_flexio = {
         VMSTATE_UINT8(i2c_tx_byte, IMX93FlexioState),
         VMSTATE_BOOL(i2c_tx_pending, IMX93FlexioState),
         VMSTATE_UINT8(i2c_rx_byte, IMX93FlexioState),
-        VMSTATE_BOOL(i2c_rx_full, IMX93FlexioState),
         VMSTATE_END_OF_LIST()
     },
 };
