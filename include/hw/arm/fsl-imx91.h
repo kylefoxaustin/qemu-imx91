@@ -151,6 +151,7 @@ struct FslImx91State {
     IMX93SaiState   sai[FSL_IMX91_NUM_SAIS];
     IMX93MicfilState micfil;
     MemoryRegion    ocram;
+    char            *flexspi_flash;      /* SSI device on the FlexSPI bus    */
 };
 
 /*

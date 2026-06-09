@@ -8,6 +8,10 @@
  * Drives a READ-ID (9Fh) sequence through the LUT / IP command path and checks
  * the JEDEC id of the board's is25wp064 flash comes back in RFDR, then reads
  * the AHB-mapped (XIP) window and checks an erased flash reads back 0xff.
+ *
+ * A second test selects the SPI-NAND (-machine ...,flexspi-flash=gd5f4gq4) and
+ * checks READ-ID returns the Gigadevice manufacturer + device id, the way the
+ * Linux spi-nand stack detects the chip.
  */
 
 #include "qemu/osdep.h"
@@ -72,9 +76,39 @@ static void test_read_id(void)
     qtest_quit(q);
 }
 
+#define GD5F_READID 0x68a4c8           /* c8 (Gigadevice) a4 68, packed LE */
+
+static void test_nand_read_id(void)
+{
+    QTestState *q = qtest_init(
+        "-machine imx91-11x11-evk,flexspi-flash=gd5f4gq4 "
+        "-m 4G -display none -kernel /dev/null");
+    uint16_t cmd = (0x01 << 10) | 0x9f;     /* LUT_CMD, opcode 9Fh */
+    uint16_t rd_i = (0x09 << 10) | 0x00;    /* LUT_NXP_READ */
+    uint32_t id;
+
+    wr(q, FSPI_MCR0, 0x1);                   /* software reset */
+    wr(q, FSPI_LUTKEY, LUTKEY_VAL);
+    wr(q, FSPI_LCKCR, 0x2);                   /* unlock LUT */
+    wr(q, FSPI_LUT, ((uint32_t)rd_i << 16) | cmd);   /* seqid 0 */
+    wr(q, FSPI_LCKCR, 0x1);                   /* lock LUT */
+
+    wr(q, FSPI_IPCR0, 0);                     /* no address (OPCODE method) */
+    wr(q, FSPI_IPCR1, (0 << 16) | 3);         /* seqid 0, 3 id bytes */
+    wr(q, FSPI_IPRXFCR, 0x1);                 /* clear rx fifo */
+    wr(q, FSPI_IPCMD, 0x1);                   /* trigger */
+
+    g_assert_cmphex(rd(q, FSPI_INTR) & 0x1, ==, 0x1);   /* IPCMDDONE */
+    id = rd(q, FSPI_RFDR) & 0xffffff;
+    g_assert_cmphex(id, ==, GD5F_READID);
+
+    qtest_quit(q);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("imx93/flexspi/read-id", test_read_id);
+    qtest_add_func("imx91/flexspi/nand-read-id", test_nand_read_id);
     return g_test_run();
 }

@@ -23,7 +23,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(IMX93FlexSpiState, IMX93_FLEXSPI)
 
 #define IMX93_FLEXSPI_REG_SIZE  0x10000
-#define IMX93_FLEXSPI_AHB_SIZE  0x08000000   /* 128 MiB memory-mapped window */
+#define IMX93_FLEXSPI_AHB_SIZE  0x10000000   /* 256 MiB memory-mapped window */
 #define IMX93_FLEXSPI_NUM_REGS  (0x400 / 4)
 #define IMX93_FLEXSPI_NUM_CS    4
 

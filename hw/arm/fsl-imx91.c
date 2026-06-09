@@ -1006,7 +1006,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(fsbd, 0,
                            qdev_get_gpio_in(gicdev, FSL_IMX91_FLEXSPI1_IRQ));
 
-        flash = qdev_new("is25wp064");
+        flash = qdev_new(s->flexspi_flash ?: "is25wp064");
         if (dinfo) {
             qdev_prop_set_drive(flash, "drive",
                                 blk_by_legacy_dinfo(dinfo));
@@ -1163,6 +1163,12 @@ static const Property fsl_imx91_properties[] = {
                      CanBusState *),
     DEFINE_PROP_LINK("canbus1", FslImx91State, canbus[1], TYPE_CAN_BUS,
                      CanBusState *),
+    /*
+     * SSI device attached to the FlexSPI bus. Defaults to the EVK's serial NOR
+     * (is25wp064); set to "gd5f4gq4" to model the SPI-NAND the flexspi-nand DTB
+     * expects (-machine imx91-11x11-evk,flexspi-flash=gd5f4gq4).
+     */
+    DEFINE_PROP_STRING("flexspi-flash", FslImx91State, flexspi_flash),
 };
 
 static void fsl_imx91_class_init(ObjectClass *oc, const void *data)

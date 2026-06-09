@@ -30,6 +30,8 @@
 #define FSPI_INTEN      0x10
 #define FSPI_INTR       0x14
 #define FSPI_INTR_IPCMDDONE (1u << 0)
+#define FSPI_INTR_IPRXWA    (1u << 5)   /* IP RX FIFO watermark available */
+#define FSPI_INTR_IPTXWE    (1u << 6)   /* IP TX FIFO watermark empty     */
 #define FSPI_LUTKEY     0x18
 #define FSPI_LUTKEY_VAL 0x5af05af0
 #define FSPI_LCKCR      0x1c
@@ -146,6 +148,15 @@ static uint64_t flexspi_read(void *opaque, hwaddr offset, unsigned size)
     switch (offset) {
     case FSPI_STS0:
         return FSPI_STS0_IDLE;      /* always idle (commands complete inline) */
+    case FSPI_INTR:
+        /*
+         * Commands complete inline, so the IP FIFOs are never the bottleneck:
+         * always report TX-watermark-empty and (when RX holds data) RX-
+         * watermark-available, else the driver's per-chunk poll of these bits
+         * times out and WARNs / mis-sequences a read (e.g. SPI-NAND config).
+         */
+        return s->regs[FSPI_INTR >> 2] | FSPI_INTR_IPTXWE |
+               (fifo8_is_empty(&s->rx) ? 0 : FSPI_INTR_IPRXWA);
     default:
         if ((offset >> 2) >= IMX93_FLEXSPI_NUM_REGS) {
             return 0;
@@ -261,7 +272,14 @@ static const MemoryRegionOps flexspi_ahb_ops = {
     .read = flexspi_ahb_read,
     .write = flexspi_ahb_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid = { .min_access_size = 1, .max_access_size = 4 },
+    /*
+     * memcpy_fromio() bursts the AHB window with 8-byte loads, so accept up to
+     * 8: a narrower cap makes QEMU reject the access as invalid (MEMTX_ERROR =
+     * external abort) before the handler even runs - which is what broke the
+     * SPI-NAND page read.
+     */
+    .valid = { .min_access_size = 1, .max_access_size = 8 },
+    .impl = { .min_access_size = 1, .max_access_size = 8 },
 };
 
 static void flexspi_reset(DeviceState *dev)

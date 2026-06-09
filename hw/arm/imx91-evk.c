@@ -37,6 +37,8 @@ struct Imx91EvkMachineState {
 
     /* Optional CAN buses, attached via -machine canbus0=...,canbus1=... */
     CanBusState *canbus[FSL_IMX91_NUM_FLEXCAN];
+    /* FlexSPI flash device, via -machine flexspi-flash=gd5f4gq4 (NAND DTBs). */
+    char *flexspi_flash;
 };
 
 /*
@@ -119,6 +121,12 @@ static void imx93_evk_init(MachineState *machine)
         }
     }
 
+    /* Forward the FlexSPI flash selection (NOR by default, or SPI-NAND). */
+    if (m->flexspi_flash) {
+        object_property_set_str(OBJECT(s), "flexspi-flash", m->flexspi_flash,
+                                &error_abort);
+    }
+
     sysbus_realize_and_unref(SYS_BUS_DEVICE(s), &error_fatal);
 
     memory_region_add_subregion(get_system_memory(), FSL_IMX91_RAM_START,
@@ -166,6 +174,15 @@ static void imx91_11x11_evk_machine_init(MachineClass *mc)
     mc->get_default_cpu_type  = imx93_evk_get_default_cpu_type;
 }
 
+static void imx91_evk_set_flexspi_flash(Object *obj, const char *value,
+                                        Error **errp)
+{
+    Imx91EvkMachineState *m = IMX91_EVK_MACHINE(obj);
+
+    g_free(m->flexspi_flash);
+    m->flexspi_flash = g_strdup(value);
+}
+
 static void imx93_evk_machine_instance_init(Object *obj)
 {
     int i;
@@ -181,6 +198,9 @@ static void imx93_evk_machine_instance_init(Object *obj)
                                  (Object **)&IMX91_EVK_MACHINE(obj)->canbus[i],
                                  object_property_allow_set_link, 0);
     }
+
+    object_property_add_str(obj, "flexspi-flash", NULL,
+                            imx91_evk_set_flexspi_flash);
 }
 
 static void imx91_11x11_evk_class_init(ObjectClass *oc, const void *data)
