@@ -208,7 +208,8 @@ end-to-end not yet re-validated on the 91).
 | Feature | What | Target |
 |---|---|---|
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | next |
-| Timers / MQS | LPTMR / LPIT / TRGMUX, and MQS for the `…-mqs` audio variant — only if a non-stock DTB needs them | as needed |
+| Tag v0.2 | Checkpoint the capture + non-stock-DTB + DDR-PMU work since v0.1 | next |
+| Inert RM blocks | LPTMR / LPIT / TRGMUX, GPC regs, SRAM controller, CoreSight, boot ROM — no DTB enables them, so nothing exercises them | only if a use case demands |
 
 ## Required artifacts
 
