@@ -56,6 +56,7 @@
 #include "hw/audio/imx93_sai.h"
 #include "hw/audio/imx93_micfil.h"
 #include "hw/i3c/svc_i3c.h"
+#include "hw/misc/imx9_ddrc.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -152,6 +153,7 @@ struct FslImx91State {
     IMX93SaiState   sai[FSL_IMX91_NUM_SAIS];
     IMX93MicfilState micfil;
     SvcI3cState     i3c1;                 /* Silvaco I3C master @ 0x44330000  */
+    Imx9DdrcState   ddrc;                 /* DDR controller + PMU @ 0x4e300000 */
     MemoryRegion    ocram;
     char            *flexspi_flash;      /* SSI device on the FlexSPI bus    */
 };
@@ -276,6 +278,7 @@ enum FslImx91MemoryRegions {
     FSL_IMX91_SEMA42_2,
     FSL_IMX91_FLEXIO1,
     FSL_IMX91_FLEXIO2,
+    FSL_IMX91_DDRC,
 
     FSL_IMX91_NUM_REGIONS,
 };
@@ -287,6 +290,7 @@ enum FslImx91MemoryRegions {
  */
 enum FslImx91Irqs {
     FSL_IMX91_I3C1_IRQ      = 12,
+    FSL_IMX91_DDRC_PMU_IRQ  = 90,
     FSL_IMX91_LPUART1_IRQ   = 19,
     FSL_IMX91_LPUART2_IRQ   = 20,
     FSL_IMX91_LPUART3_IRQ   = 68,

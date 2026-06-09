@@ -79,6 +79,7 @@ static const struct {
     [FSL_IMX91_BLK_CTRL_AONMIX] = { 0x44210000, 4 * KiB, "aonmix-blk-ctrl" },
     [FSL_IMX91_BLK_CTRL_WAKEUPMIX] = { 0x42420000, 4 * KiB, "wakeupmix-blk" },
     [FSL_IMX91_BLK_CTRL_DDRMIX] = { 0x4e010000, 64 * KiB, "ddrmix-blk-ctrl" },
+    [FSL_IMX91_DDRC] = { 0x4e300000, IMX9_DDRC_SIZE, "ddrc" },
 
     /* Ethernet: FEC (real imx.enet) + eQOS dwmac (stub). */
     [FSL_IMX91_FEC] = { 0x42890000, 64 * KiB, "fec" },
@@ -938,6 +939,21 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     i2c_slave_create_simple(s->i3c1.bus->i2c_bus, TYPE_WM8962,
                             FSL_IMX91_WM8962_ADDR);
 
+    /*
+     * DDR controller + DDR PMU. A register/perf-interface compat model only:
+     * QEMU DRAM is plain host memory with no controller in the path and no
+     * cache model, so the perf counters cannot measure real DDR bandwidth and
+     * read back 0. It lets the fsl_imx9_ddr_perf driver probe and `perf` open
+     * the imx9_ddr events instead of falling through to the catch-all.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ddrc), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ddrc),
+                    0, fsl_imx91_memmap[FSL_IMX91_DDRC].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->ddrc), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX91_DDRC_PMU_IRQ));
+
     /* BBNSM: real-time clock + power key. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->bbnsm), errp)) {
         return;
@@ -1162,6 +1178,7 @@ static void fsl_imx91_init(Object *obj)
 
     object_initialize_child(obj, "micfil", &s->micfil, TYPE_IMX93_MICFIL);
     object_initialize_child(obj, "i3c1", &s->i3c1, TYPE_SVC_I3C);
+    object_initialize_child(obj, "ddrc", &s->ddrc, TYPE_IMX9_DDRC);
 
     for (i = 0; i < FSL_IMX91_NUM_GPIOS; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i + 1);
