@@ -28,15 +28,18 @@ need DTB "$DTB" "dtb"; need ROOTFS_TAR "$ROOTFS_TAR" "rootfs tar.zst"
 command -v fakeroot >/dev/null || { echo "error: fakeroot not found" >&2; exit 1; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-FILES="myinit"
-if [ -n "$ALSA_SYSROOT" ] && command -v "${CROSS}gcc" >/dev/null; then
-    zcat_src=$(readlink -f "$ROOTFS_TAR")
-    ( cd "$TMP" && zstd -dc "$zcat_src" | tar -x 'usr/lib/libasound.so.2*' 2>/dev/null )
-    LASOUND=$(ls "$TMP"/usr/lib/libasound.so.2.* 2>/dev/null | head -1)
-    if [ -n "$LASOUND" ] && "${CROSS}gcc" -O2 -Wall -I"$ALSA_SYSROOT/usr/include" \
+# Prefer libasound from the rootfs; fall back to the BSP-built one (the
+# imx-image-core rootfs ships none) and inject it into the initramfs.
+ALSA_LIBDIR=${ALSA_LIBDIR:-$HOME/Documents/nxp/linux/imx-yocto-bsp/build-imx91/tmp/work/armv8a-mx91-poky-linux/alsa-lib/1.2.13/image/usr/lib}
+( cd "$TMP" && zstd -dc "$(readlink -f "$ROOTFS_TAR")" | \
+    tar -x 'usr/lib/libasound.so.2*' 2>/dev/null )
+LASOUND=$(ls "$TMP"/usr/lib/libasound.so.2.* 2>/dev/null | head -1)
+[ -n "$LASOUND" ] || LASOUND=$(ls "$ALSA_LIBDIR"/libasound.so.2.* 2>/dev/null | head -1)
+if [ -n "$ALSA_SYSROOT" ] && command -v "${CROSS}gcc" >/dev/null && [ -n "$LASOUND" ]; then
+    if "${CROSS}gcc" -O2 -Wall -I"$ALSA_SYSROOT/usr/include" \
             -o "$TMP/pcm_play" "$HERE/pcm_play.c" "$LASOUND" \
             -Wl,--allow-shlib-undefined 2>/dev/null; then
-        FILES="myinit pcm_play"; echo "built pcm_play oracle"
+        echo "built pcm_play oracle (libasound: $LASOUND)"
     else
         echo "note: could not build pcm_play; card-registration check only" >&2
     fi
@@ -47,7 +50,11 @@ fakeroot bash -c "
   cd '$TMP' && mkdir rootfs && cd rootfs
   zstd -dc '$(readlink -f "$ROOTFS_TAR")' | tar -x 2>/dev/null
   cp '$HERE/myinit' myinit && chmod 755 myinit
-  [ -f '$TMP/pcm_play' ] && { cp '$TMP/pcm_play' pcm_play && chmod 755 pcm_play; }
+  if [ -f '$TMP/pcm_play' ]; then
+      cp '$TMP/pcm_play' pcm_play && chmod 755 pcm_play
+      mkdir -p usr/lib
+      cp '$LASOUND' usr/lib/ && ln -sf \$(basename '$LASOUND') usr/lib/libasound.so.2
+  fi
   [ -e dev/console ] || mknod -m 600 dev/console c 5 1
   find . | cpio -o -H newc 2>/dev/null | gzip -1 > '$TMP/initrd.cpio.gz'
 "

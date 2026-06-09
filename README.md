@@ -103,13 +103,18 @@ end to end:
   i.MX 93 and re-confirmed on the 91 with the `tests/audio-imx91` /
   `tests/camera-imx91` harnesses (the `imx-image-core` rootfs lacks `aplay` /
   `v4l2-ctl`, so the tests cross-compile a tiny ALSA/V4L2 client).
-- **Modeled + qtested, Linux e2e pending.** The SAI *receive* path now
-  synthesises a captured sawtooth into the RX FIFO at the audio rate, drained by
-  the eDMA exactly as the transmit path is filled — covered by a qtest. A full
-  `arecord` capture additionally needs the WM8962 ADC/DAPM capture route (not
-  wired yet), so end-to-end Linux capture is not there.
+- **SAI capture — functional, end to end.** Recording from the WM8962/SAI3 card
+  returns real, non-silent, continuously varying samples to userspace: the SAI
+  *receive* path synthesises a sawtooth into the RX FIFO (and on demand when the
+  eDMA bursts ahead of the word-rate), and the eDMA drains RDR0 → memory the
+  mirror of how it fills TDR0 for playback. Covered by a qtest and an ALSA
+  capture oracle (`tests/audio-imx91/run-capture.sh`). Reaching this exposed a
+  latent eDMA bug — minor loops only wrote back SADDR, so every device→memory
+  (capture) transfer overwrote the same bytes; persisting DADDR fixed all
+  capture directions at once.
 - **Registration bar only.** MICFIL (PDM) registers its ALSA device but doesn't
-  pump real samples yet.
+  synthesise PDM samples yet (the eDMA capture path it shares now works, so this
+  is the only remaining piece for PDM capture).
 - **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
   Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
   HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
@@ -181,7 +186,7 @@ end-to-end not yet re-validated on the 91).
 
 | Feature | What | Target |
 |---|---|---|
-| Linux capture e2e | Wire the WM8962 ADC/DAPM capture route so `arecord` drives the (already modeled + qtested) SAI RX path; pump MICFIL PDM samples | next |
+| MICFIL PDM capture | Synthesise PDM samples so the MICFIL card records end to end (its eDMA capture path already works) | next |
 | SoC-info | Replace the i.MX 93 SiP/OCOTP soc-id constants with the i.MX 91's real ATF values | next |
 | Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | later |
 

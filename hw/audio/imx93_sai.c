@@ -187,12 +187,25 @@ static void imx93_sai_rx_reset_fifo(IMX93SaiState *s)
 }
 
 /*
+ * Synthesise the next captured word. There is no codec wired, so the model
+ * produces a low-frequency sawtooth, identical in both S16 channels, so a
+ * recorder gets real, non-silent, periodic samples. rx_words is the single
+ * monotonic sample index, advanced whether the word is buffered by the tick or
+ * generated on demand by an RDR0 read - keeping one continuous waveform.
+ */
+static uint32_t imx93_sai_rx_next_word(IMX93SaiState *s)
+{
+    /* ~375 Hz sawtooth at 48 kHz: ramp over 128 frames, both channels. */
+    uint16_t s16 = (uint16_t)((s->rx_words & 0x7f) << 9);
+
+    s->rx_words++;
+    return ((uint32_t)s16 << 16) | s16;
+}
+
+/*
  * Receive tick: with RCSR.RE set, the SAI clocks one word in per audio word
- * period. There is no codec wired, so the model synthesises the captured
- * stream - a low-frequency sawtooth, identical in both S16 channels - so a
- * recorder gets real, non-silent, periodic samples. As the FIFO fills past the
- * watermark, request an eDMA drain (the eDMA reads RDR0 -> memory, paced by
- * this fill, mirroring the transmit path).
+ * period. As the FIFO fills past the watermark, request an eDMA drain (the
+ * eDMA reads RDR0 -> memory, paced by this fill, mirroring the transmit path).
  */
 static void imx93_sai_rx_tick(void *opaque)
 {
@@ -205,13 +218,9 @@ static void imx93_sai_rx_tick(void *opaque)
     }
 
     if (s->rx_count < IMX93_SAI_FIFO_DEPTH) {
-        /* ~375 Hz sawtooth at 48 kHz: ramp over 128 frames, both channels. */
-        uint16_t s16 = (uint16_t)((s->rx_words & 0x7f) << 9);
-
-        s->rx_fifo[s->rx_wptr] = ((uint32_t)s16 << 16) | s16;
+        s->rx_fifo[s->rx_wptr] = imx93_sai_rx_next_word(s);
         s->rx_wptr = (s->rx_wptr + 1) % IMX93_SAI_FIFO_DEPTH;
         s->rx_count++;
-        s->rx_words++;
     }
 
     if (dma && s->rx_count > watermark) {
@@ -280,7 +289,7 @@ static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
         return ((uint32_t)s->tx_wptr << 16) | s->tx_rptr;
     case SAI_RDR0: {
         /* Pop one received word; the eDMA reads here to drain the RX FIFO. */
-        uint32_t word = 0;
+        uint32_t word;
 
         if (s->rx_count > 0) {
             word = s->rx_fifo[s->rx_rptr];
@@ -288,6 +297,15 @@ static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
             s->rx_count--;
             imx93_sai_rx_update_flags(s);
             imx93_sai_update_irq(s);
+        } else {
+            /*
+             * FIFO empty but the receiver is running: the eDMA is draining
+             * faster than the word-rate tick fills (its minor loop bursts
+             * several words per request). Synthesise the next sample on demand
+             * so a real capture never reads silence - the "ADC always has a
+             * sample". rx_words keeps the waveform continuous across paths.
+             */
+            word = (R(s, SAI_RCSR) & RCSR_RE) ? imx93_sai_rx_next_word(s) : 0;
         }
         return word;
     }

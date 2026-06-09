@@ -1,0 +1,60 @@
+#!/bin/sh
+PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+/bin/mount -t debugfs none /sys/kernel/debug 2>/dev/null
+
+# Turn on the dynamic-debug we care about for the capture path.
+DDC=/sys/kernel/debug/dynamic_debug/control
+echo "dynamic_debug control writable: $([ -w "$DDC" ] && echo yes || echo NO)"
+if [ -w "$DDC" ]; then
+    for spec in 'module snd_soc_wm8962 +p' 'module snd_soc_fsl_sai +p' \
+                'module snd_soc_core +p' 'file sound/soc/soc-pcm.c +p' \
+                'file sound/core/pcm_native.c +p' 'module fsl_edma +p' \
+                'module fsl_edma_common +p' 'module imx_pcm_dma +p' \
+                'file sound/soc/soc-dapm.c +p'; do
+        echo "$spec" > "$DDC" 2>/dev/null
+    done
+fi
+
+echo "=== AUDIO-CAP: loading SAI/codec drivers ==="
+for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
+         snd-soc-dmic snd-soc-wm8962 snd-soc-fsl-asoc-card \
+         snd-soc-simple-card snd-soc-simple-card-utils; do
+    /sbin/modprobe "$m" 2>&1 | sed "s/^/modprobe $m: /"
+done
+sleep 4
+echo "=== /proc/asound/cards ==="
+cat /proc/asound/cards 2>/dev/null
+echo "=== /proc/asound/pcm ==="
+cat /proc/asound/pcm 2>/dev/null
+CARD=$(awk '/wm8962|imx-audio-wm8962/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
+echo "wm8962 card index = ${CARD:-NONE}"
+
+# Show the capture DAPM widgets/routes before we try.
+if [ -n "$CARD" ]; then
+    echo "=== dapm widgets (card$CARD, capture-relevant) ==="
+    for d in /sys/kernel/debug/asoc/*/*/dapm; do :; done 2>/dev/null
+    find /sys/kernel/debug/asoc -maxdepth 2 -type d 2>/dev/null | head -20
+fi
+
+echo "=== DMESG-MARK before capture ==="
+echo "CAPSTART" > /dev/kmsg 2>/dev/null
+
+if [ -x /pcm_capdiag ] && [ -n "$CARD" ]; then
+    echo "=== CAPTURE DIAG on wm8962/SAI3 (hw:$CARD,0) ==="
+    /pcm_capdiag hw:$CARD,0
+fi
+if [ -x /pcm_capture ] && [ -n "$CARD" ]; then
+    echo "=== CAPTURE ORACLE on wm8962/SAI3 (hw:$CARD,0) ==="
+    /pcm_capture hw:$CARD,0 4096
+fi
+
+echo "=== PCM capture substream status ==="
+cat /proc/asound/card$CARD/pcm0c/sub0/status 2>/dev/null
+cat /proc/asound/card$CARD/pcm0c/sub0/hw_params 2>/dev/null
+echo "=== FULL DMESG since CAPSTART ==="
+dmesg | sed -n '/CAPSTART/,$p' | tail -120
+echo "=== AUDIO-CAP TEST DONE ==="
+sleep 3

@@ -43,6 +43,18 @@ int main(int argc, char **argv)
     printf("CAP[%s]: %u Hz %u ch S16_LE, reading %ld frames\n", dev, rate,
            chans, frames);
 
+    /*
+     * Start the stream explicitly. snd_pcm_set_params leaves the capture
+     * stream PREPARED but does not auto-start it on the first readi here, so
+     * without this the read returns -EIO. An explicit start enables the SAI
+     * receiver (RCSR.RE) and the eDMA capture channel.
+     */
+    err = snd_pcm_start(pcm);
+    if (err < 0) {
+        printf("CAP[%s]: start: %s\n", dev, snd_strerror(err));
+        return 1;
+    }
+
     buf = malloc(frames * chans * sizeof(short));
     r = snd_pcm_readi(pcm, buf, frames);
     printf("CAP[%s]: readi -> %ld\n", dev, (long)r);
