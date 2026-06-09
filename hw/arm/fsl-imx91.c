@@ -1047,7 +1047,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         qdev_connect_gpio_out_named(DEVICE(&s->flexspi), "cs", 0, cs_line);
     }
 
-    /* XCVR SPDIF audio transceiver (registration model). */
+    /* XCVR SPDIF audio transceiver. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->xcvr), errp)) {
         return;
     }
@@ -1055,6 +1055,14 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
                     fsl_imx91_memmap[FSL_IMX91_XCVR].addr);
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->xcvr), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX91_XCVR_IRQ));
+    /*
+     * SPDIF playback: the XCVR TX FIFO is drained by a cyclic eDMA2 channel
+     * (the xcvr dtb wires dmas to edma2), the same datapath that fills the SAI
+     * transmit FIFO. It shares eDMA2's request line with SAI3 - the eDMA
+     * services whichever cyclic channel is armed.
+     */
+    qdev_connect_gpio_out_named(DEVICE(&s->xcvr), "dma-req", 0,
+        qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
 
     /* TSTMR1/2 timestamp timers + SEMA42 hardware semaphores (Group A). */
     {
