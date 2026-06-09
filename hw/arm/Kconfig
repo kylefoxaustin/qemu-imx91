@@ -708,6 +708,7 @@ config FSL_IMX91
     select IMX_LPUART
     select SDHCI
     select SPI_NAND
+    select SILVACO_I3C
     select UNIMP
 
 config FSL_IMX91_EVK

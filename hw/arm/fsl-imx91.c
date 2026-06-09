@@ -204,7 +204,7 @@ static void fsl_imx91_install_unimplemented(FslImx91State *s)
         FSL_IMX91_BLK_CTRL_AONMIX, FSL_IMX91_BLK_CTRL_WAKEUPMIX,
         FSL_IMX91_BLK_CTRL_DDRMIX,
         FSL_IMX91_TRDC,
-        FSL_IMX91_I3C1, FSL_IMX91_I3C2,
+        FSL_IMX91_I3C2,
         FSL_IMX91_FLEXIO2,
     };
 
@@ -923,6 +923,21 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
             qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
     }
 
+    /*
+     * I3C1 (AONMIX). The imx91-...-i3c DTB moves the wm8962 codec onto the I3C
+     * bus as a legacy I2C target, so attach a wm8962 at 0x1a to the I3C
+     * controller's built-in I2C bus. Other DTBs omit the node, so it sits idle.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->i3c1), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->i3c1),
+                    0, fsl_imx91_memmap[FSL_IMX91_I3C1].addr);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->i3c1), 0,
+                       qdev_get_gpio_in(gicdev, FSL_IMX91_I3C1_IRQ));
+    i2c_slave_create_simple(s->i3c1.bus->i2c_bus, TYPE_WM8962,
+                            FSL_IMX91_WM8962_ADDR);
+
     /* BBNSM: real-time clock + power key. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->bbnsm), errp)) {
         return;
@@ -1146,6 +1161,7 @@ static void fsl_imx91_init(Object *obj)
     }
 
     object_initialize_child(obj, "micfil", &s->micfil, TYPE_IMX93_MICFIL);
+    object_initialize_child(obj, "i3c1", &s->i3c1, TYPE_SVC_I3C);
 
     for (i = 0; i < FSL_IMX91_NUM_GPIOS; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i + 1);

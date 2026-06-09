@@ -55,6 +55,7 @@
 #include "hw/usb/chipidea.h"
 #include "hw/audio/imx93_sai.h"
 #include "hw/audio/imx93_micfil.h"
+#include "hw/i3c/svc_i3c.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
@@ -150,6 +151,7 @@ struct FslImx91State {
     ChipideaState   usb[FSL_IMX91_NUM_USBS];
     IMX93SaiState   sai[FSL_IMX91_NUM_SAIS];
     IMX93MicfilState micfil;
+    SvcI3cState     i3c1;                 /* Silvaco I3C master @ 0x44330000  */
     MemoryRegion    ocram;
     char            *flexspi_flash;      /* SSI device on the FlexSPI bus    */
 };
@@ -284,6 +286,7 @@ enum FslImx91MemoryRegions {
  * GIC_INTERNAL internally.
  */
 enum FslImx91Irqs {
+    FSL_IMX91_I3C1_IRQ      = 12,
     FSL_IMX91_LPUART1_IRQ   = 19,
     FSL_IMX91_LPUART2_IRQ   = 20,
     FSL_IMX91_LPUART3_IRQ   = 68,
