@@ -181,6 +181,22 @@ static const struct {
  * traces accesses but doesn't fault. This lets U-Boot / Linux probe
  * registers safely while we iterate.
  */
+/*
+ * Map a dummy region (logs + reads-as-0) at a caller-chosen priority. Mirrors
+ * create_unimplemented_device(), which is fixed at -1000, so we can sit a
+ * catch-all *below* the named -1000 stubs.
+ */
+static void fsl_imx91_map_background(const char *name, hwaddr base,
+                                     hwaddr size, int priority)
+{
+    DeviceState *dev = qdev_new(TYPE_UNIMPLEMENTED_DEVICE);
+
+    qdev_prop_set_string(dev, "name", name);
+    qdev_prop_set_uint64(dev, "size", size);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(dev), 0, base, priority);
+}
+
 static void fsl_imx91_install_unimplemented(FslImx91State *s)
 {
     static const int unimplemented_regions[] = {
@@ -191,6 +207,19 @@ static void fsl_imx91_install_unimplemented(FslImx91State *s)
         FSL_IMX91_I3C1, FSL_IMX91_I3C2,
         FSL_IMX91_FLEXIO2,
     };
+
+    /*
+     * Catch-all over the whole i.MX 9 peripheral aperture (0x4000_0000 ..
+     * 0x5000_0000), one priority below the named -1000 stubs and the real
+     * devices (priority 0). A non-stock device tree that enables a block we do
+     * not model - or a hand-edited / custom DTB poking an arbitrary peripheral
+     * address - then reads 0 and logs LOG_UNIMP instead of taking a data abort,
+     * so the guest boots rather than dying on the first access. OCRAM
+     * (0x2048_0000) and DRAM (0x8000_0000) sit outside this window and are real
+     * memory, so they are unaffected.
+     */
+    fsl_imx91_map_background("imx91-periph-unimplemented",
+                             0x40000000, 0x10000000, -2000);
 
     for (size_t i = 0; i < ARRAY_SIZE(unimplemented_regions); i++) {
         int r = unimplemented_regions[i];
