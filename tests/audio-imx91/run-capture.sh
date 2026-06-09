@@ -13,6 +13,7 @@ QEMU=${QEMU:-$REPO/build/qemu-system-aarch64}
 KERNEL=${KERNEL:-$DEPLOY/Image}
 DTB=${DTB:-$DEPLOY/imx91-11x11-evk.dtb}
 ROOTFS_TAR=${ROOTFS_TAR:-$DEPLOY/imx-image-core-imx91evk.rootfs.tar.zst}
+MODULES_TGZ=${MODULES_TGZ:-$DEPLOY/modules-imx91evk.tgz}
 CROSS=${CROSS:-aarch64-linux-gnu-}
 ALSA_SYSROOT=${ALSA_SYSROOT:-}
 need() { [ -e "$2" ] || { echo "error: $3 not found: $2" >&2; exit 1; }; }
@@ -40,6 +41,12 @@ fakeroot bash -c "
   cd '$TMP' && mkdir rootfs && cd rootfs
   zstd -dc '$(readlink -f "$ROOTFS_TAR")' | tar -x 2>/dev/null
   cp '$HERE/myinit-capture' myinit && chmod 755 myinit
+  # The MICFIL card driver (snd-soc-imx-card) + micfil/dmic are modules, absent
+  # from imx-image-core; inject the deploy modules tree so they can modprobe.
+  # --keep-directory-symlink: the tarball has a top-level lib/, but the rootfs
+  # /lib is a merged-usr symlink; without this tar replaces it and breaks the
+  # ELF interpreter path (binaries then fail with 'required file not found').
+  [ -f '$MODULES_TGZ' ] && tar --keep-directory-symlink -xzf '$MODULES_TGZ' 2>/dev/null
   if [ -f '$TMP/pcm_capture' ]; then
       cp '$TMP/pcm_capture' pcm_capture && chmod 755 pcm_capture
       cp '$TMP/pcm_capdiag' pcm_capdiag && chmod 755 pcm_capdiag

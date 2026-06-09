@@ -868,6 +868,14 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
             sysbus_connect_irq(SYS_BUS_DEVICE(&s->micfil), i,
                                qdev_get_gpio_in(gicdev, micfil_irqs[i]));
         }
+        /*
+         * MICFIL capture: the FIFO-has-data request drives a cyclic eDMA1
+         * channel that drains DATACH0 -> memory, the same datapath that fills
+         * the SAI transmit FIFO for playback (eDMA services whichever cyclic
+         * channel is armed, so a MICFIL-only arecord routes here).
+         */
+        qdev_connect_gpio_out_named(DEVICE(&s->micfil), "dma-req", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
     }
 
     /* BBNSM: real-time clock + power key. */

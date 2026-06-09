@@ -1,31 +1,36 @@
 /*
- * Minimal ALSA capture oracle for the i.MX 91 SAI3/wm8962 card.
+ * Minimal ALSA capture oracle for the i.MX 91 audio cards.
  *
  * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Records from an ALSA capture PCM (default hw:1,0, the wm8962/SAI3 card),
- * driving the SAI3 RX FIFO -> eDMA datapath. The SAI model synthesises a
- * sawtooth (no codec is wired), so a working capture path returns real,
- * non-silent, varying samples. Prints "CAP[...]: PASS (non-silent)" when the
- * captured buffer has real signal. There is no arecord in the BSP image, hence
- * this. Cross-compile against an ALSA sysroot (see run.sh).
+ * Records from an ALSA capture PCM and checks the buffer carries real,
+ * non-silent, varying samples. Two cards use it: the wm8962/SAI3 card
+ * (hw:1,0, S16_LE - the SAI3 RX FIFO -> eDMA path) and the MICFIL PDM card
+ * (hw:2,0, S32_LE - the MICFIL DATACH0 -> eDMA path). Both models synthesise a
+ * sawtooth (no physical codec/mic is wired), so a working capture path returns
+ * real signal. Prints "CAP[...]: PASS (non-silent)" on success. There is no
+ * arecord in the BSP image, hence this. Cross-compile against an ALSA sysroot.
+ *
+ * Usage: pcm_capture <dev> [frames] [S16|S32]   (format defaults to S16)
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <alsa/asoundlib.h>
 
 int main(int argc, char **argv)
 {
     const char *dev = argc > 1 ? argv[1] : "hw:1,0";
-    unsigned int rate = 48000, chans = 2;
     long frames = argc > 2 ? atol(argv[2]) : 4096;
+    int s32 = argc > 3 && strcmp(argv[3], "S32") == 0;
+    snd_pcm_format_t fmt = s32 ? SND_PCM_FORMAT_S32_LE : SND_PCM_FORMAT_S16_LE;
+    unsigned int rate = 48000, chans = 2;
     snd_pcm_t *pcm;
-    short *buf;
+    void *buf;
     snd_pcm_sframes_t r;
-    long i, nonzero = 0, distinct = 0;
-    int peak = 0;
-    short prev = 0;
+    long i, samples, nonzero = 0, distinct = 0;
+    long long peak = 0, prev = 0;
     int err;
 
     err = snd_pcm_open(&pcm, dev, SND_PCM_STREAM_CAPTURE, 0);
@@ -33,21 +38,20 @@ int main(int argc, char **argv)
         printf("CAP[%s]: open: %s\n", dev, snd_strerror(err));
         return 1;
     }
-    err = snd_pcm_set_params(pcm, SND_PCM_FORMAT_S16_LE,
-                             SND_PCM_ACCESS_RW_INTERLEAVED, chans, rate,
-                             1, 500000);
+    err = snd_pcm_set_params(pcm, fmt, SND_PCM_ACCESS_RW_INTERLEAVED, chans,
+                             rate, 1, 500000);
     if (err < 0) {
         printf("CAP[%s]: set_params: %s\n", dev, snd_strerror(err));
         return 1;
     }
-    printf("CAP[%s]: %u Hz %u ch S16_LE, reading %ld frames\n", dev, rate,
-           chans, frames);
+    printf("CAP[%s]: %u Hz %u ch %s, reading %ld frames\n", dev, rate, chans,
+           s32 ? "S32_LE" : "S16_LE", frames);
 
     /*
      * Start the stream explicitly. snd_pcm_set_params leaves the capture
      * stream PREPARED but does not auto-start it on the first readi here, so
-     * without this the read returns -EIO. An explicit start enables the SAI
-     * receiver (RCSR.RE) and the eDMA capture channel.
+     * without this the read returns -EIO. An explicit start enables the
+     * receiver (SAI RCSR.RE / MICFIL CTRL1.PDMIEN) and the eDMA channel.
      */
     err = snd_pcm_start(pcm);
     if (err < 0) {
@@ -55,7 +59,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    buf = malloc(frames * chans * sizeof(short));
+    buf = malloc(frames * chans * (s32 ? 4 : 2));
     r = snd_pcm_readi(pcm, buf, frames);
     printf("CAP[%s]: readi -> %ld\n", dev, (long)r);
     if (r < 0) {
@@ -63,9 +67,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    for (i = 0; i < r * chans; i++) {
-        short v = buf[i];
-        int a = v < 0 ? -v : v;
+    samples = r * chans;
+    for (i = 0; i < samples; i++) {
+        long long v = s32 ? ((int32_t *)buf)[i] : ((short *)buf)[i];
+        long long a = v < 0 ? -v : v;
 
         if (a > peak) {
             peak = a;
@@ -78,12 +83,11 @@ int main(int argc, char **argv)
         }
         prev = v;
     }
-    printf("CAP[%s]: frames=%ld peak=%d nonzero=%ld changes=%ld "
-           "first=%d,%d,%d,%d\n", dev, (long)r, peak, nonzero, distinct,
-           buf[0], buf[1], buf[2], buf[3]);
+    printf("CAP[%s]: frames=%ld peak=%lld nonzero=%ld changes=%ld\n",
+           dev, (long)r, peak, nonzero, distinct);
 
     /* Real signal: a meaningful peak and a varying (not stuck) waveform. */
-    if (peak > 1000 && nonzero > r && distinct > 8) {
+    if (peak > (s32 ? (1 << 20) : 1000) && nonzero > r && distinct > 8) {
         printf("CAP[%s]: PASS (non-silent)\n", dev);
         err = 0;
     } else {
