@@ -24,6 +24,7 @@ depmod -a 2>/dev/null
 # blocks but audio cards are modules); ignore failures for built-ins/absent.
 for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
          snd-soc-dmic snd-soc-wm8962 snd-soc-fsl-asoc-card snd-soc-imx-card \
+         snd-soc-fsl-xcvr snd-soc-fsl-spdif \
          snd-soc-fsl-mqs snd-soc-simple-card snd-soc-simple-card-utils; do
     modprobe "$m" 2>/dev/null
 done
@@ -100,10 +101,37 @@ if dmesg | grep -q "i3c-master"; then
   fi
 fi
 
+# 6.5 FlexIO-I2C: the real i2c-flexio driver datapath (flexio-i2c variant) ----
+# The stock EVK never routes I2C through the FlexIO, so this only fires on the
+# grafted flexio-i2c DTB the supervisor builds. i2cdetect drives the NAK-heavy
+# address scan (the path the IRQ-storm regression hit) and the reads drive the
+# receive datapath; the shift-vs-handler race fix must let BOTH run without
+# wedging. A storm/hang here aborts the boot -> the supervisor flags it as a
+# battery-did-not-finish, so the soak continuously guards the converged fix.
+FBUS=""
+for d in /sys/bus/i2c/devices/i2c-*; do
+  [ -e "$d/name" ] || continue
+  case "$(cat "$d/name" 2>/dev/null)" in
+    *flexio*|*425c0000*) FBUS=$(basename "$d" | sed 's/i2c-//') ;;
+  esac
+done
+if [ -n "$FBUS" ]; then
+  ok=0
+  i2cdetect -y -r "$FBUS" >/dev/null 2>&1 && ok=$((ok + 1))   # NAK scan completes
+  i=0
+  while [ "$i" -lt "$ITERS" ]; do
+    i2cget -y "$FBUS" 0x48 0x00 w >/dev/null 2>&1 && ok=$((ok + 1))
+    i=$((i + 1))
+  done
+  [ "$ok" -gt 0 ] && pass flexio-i2c "i2c-$FBUS scan+$ITERS reads, no storm" \
+                   || fail flexio-i2c "no completion on i2c-$FBUS"
+fi
+
 # 7-11. Audio: SAI play, SAI capture, MICFIL capture, MQS, 8-mic -------------
 WCARD=$(awk '/wm8962|imx-audio-wm8962/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
 MCARD=$(awk '/micfil/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
 QCARD=$(awk '/mqs/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
+SCARD=$(awk '/xcvr|spdif/{print $1}' /proc/asound/cards 2>/dev/null | head -1)
 
 audio_loop() {  # name oracle args...
   local name="$1"; shift
@@ -130,6 +158,10 @@ if [ -n "$MCARD" ] && [ -x /pcm_capture ]; then
   fi
 fi
 [ -n "$QCARD" ] && audio_loop audio-mqs         /pcm_play    "hw:$QCARD,0" 1     || skip audio-mqs "no mqs card"
+# SPDIF/XCVR playback: clock the TX FIFO (eDMA-fed) out to the audio backend.
+# plughw lets ALSA convert to the card's native S32_LE so the oracle isn't
+# format-sensitive.
+[ -n "$SCARD" ] && audio_loop audio-spdif       /pcm_play    "plughw:$SCARD,0" 1 || skip audio-spdif "no spdif/xcvr card"
 
 # 12. Camera: MT9M114 -> CSI -> ISI V4L2 capture (mt9m114 DTB) ---------------
 # v4l2_cap's "cap" subcommand enables the sensor->pcsi link, propagates the

@@ -30,16 +30,22 @@ HOURS=${1:-0}                              # 0 = run until ^C
 CYCLES=${CYCLES:-0}                        # 0 = unbounded (else stop after N)
 
 # DTB rotation. Each entry: dtb-basename | extra machine opts | extra qemu opts.
+# The "imx91-flexio-i2c" entry is special: the supervisor GENERATES that dtb from
+# the base EVK dtb (enabling the FlexIO-as-I2C node) so the real i2c-flexio driver
+# exercises the shared FlexIO model + the shift-race fix, with a tmp105 slave on
+# the bus.
 DTBS_DEFAULT=(
-  "imx91-11x11-evk|"
-  "imx91-11x11-evk-i3c|"
-  "imx91-11x11-evk-mqs|"
-  "imx91-11x11-evk-8mic-reve|"
-  "imx91-11x11-evk-flexspi-nand-m2|,flexspi-flash=gd5f4gq4"
-  "imx91-11x11-evk-mt9m114|"
-  "imx91-11x11-evk-tianma-wvga-panel|"
-  "imx91-11x11-frdm|"
-  "imx91-9x9-qsb|"
+  "imx91-11x11-evk||"
+  "imx91-11x11-evk-i3c||"
+  "imx91-11x11-evk-mqs||"
+  "imx91-11x11-evk-8mic-reve||"
+  "imx91-11x11-evk-flexspi-nand-m2|,flexspi-flash=gd5f4gq4|"
+  "imx91-11x11-evk-mt9m114||"
+  "imx91-11x11-evk-tianma-wvga-panel||"
+  "imx91-11x11-evk-aud-hat||"
+  "imx91-flexio-i2c||-device tmp105,bus=flexio1-i2c,address=0x48"
+  "imx91-11x11-frdm||"
+  "imx91-9x9-qsb||"
 )
 IFS=' ' read -r -a DTBS_OVERRIDE <<< "${DTBS:-}"
 
@@ -97,6 +103,41 @@ else
   SD_OPTS=()
 fi
 
+# ---- generate the flexio-i2c DTB (no stock EVK dtb routes I2C through FlexIO) -
+# Enable the (present-but-disabled) flexio@425c0000 node + its i2c-master child
+# in the base EVK dtb and add the driver-required sda/scl, so the in-kernel
+# i2c-flexio driver probes the shared FlexIO model. Exercises the shift-race fix
+# against the real driver. If dtc/python are missing the flexio cycle just skips.
+FLEXIO_DTB="$WORK/imx91-flexio-i2c.dtb"
+if [ -x "$DTC" ] && command -v python3 >/dev/null && [ -e "$DEPLOY/imx91-11x11-evk.dtb" ]; then
+  "$DTC" -I dtb -O dts "$DEPLOY/imx91-11x11-evk.dtb" > "$WORK/flexio-base.dts" 2>/dev/null
+  python3 - "$WORK/flexio-base.dts" "$WORK/flexio-i2c.dts" <<'PY' 2>/dev/null
+import sys
+src=open(sys.argv[1]).read()
+i=src.find("flexio@425c0000 {")
+if i<0: sys.exit(1)
+# brace-match to find the node extent
+d=0; j=i
+while j<len(src):
+    if src[j]=='{': d+=1
+    elif src[j]=='}':
+        d-=1
+        if d==0: j+=1; break
+    j+=1
+node=src[i:j]
+node=node.replace('status = "disabled"','status = "okay"')
+key='compatible = "nxp,imx-flexio-i2c-master";'
+if 'sda = [06]' not in node and key in node:
+    node=node.replace(key, key+'\n\t\t\t\t\tsda = [06];\n\t\t\t\t\tscl = [05];')
+open(sys.argv[2],"w").write(src[:i]+node+src[j:])
+PY
+  if [ -f "$WORK/flexio-i2c.dts" ]; then
+    "$DTC" -I dts -O dtb -o "$FLEXIO_DTB" "$WORK/flexio-i2c.dts" 2>/dev/null
+  fi
+fi
+[ -f "$FLEXIO_DTB" ] && echo "soak: generated flexio-i2c dtb" \
+                     || echo "soak: flexio-i2c dtb NOT generated (cycle will skip)"
+
 # Build the synthetic NAND-at-unmodelled-addr / flash flag handled per-variant.
 
 bump() {  # name result(pass|fail|skip) detail
@@ -123,7 +164,7 @@ dashboard() {
 run_qtests() {
   echo "soak: [cycle $CYCLE] running kernel-free qtest suite..."
   local ok=0 bad=0
-  for t in flexcan lpspi lpi2c isi sai micfil flexspi flexio i3c ddrc; do
+  for t in flexcan lpspi lpi2c isi sai micfil flexspi flexio i3c ddrc xcvr; do
     local bin="$REPO/build/tests/qtest/imx91-$t-test"
     [ -x "$bin" ] || continue
     if QTEST_QEMU_BINARY="$QEMU" "$bin" >/dev/null 2>&1; then
@@ -141,12 +182,17 @@ echo "soak: starting. ^C for dashboard. (qtests every $QTEST_EVERY cycles)"
 
 while :; do
   if [ "${#DTBS_OVERRIDE[@]}" -gt 0 ]; then
-    entry="${DTBS_OVERRIDE[$((CYCLE % ${#DTBS_OVERRIDE[@]}))]}|"
+    entry="${DTBS_OVERRIDE[$((CYCLE % ${#DTBS_OVERRIDE[@]}))]}"
   else
     entry="${DTBS_DEFAULT[$((CYCLE % ${#DTBS_DEFAULT[@]}))]}"
   fi
-  dtb_name="${entry%%|*}"; rest="${entry#*|}"; mopts="${rest%%|*}"
-  DTB="$DEPLOY/$dtb_name.dtb"
+  IFS='|' read -r dtb_name mopts qopts <<< "$entry"
+  read -r -a QOPTS_ARR <<< "${qopts:-}"
+  if [ "$dtb_name" = "imx91-flexio-i2c" ]; then
+    DTB="$WORK/imx91-flexio-i2c.dtb"     # supervisor-generated (see below)
+  else
+    DTB="$DEPLOY/$dtb_name.dtb"
+  fi
   CYCLE=$((CYCLE + 1))
   if [ ! -e "$DTB" ]; then echo "soak: [cycle $CYCLE] SKIP (no $dtb_name.dtb)"; continue; fi
 
@@ -160,7 +206,7 @@ while :; do
       -M "imx91-11x11-evk$mopts" -m 4G -display none \
       -audio "driver=wav,path=$WAV" -nic user -nic user \
       -kernel "$KERNEL" -dtb "$DTB" -initrd "$WORK/initrd.cpio.gz" \
-      "${SD_OPTS[@]}" \
+      "${SD_OPTS[@]}" "${QOPTS_ARR[@]}" \
       -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init ignore_loglevel ITERS=$ITERS" \
       -serial mon:stdio -serial null -qmp "unix:$QMP,server,nowait" \
       >"$LOG" 2>&1 &
