@@ -153,7 +153,7 @@ struct FslImx91State {
     IMX93SaiState   sai[FSL_IMX91_NUM_SAIS];
     IMX93MicfilState micfil;
     SvcI3cState     i3c1;                 /* Silvaco I3C master @ 0x44330000  */
-    Imx9DdrcState   ddrc;                 /* DDR controller + PMU @ 0x4e300000 */
+    Imx9DdrcState   ddrc;                 /* DDR controller + PMU @0x4e300000 */
     MemoryRegion    ocram;
     char            *flexspi_flash;      /* SSI device on the FlexSPI bus    */
 };
