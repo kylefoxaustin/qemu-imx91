@@ -151,7 +151,8 @@ on the 91) or **brings up** (ported from the 93; the driver binds / registers,
 end-to-end not yet re-validated on the 91).
 
 - **Single-A55 boot — functional.** One Cortex-A55 to userspace (`nproc=1`),
-  serial console on `ttyLP0`.
+  serial console on `ttyLP0`. The SiP `GET_SOC_INFO` SMC reports the 91's own
+  identity, so `/sys/devices/soc0` reads `soc_id = i.MX91`, `revision = 1.0`.
 - **Networking — functional.** Both NICs live with DHCP — FEC (`eth0`, reuses
   `hw/net/imx_fec.c`) and the from-scratch ENET_QoS/dwmac4 (`eth1`,
   `hw/net/imx93_dwmac.c`). Use `-nic user -nic user`.
@@ -258,9 +259,6 @@ env vars and print exactly which to set if an artifact is missing.
 - **`fsl-se … Failed to read tamper status` is benign.** The ELE registers fine
   (`ele-trng`, `hsm0` configured). The tamper read is an NXP SiP SMC normally
   serviced by TF-A; a `-kernel` boot has no secure firmware, so it errors.
-- **SoC-info constants are inherited from the i.MX 93.** The SiP `GET_SOC_INFO`
-  and OCOTP soc-id still report the 93's value; cosmetic (`/sys/devices/soc0`),
-  to be corrected to the 91's real value.
 - The base `imx91-11x11-evk.dtb` has no display panel (`display-subsystem: no
   available port`); use the `…-tianma-wvga-panel` variant for the display.
 - **LPSPI models one chip-select per bus.** Each LPSPI exposes a named SSI bus
