@@ -32,11 +32,11 @@ port; the long-term aim is to be upstream-mergeable into QEMU mainline.
 
 **Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
 
-![i.MX 91 LCDIF parallel-RGB display scanout — color bars on the emulated panel](docs/images/imx91-display-scanout.png)
+![i.MX 91 LCDIF parallel-RGB display scanout — the Linux boot logo on the emulated panel](docs/images/imx91-boot-logo.png)
 
-*Color bars written to `/dev/fb0` and scanned out at 800×480 by the emulated
-LCDIFv3 over the parallel-RGB path on the stock `imx91-11x11-evk-tianma-wvga-panel`
-device tree — captured via QMP screendump (colors byte-correct).*
+*The Linux kernel boot logo — one Tux for the single Cortex-A55 — scanned out at
+800×480 by the emulated LCDIFv3 over the parallel-RGB path on the stock
+`imx91-11x11-evk-tianma-wvga-panel` device tree, captured via QMP screendump.*
 
 ## Quickstart
 
