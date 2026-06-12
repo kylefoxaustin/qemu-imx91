@@ -174,6 +174,30 @@ if [ -e /dev/video0 ]; then
   fi
 fi
 
+# 12b. Display: LCDIFv3 framebuffer write+readback (panel DTB only) ----------
+# The LCDIFv3 scans the framebuffer out of guest DRAM, so writing a known
+# pattern to /dev/fb0 and reading it back coherently proves the fb path is
+# live end to end. (Host-side scanout is screendump-verified separately in
+# tests/display-imx91.) Only the panel DTB creates /dev/fb0; others SKIP.
+if [ -e /dev/fb0 ]; then
+  sz=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null)
+  ok=0
+  i=0
+  while [ "$i" -lt "$ITERS" ]; do
+    if dd if=/dev/urandom of=/tmp/fbpat bs=4096 count=16 2>/dev/null && \
+       dd if=/tmp/fbpat of=/dev/fb0 bs=4096 count=16 conv=notrunc 2>/dev/null && \
+       dd if=/dev/fb0 of=/tmp/fbback bs=4096 count=16 2>/dev/null && \
+       cmp -s /tmp/fbpat /tmp/fbback; then
+      ok=$((ok + 1))
+    fi
+    i=$((i + 1))
+  done
+  [ "$ok" -gt 0 ] && pass display "fb0 ${sz:-?} $ok/$ITERS write+readback" \
+                  || fail display "fb0 write/readback mismatch"
+else
+  skip display "no /dev/fb0 (non-panel dtb)"
+fi
+
 # 13. FlexCAN: loopback round-trip -------------------------------------------
 if ip link show can0 >/dev/null 2>&1; then
   if command -v cansend >/dev/null 2>&1; then
