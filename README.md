@@ -191,12 +191,31 @@ end-to-end not yet re-validated on the 91).
   WM8962/SAI3 card: the SAI3 TX FIFO drains the samples through eDMA, and with
   QEMU's wav audio backend the played PCM comes back in a real `.wav`
   (peak-checked square wave). See `tests/audio-imx91/run.sh`.
+- **SPDIF playback (XCVR) — functional.** The `snd-soc-fsl-xcvr` driver brings
+  up the `imxaudioxcvr` card; PCM plays out the XCVR's SPDIF-TX FIFO, draining
+  through eDMA2 to the wav backend (peak-checked). Covered by a qtest and the
+  ALSA playback oracle.
+- **Concurrent multi-stream audio — functional.** eDMA requests route per
+  CH_MUX source id, so streams sharing one eDMA instance run at once: SAI3
+  playback + SAI3 capture + XCVR/SPDIF transmit (all on eDMA2) plus MICFIL
+  capture (eDMA1) flow to completion simultaneously, where a shared dma-req line
+  previously let only one eDMA2 stream make progress.
+- **FlexIO-as-I2C — functional.** The FlexIO IP is on the 91 silicon (the stock
+  EVK leaves its `flexio@425c0000` i2c-master disabled). Enabling it, the
+  in-kernel `i2c-imx-flexio` driver registers an adapter and a
+  `-device tmp105,bus=flexio1-i2c` enumerates and is read from Linux. The shift
+  datapath runs on a virtual-clock timer with a defer-on-undrained-RX gate that
+  closes a ~1/1000 IRQ-storm race (converged byte-identical with the i.MX 93).
 - **Camera capture — functional.** Booting the `…-mt9m114` dtb, the parallel
   path runs end to end — MT9M114 → parallel-CSI → ISI → V4L2 — delivering real
   frames off `/dev/video0`. The ISI model DMAs a moving test pattern into the
   ping-pong buffers; a V4L2 client enabling the (default-disabled) sensor link
   and propagating the pad formats streams 5/5 byte-checked 1280×720 YUYV frames.
-  See `tests/camera-imx91/run.sh`.
+  See `tests/camera-imx91/run.sh`. Beyond the built-in pattern, the ISI can
+  stream frames from a **host file/dir** supplied at launch
+  (`-global driver=imx93.isi,property=frames,value=<path>`) — a format-agnostic
+  byte source (one raw file, or a directory of `*.raw` looped) so a real
+  image/video can drive the capture path.
 - **LPSPI — functional (SSI slave round-trip).** Each of the 8 LPSPI masters
   exposes a named SSI bus, so an SPI peripheral attaches at runtime:
   `-device is25lp064,bus=lpspi1,drive=…`. A qtest reads the flash's JEDEC ID
@@ -205,10 +224,12 @@ end-to-end not yet re-validated on the 91).
 
 ## Roadmap
 
+The latest checkpoint is **`imx91-v0.3`** (soak + FlexIO shift-race fix +
+SPDIF/XCVR + virtual camera + concurrent multi-stream audio since `imx91-v0.2`).
+
 | Feature | What | Target |
 |---|---|---|
-| Upstreaming | Submit the machine to qemu-devel alongside the i.MX 93 | next |
-| Tag v0.2 | Checkpoint the capture + non-stock-DTB + DDR-PMU work since v0.1 | next |
+| Upstreaming | Submit the machine to qemu-devel as a follow-on to the i.MX 93 series — the shared device models land with the 93; this adds the 91 SoC + board, the three 91-only device models (DDR controller, SPI-NAND, Silvaco I3C), and the kernel-free qtests | next |
 | Inert RM blocks | LPTMR / LPIT / TRGMUX, GPC regs, SRAM controller, CoreSight, boot ROM — no DTB enables them, so nothing exercises them | only if a use case demands |
 
 ## Required artifacts
@@ -272,13 +293,14 @@ the i.MX 91 Reference Manual), never guessed.
 | `hw/arm/fsl-imx91.c`, `include/hw/arm/fsl-imx91.h` | SoC realization: single A55, GIC, device wiring, memory map, virtio-mmio, logging stubs (derived from fsl-imx93 with the 93-only blocks removed) |
 | `hw/arm/imx91-evk.c` | 11×11 EVK board file (SD attach, DTB virtio-mmio + secure-enclave-IRQ injection) |
 | `hw/arm/Kconfig`, `hw/arm/meson.build` | `FSL_IMX91` / `FSL_IMX91_EVK` config + build wiring |
-| (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk}.c`, `hw/misc/imx_mu.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec.c,imx93_dwmac.c}`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,wm8962}.c`, `hw/net/can/flexcan.c`, `hw/sd` uSDHC, ChipIdea USB |
+| (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk,flexio}.c`, `hw/misc/imx_mu.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec.c,imx93_dwmac.c}`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,imx93_xcvr,wm8962}.c`, `hw/net/can/flexcan.c`, `hw/sd` uSDHC, ChipIdea USB |
 | `tests/boot-imx91/run.sh` | boot Linux to the serial console (Path-C probe pass) |
 | `tests/functest-imx91/` | end-to-end smoke test: uSDHC r/w, I²C, both Ethernets (DHCP) |
 | `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
 | `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
 | `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
-| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), MICFIL (PDM capture), LPI2C, ISI, FlexSPI (NOR + SPI-NAND read-id), FlexIO |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), MICFIL (PDM capture), XCVR (SPDIF TX), LPI2C, ISI, FlexSPI (NOR + SPI-NAND read-id), FlexIO, DDRC, I3C |
+| `tests/soak-imx91/` | long-run soak: a per-boot function battery over the variant-DTB matrix (net/storage/audio/camera/CAN/I²C/SPI/I3C/FlexIO), VmRSS leak tracking, and the kernel-free qtests every N cycles |
 
 ## Building
 
@@ -334,6 +356,18 @@ now injects.
   captured `.wav`, and the MT9M114 → parallel-CSI → ISI path streams 5/5 real
   V4L2 frames off `/dev/video0`, both via cross-compiled ALSA/V4L2 oracles
   (the `imx-image-core` rootfs ships no `aplay`/`v4l2-ctl`).
+- **Audio breadth (`imx91-v0.2` → `v0.3`)** — added SPDIF/XCVR playback, and
+  per-CH_MUX eDMA request routing so SAI3 play+capture, SPDIF transmit (eDMA2)
+  and MICFIL capture (eDMA1) run *concurrently*. The ISI gained a host
+  frame-injection source so real images/video can drive the camera path.
+- **FlexIO shift-race fix** — closed a ~1/1000 FlexIO-as-I2C IRQ-storm/hang by
+  deferring the shift while the prior RX byte is undrained, validated against the
+  real `i2c-imx-flexio` driver and a 36-hour soak; converged byte-identical with
+  the i.MX 93.
+- **Soak + hardening** — a full soak harness (`tests/soak-imx91`) runs a
+  per-boot function battery across the variant-DTB matrix with VmRSS leak
+  tracking and periodic kernel-free qtests; the shared device models also pass an
+  AddressSanitizer + UBSan sweep clean.
 
 ## License & credits
 
