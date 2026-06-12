@@ -982,6 +982,12 @@ S: Maintained
 F: hw/arm/imx91-evk.c
 F: hw/arm/fsl-imx91.c
 F: include/hw/arm/fsl-imx91.h
+F: hw/misc/imx9_ddrc.c
+F: include/hw/misc/imx9_ddrc.h
+F: hw/block/spi_nand.c
+F: hw/i3c/svc_i3c.c
+F: include/hw/i3c/svc_i3c.h
+F: tests/qtest/imx91-*-test.c
 
 MPS2 / MPS3
 M: Peter Maydell <peter.maydell@linaro.org>
