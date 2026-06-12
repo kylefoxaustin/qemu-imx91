@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<!--
+  QEMU i.MX 91 — overview deck (self-contained, no dependencies).
+  Open in any browser. Navigate: → / ← / Space, or click the edges.
+  Print to PDF: Ctrl/Cmd-P (each slide is a page).
+  Scaffold reused from the i.MX 95 deck; content is the i.MX 91 story.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QEMU i.MX 91 — Overview</title>
+<style>
+  :root{
+    --bg:#0d1320; --bg2:#121b2e; --ink:#e8eef7; --dim:#9fb0c7;
+    --accent:#5fd38a; --accent2:#5b9dff; --warn:#ffb454; --line:#243349;
+    --good:#5fd38a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:#05080f; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .deck{height:100vh;width:100vw;overflow:hidden;position:relative}
+  .slide{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    padding:4.2vh 5vw;
+    background:radial-gradient(120% 120% at 0% 0%,var(--bg2),var(--bg) 60%);
+    animation:fade .25s ease;
+  }
+  .slide.on{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .kicker{color:var(--accent);font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;font-size:1.05vh;font-size:clamp(11px,1.5vh,15px)}
+  h1{font-size:clamp(28px,5.4vh,52px);line-height:1.05;margin:.4vh 0 1vh;font-weight:800}
+  h1 .accent{color:var(--accent)}
+  h2{font-size:clamp(22px,4.2vh,40px);font-weight:800;margin-bottom:.4vh}
+  .sub{color:var(--dim);font-size:clamp(15px,2.4vh,22px);max-width:62ch;margin-bottom:2.2vh}
+  .grid{display:grid;gap:1.6vh 2.2vw}
+  .why{grid-template-columns:1fr 1fr;margin-top:1vh}
+  .why .card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;
+    padding:1.8vh 1.6vw}
+  .why .card b{color:var(--accent2);display:block;font-size:clamp(14px,2vh,18px);margin-bottom:.5vh}
+  .why .card span{color:var(--dim);font-size:clamp(12px,1.7vh,15px);line-height:1.45}
+  .help{margin-top:auto;padding-top:2vh;border-top:1px solid var(--line);
+    color:var(--dim);font-size:clamp(12px,1.8vh,16px)}
+  .help b{color:var(--ink)}
+  .pill{display:inline-block;background:#16233a;border:1px solid var(--line);
+    border-radius:999px;padding:.4vh .9vw;margin:.3vh .3vw;color:var(--ink);
+    font-size:clamp(11px,1.6vh,14px)}
+
+  /* ---- stack slide ---- */
+  .stack{display:grid;grid-template-columns:1fr 1fr;gap:1.4vw;flex:1;min-height:0}
+  .col{background:var(--bg2);border:1px solid var(--line);border-radius:14px;
+    padding:1.6vh 1.4vw;display:flex;flex-direction:column;min-height:0;overflow:auto}
+  .col h3{font-size:clamp(13px,2vh,18px);letter-spacing:.1em;text-transform:uppercase;
+    margin-bottom:1vh}
+  .col.hw h3{color:var(--accent)} .col.sw h3{color:var(--accent2)}
+  .row{display:flex;gap:.6vw;align-items:flex-start;padding:.62vh 0;
+    border-bottom:1px dashed #1c2740;font-size:clamp(11px,1.72vh,15px);line-height:1.25}
+  .row:last-child{border-bottom:0}
+  .row .t{color:var(--dim);min-width:9.5vw;color:#7f93b0;font-weight:600}
+  .row .d{color:var(--ink)}
+  .mu{margin-top:1.2vh;text-align:center;color:var(--dim);
+    font-size:clamp(11px,1.7vh,15px)}
+  .mu b{color:var(--accent)}
+
+  /* ---- capability tiles ---- */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vh 1.4vw;flex:1;align-content:start;margin-top:1vh}
+  .tile{background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:1.5vh 1.2vw}
+  .tile b{color:var(--good);font-size:clamp(13px,2vh,18px)}
+  .tile span{display:block;color:var(--dim);margin-top:.5vh;font-size:clamp(11px,1.6vh,14px);line-height:1.4}
+
+  /* ---- limits table ---- */
+  .limits{flex:1;margin-top:1vh;display:flex;flex-direction:column;gap:1vh}
+  .lrow{display:grid;grid-template-columns:30% 1fr;gap:1.5vw;background:var(--bg2);
+    border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:10px;
+    padding:1.25vh 1.3vw;align-items:center}
+  .lrow.ok{border-left-color:var(--good)}
+  .lrow .f{font-weight:700;color:var(--ink);font-size:clamp(13px,1.95vh,17px)}
+  .lrow .r{color:var(--dim);font-size:clamp(11px,1.7vh,15px);line-height:1.35}
+  .footer{margin-top:auto;padding-top:1.6vh;border-top:1px solid var(--line);
+    color:var(--dim);font-size:clamp(12px,1.85vh,16px)}
+  .footer b{color:var(--warn)}
+  .footer .pos{color:var(--good)}
+
+  /* chrome */
+  .nav{position:fixed;bottom:2.4vh;right:3vw;color:#6c80a0;font-size:13px;
+    display:flex;gap:14px;align-items:center;z-index:5}
+  .dot{width:9px;height:9px;border-radius:50%;background:#2a3a55;cursor:pointer}
+  .dot.on{background:var(--accent)}
+  .edge{position:fixed;top:0;bottom:0;width:12vw;cursor:pointer;z-index:4}
+  .edge.l{left:0} .edge.r{right:0}
+  @media print{
+    .nav,.edge{display:none}
+    .slide{display:flex!important;position:relative;height:100vh;page-break-after:always;animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1 -->
+  <section class="slide on">
+    <div class="kicker">NXP i.MX 91 · Full-System Emulator</div>
+    <h1>QEMU&nbsp;i.MX&nbsp;91 — boot the <span class="accent">real</span> software stack,<br>no silicon required.</h1>
+    <p class="sub">A complete functional model of the i.MX 91 SoC in QEMU. It boots U-Boot and a
+      stock NXP BSP Linux on a virtual i.MX 91 — exactly as the silicon would. The i.MX 91 is
+      the <b>entry part</b> of the i.MX 9 family: a single Cortex-A55, and <b>no System Manager</b>,
+      so Linux programs the clock and power blocks directly.</p>
+    <div class="grid why">
+      <div class="card"><b>Develop before silicon</b><span>Bring up the BSP, drivers, and board configs without a board — or before the chip is in hand.</span></div>
+      <div class="card"><b>Reproducible &amp; scriptable</b><span>Every capability is a one-command test. Drop it into CI; it never wears out or drifts.</span></div>
+      <div class="card"><b>Deeply debuggable</b><span>gdb on the core, full tracing, fault injection, deterministic replay — visibility real hardware can't give.</span></div>
+      <div class="card"><b>Simplest SoC, most complete model</b><span>No GPU/VPU/NPU to stub out — so the parts that <i>do</i> exist are modeled end-to-end, and the honest-limits list is short.</span></div>
+    </div>
+    <div class="help"><b>Who it's for:</b> &nbsp;BSP &amp; driver development&nbsp;·&nbsp;pre-silicon software bring-up&nbsp;·&nbsp;board / device-tree validation&nbsp;·&nbsp;CI / regression&nbsp;·&nbsp;training &amp; exploration</div>
+  </section>
+
+  <!-- SLIDE 2 -->
+  <section class="slide">
+    <div class="kicker">What's modeled — silicon ↔ software</div>
+    <h2>The full stack, top to bottom</h2>
+    <p class="sub" style="margin-bottom:1.4vh">Real software runs on a real-shaped machine. With no System Manager, the A55 owns the SoC directly — no SCMI middle-man.</p>
+    <div class="stack">
+      <div class="col hw">
+        <h3>◀ Hardware (silicon blocks)</h3>
+        <div class="row"><span class="t">Compute</span><span class="d">1× Cortex-A55 — <b style="color:var(--accent)">no Cortex-M, no NPU</b> (the entry part)</span></div>
+        <div class="row"><span class="t">Interrupts</span><span class="d">GICv3 (no ITS on the base SoC)</span></div>
+        <div class="row"><span class="t">Clock / power</span><span class="d">CCM · ANATOP PLLs · SRC — driven directly by Linux</span></div>
+        <div class="row"><span class="t">Display</span><span class="d">LCDIF parallel-RGB / LVDS scanout (no GPU / no 2D)</span></div>
+        <div class="row"><span class="t">Camera</span><span class="d">Parallel CSI · ISI capture pipeline</span></div>
+        <div class="row"><span class="t">Network</span><span class="d">FEC (1G) + ENET_QoS / dwmac (1G)</span></div>
+        <div class="row"><span class="t">USB</span><span class="d">2× USB2 OTG (ChipIdea EHCI)</span></div>
+        <div class="row"><span class="t">Storage</span><span class="d">uSDHC eMMC/SD ×3 · FlexSPI NOR / SPI-NAND</span></div>
+        <div class="row"><span class="t">Audio</span><span class="d">SAI ×3 · MICFIL PDM · SPDIF/XCVR · MQS · codecs</span></div>
+        <div class="row"><span class="t">Low-speed</span><span class="d">LPI²C ×8 · I³C · LPSPI ×8 · FlexCAN ×2 · FlexIO</span></div>
+        <div class="row"><span class="t">Timers / misc</span><span class="d">TPM/PWM · ADC · TMU thermal · WDOG · eDMA · DDR-PMU</span></div>
+        <div class="row"><span class="t">Plumbing</span><span class="d"><b style="color:var(--accent)">Messaging Units (MU)</b> · OCOTP eFuse · EdgeLock SE (ELE)</span></div>
+      </div>
+      <div class="col sw">
+        <h3>Software (what runs) ▶</h3>
+        <div class="row"><span class="t">Apps</span><span class="d">GStreamer · ALSA tools · v4l2 capture · iperf / DHCP</span></div>
+        <div class="row"><span class="t">Userspace</span><span class="d">V4L2 · ALSA · DRM/KMS (fbdev) · i2c-tools · networking</span></div>
+        <div class="row"><span class="t">Kernel</span><span class="d">Stock NXP BSP Linux (6.12 LTS) + in-tree drivers</span></div>
+        <div class="row"><span class="t">Bootloader</span><span class="d">U-Boot — SPL + proper</span></div>
+        <div class="row" style="border-top:1px solid var(--line);margin-top:.6vh;padding-top:1vh"><span class="t" style="color:var(--accent2)">talks to ↓</span><span class="d"></span></div>
+        <div class="row"><span class="t">Clock/power</span><span class="d"><b style="color:var(--accent2)">Direct register programming</b> — CCM/ANATOP/SRC (no SCMI, no SM firmware)</span></div>
+        <div class="row"><span class="t">Security</span><span class="d">EdgeLock enclave (ELE) message responder over MU</span></div>
+        <div class="row"><span class="t">NVMEM</span><span class="d">OCOTP fuse reads — MAC addresses, SoC info</span></div>
+      </div>
+    </div>
+    <div class="mu"><b>Messaging Units</b> carry the A55↔EdgeLock (ELE) channel. With no Cortex-M core there is <b>no SCMI server and no rpmsg</b> — Linux owns the clock, power, and reset blocks itself.</div>
+  </section>
+
+  <!-- SLIDE 3 -->
+  <section class="slide">
+    <div class="kicker">What it enables for the 91</div>
+    <h2>What you can actually do</h2>
+    <p class="sub" style="margin-bottom:.6vh">Not "registers respond" — real end-to-end workloads, each one a CI-gated test.</p>
+    <div class="tiles">
+      <div class="tile"><b>Boot Linux to userspace</b><span>Direct CCM/ANATOP — no SM firmware needed, single A55.</span></div>
+      <div class="tile"><b>Dual Ethernet</b><span>FEC eth0 + ENET_QoS eth1, both DHCP a lease.</span></div>
+      <div class="tile"><b>Display scanout</b><span>LCDIF → framebuffer / DRM-KMS, panel verified via screendump.</span></div>
+      <div class="tile"><b>Camera capture</b><span>Parallel sensor → ISI, real V4L2 frames.</span></div>
+      <div class="tile"><b>Audio in &amp; out</b><span>WM8962 playback · SAI/MICFIL capture · MQS · SPDIF/XCVR.</span></div>
+      <div class="tile"><b>Block storage</b><span>uSDHC eMMC/SD + USB mass-storage, ext4 r/w verified.</span></div>
+      <div class="tile"><b>FlexSPI NOR &amp; SPI-NAND</b><span>MTD enumerate + read; selectable flash device.</span></div>
+      <div class="tile"><b>I²C / I³C / SPI / CAN</b><span>Real slave round-trips; FlexCAN loopback frames.</span></div>
+      <div class="tile"><b>FlexIO-as-I²C</b><span>The real i2c-flexio driver bit-bangs an extra bus through the FlexIO fabric.</span></div>
+      <div class="tile"><b>eFuse / EdgeLock</b><span>OCOTP nvmem + ELE secure-enclave probe; MAC fuses read.</span></div>
+      <div class="tile"><b>DDR PMU</b><span>imx9_ddr0 perf interface enumerates for bandwidth tooling.</span></div>
+      <div class="tile"><b>36-hour soak-proven</b><span>Every capability is a reproducible gate; the matrix soaks clean for days, RSS flat.</span></div>
+    </div>
+  </section>
+
+  <!-- SLIDE 4 -->
+  <section class="slide">
+    <div class="kicker">Honest limits</div>
+    <h2>What doesn't work — and why</h2>
+    <p class="sub" style="margin-bottom:1vh">Every gap has one of two causes: a per-die secret that can't be faked, or a block the i.MX 91 silicon simply does not have. Nothing is hand-waved — and the list is short by design.</p>
+    <div class="limits">
+      <div class="lrow ok"><div class="f">No GPU · no VPU · no NPU · no 2D engine</div><div class="r"><b style="color:var(--good)">Not a gap — the SoC has none of these.</b> The i.MX 91 is the cost-optimized entry part: no Mali, no Wave codec, no Ethos NPU, no PXP. There is nothing to model and nothing missing.</div></div>
+      <div class="lrow"><div class="f">Secure boot · EdgeLock crypto services</div><div class="r">Depend on per-die secrets (HUK, fused keys) that physically can't be modeled. Fuse <i>reads</i> work (plain data); the crypto engine is out of scope by design — and unused in emulation.</div></div>
+      <div class="lrow"><div class="f">Partial-coverage blocks: pin-mux / syscfg · FlexIO non-I²C modes</div><div class="r">Modeled to the level the BSP exercises. IOMUXC / SRC / blk-ctrl are logging stubs — pad muxing and reset routing have no meaning in emulation (QEMU doesn't wire physical pins). FlexIO is modeled as an I²C master; its SPI/UART/PWM shifter modes have no BSP user. Boot and every datapath work regardless.</div></div>
+      <div class="lrow"><div class="f">ELE GET_INFO soc-id (shared model)</div><div class="r">The EdgeLock model returns the i.MX 93's id, so the SE driver logs a benign index miss. SoC identity is still correct — the SiP SoC-info SMC reports i.MX 91, verified — so it's a documented cosmetic quirk, not a functional gap.</div></div>
+    </div>
+    <div class="footer"><b>The pattern:</b> &nbsp;if it's closed firmware or silicon secrets, we model the <i>interface</i> and stop at the engine. If it's a QEMU limitation, we work around it transparently and write down why. <span class="pos">On the i.MX 91 there's little to leave out — the simplest i.MX 9 is also the most completely modeled.</span></div>
+  </section>
+
+</div>
+
+<div class="edge l" onclick="go(-1)"></div>
+<div class="edge r" onclick="go(1)"></div>
+<div class="nav" id="nav"></div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  const nav=document.getElementById('nav');
+  slides.forEach((_,k)=>{const d=document.createElement('span');d.className='dot'+(k===0?' on':'');d.onclick=()=>show(k);nav.appendChild(d);});
+  const counter=document.createElement('span');nav.appendChild(counter);
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('on',k===i));
+    [...nav.querySelectorAll('.dot')].forEach((d,k)=>d.classList.toggle('on',k===i));
+    counter.textContent=` ${i+1} / ${slides.length}`;
+  }
+  function go(d){show(i+d);}
+  show(0);
+  addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){go(1);e.preventDefault();}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){go(-1);e.preventDefault();}
+    if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);
+  });
+</script>
+</body>
+</html>
