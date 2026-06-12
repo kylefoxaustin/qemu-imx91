@@ -225,8 +225,11 @@ end-to-end not yet re-validated on the 91).
 
 ## Roadmap
 
-The latest checkpoint is **`imx91-v0.3`** (soak + FlexIO shift-race fix +
-SPDIF/XCVR + virtual camera + concurrent multi-stream audio since `imx91-v0.2`).
+The current release is **`imx91-v1.0`** — the first complete, soak-validated
+i.MX 91 model: stock Linux boots to userspace, the entire DT-referenced SoC
+surface is modelled, and every major data path (networking, storage, display,
+audio play/capture/SPDIF, camera, CAN, USB, I²C/SPI/I3C, FlexIO) is validated
+end to end. What remains is upstream submission, not new capability.
 
 | Feature | What | Target |
 |---|---|---|
@@ -354,7 +357,7 @@ now injects.
   captured `.wav`, and the MT9M114 → parallel-CSI → ISI path streams 5/5 real
   V4L2 frames off `/dev/video0`, both via cross-compiled ALSA/V4L2 oracles
   (the `imx-image-core` rootfs ships no `aplay`/`v4l2-ctl`).
-- **Audio breadth (`imx91-v0.2` → `v0.3`)** — added SPDIF/XCVR playback, and
+- **Audio breadth (`imx91-v0.2` → `v1.0`)** — added SPDIF/XCVR playback, and
   per-CH_MUX eDMA request routing so SAI3 play+capture, SPDIF transmit (eDMA2)
   and MICFIL capture (eDMA1) run *concurrently*. The ISI gained a host
   frame-injection source so real images/video can drive the camera path.
