@@ -5,15 +5,24 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Transmit-FIFO datapath model for the fsl-sai driver. VERID/PARAM identify the
- * block so the driver probes and the ASoC card registers; on top of that the
- * transmit FIFO is functional: a word written to TDR0 is enqueued, and once the
+ * Transmit- and receive-FIFO datapath model for the fsl-sai driver. VERID/PARAM
+ * identify the block so the driver probes and the ASoC card registers; on top
+ * of that both FIFOs are functional.
+ *
+ * TRANSMIT (playback): a word written to TDR0 is enqueued, and once the
  * transmitter is enabled (TCSR.TE) the SAI clocks one word out of the FIFO per
- * audio word period. The request flag (TCSR.FRF), warning flag (FWF), and
- * underrun error (FEF) track the FIFO level exactly as hardware does, and the
- * FIFO-request interrupt fires when enabled - this is the contract the eDMA3
- * datapath (cyclic playback) and the driver's IRQ handler depend on. There is
- * no audio backend yet; clocked-out words are counted and discarded.
+ * audio word period. FRF/FWF/FEF track the FIFO level exactly as hardware does,
+ * the FIFO-request interrupt fires when enabled, and as the FIFO drains past
+ * the watermark a dma-req burst is requested - the contract the eDMA3 cyclic
+ * playback path and the driver's IRQ handler depend on. Clocked-out samples are
+ * handed to the audio backend so "-audio" captures the playback.
+ *
+ * RECEIVE (capture): once the receiver is enabled (RCSR.RE) the SAI synthesises
+ * a sample stream into the RX FIFO at the audio word rate; as the level rises
+ * past the watermark it requests an eDMA burst, which drains RDR0 into the ring
+ * buffer (the eDMA's device->memory minor loop). Because the eDMA bursts
+ * several words per request and out-runs the per-word fill tick, RDR0 makes the
+ * next sample on demand when read on an empty FIFO, so a burst never starves.
  */
 
 #include "qemu/osdep.h"
@@ -49,12 +58,12 @@
 #define TCSR_FRIE       (1u << 8)   /* FIFO request interrupt enable  */
 #define TCSR_FRDE       (1u << 0)   /* FIFO request DMA enable        */
 
+/* RCSR has the identical bit layout; only the enable bit is renamed. */
+#define RCSR_RE         (1u << 31)  /* receiver enable                */
+
 #define TCSR_STATUS     (TCSR_WSF | TCSR_SEF | TCSR_FEF | TCSR_FWF | TCSR_FRF)
 #define TCSR_W1C        (TCSR_WSF | TCSR_SEF | TCSR_FEF)
 #define TCSR_RO         (TCSR_FWF | TCSR_FRF)
-
-/* RCSR shares TCSR's bit layout; RE (receive enable) is the TE bit. */
-#define RCSR_RE         TCSR_TE
 
 #define R(s, off)       ((s)->regs[(off) / 4])
 
@@ -92,16 +101,14 @@ static void imx93_sai_update_irq(IMX93SaiState *s)
 {
     uint32_t tcsr = R(s, SAI_TCSR);
     uint32_t rcsr = R(s, SAI_RCSR);
-    bool req = (tcsr & TCSR_FRF) && (tcsr & TCSR_FRIE);
-    bool warn = (tcsr & TCSR_FWF) && (tcsr & TCSR_FWIE);
-    bool err = (tcsr & TCSR_FEF) && (tcsr & TCSR_FEIE);
+    bool tx = ((tcsr & TCSR_FRF) && (tcsr & TCSR_FRIE)) ||
+              ((tcsr & TCSR_FWF) && (tcsr & TCSR_FWIE)) ||
+              ((tcsr & TCSR_FEF) && (tcsr & TCSR_FEIE));
+    bool rx = ((rcsr & TCSR_FRF) && (rcsr & TCSR_FRIE)) ||
+              ((rcsr & TCSR_FWF) && (rcsr & TCSR_FWIE)) ||
+              ((rcsr & TCSR_FEF) && (rcsr & TCSR_FEIE));
 
-    /* RCSR uses the same bit layout; OR the receive-side interrupt sources. */
-    req |= (rcsr & TCSR_FRF) && (rcsr & TCSR_FRIE);
-    warn |= (rcsr & TCSR_FWF) && (rcsr & TCSR_FWIE);
-    err |= (rcsr & TCSR_FEF) && (rcsr & TCSR_FEIE);
-
-    qemu_set_irq(s->irq, (req || warn || err) ? 1 : 0);
+    qemu_set_irq(s->irq, (tx || rx) ? 1 : 0);
 }
 
 /* Clock one word out of the transmit FIFO. */
@@ -134,7 +141,7 @@ static void imx93_sai_tx_tick(void *opaque)
      * interrupts coming at real time and the playback from under-running.
      */
     if (dma && s->tx_count <= watermark) {
-        qemu_irq_pulse(s->dma_req);
+        qemu_irq_pulse(s->dma_req_tx);
     }
 
     imx93_sai_tx_update_flags(s);
@@ -163,19 +170,64 @@ static void imx93_sai_tx_reset_fifo(IMX93SaiState *s)
     imx93_sai_tx_update_flags(s);
 }
 
-/* RX (capture) flags: FRF = data at/over the watermark, FWF = FIFO full. */
+/* ---- receive (capture) path ------------------------------------------- */
+
 static void imx93_sai_rx_update_flags(IMX93SaiState *s)
 {
     uint32_t rcsr = R(s, SAI_RCSR) & ~TCSR_RO;
     uint32_t watermark = R(s, SAI_RCR1) & 0xff;
 
+    /* FRF: FIFO level above the watermark - data is ready to be drained. */
     if (s->rx_count > watermark) {
         rcsr |= TCSR_FRF;
     }
+    /* FWF: FIFO full - one step from overrun. */
     if (s->rx_count >= IMX93_SAI_FIFO_DEPTH) {
         rcsr |= TCSR_FWF;
     }
     R(s, SAI_RCSR) = rcsr;
+}
+
+/*
+ * Synthesise the next captured sample: a sawtooth sweeping the S16 range in
+ * 256-sample periods. Non-silent and trivially verifiable by a capture oracle.
+ */
+static uint16_t imx93_sai_rx_synth(IMX93SaiState *s)
+{
+    uint16_t v = (uint16_t)(int16_t)(s->rx_phase << 8);
+
+    s->rx_phase = (s->rx_phase + 1) & 0xff;
+    return v;
+}
+
+static void imx93_sai_rx_push(IMX93SaiState *s)
+{
+    if (s->rx_count < IMX93_SAI_FIFO_DEPTH) {
+        s->rx_fifo[s->rx_wptr] = imx93_sai_rx_synth(s);
+        s->rx_wptr = (s->rx_wptr + 1) % IMX93_SAI_FIFO_DEPTH;
+        s->rx_count++;
+    }
+    imx93_sai_rx_update_flags(s);
+    imx93_sai_update_irq(s);
+}
+
+/* RDR0 read: pop a captured word, synthesising on demand if the FIFO is dry. */
+static uint32_t imx93_sai_rx_pop(IMX93SaiState *s)
+{
+    uint32_t word;
+
+    if (s->rx_count > 0) {
+        word = s->rx_fifo[s->rx_rptr];
+        s->rx_rptr = (s->rx_rptr + 1) % IMX93_SAI_FIFO_DEPTH;
+        s->rx_count--;
+    } else {
+        /* eDMA burst out-ran the fill tick: hand it a fresh sample. */
+        word = imx93_sai_rx_synth(s);
+    }
+    s->rx_words++;
+    imx93_sai_rx_update_flags(s);
+    imx93_sai_update_irq(s);
+    return word;
 }
 
 static void imx93_sai_rx_reset_fifo(IMX93SaiState *s)
@@ -186,27 +238,7 @@ static void imx93_sai_rx_reset_fifo(IMX93SaiState *s)
     imx93_sai_rx_update_flags(s);
 }
 
-/*
- * Synthesise the next captured word. There is no codec wired, so the model
- * produces a low-frequency sawtooth, identical in both S16 channels, so a
- * recorder gets real, non-silent, periodic samples. rx_words is the single
- * monotonic sample index, advanced whether the word is buffered by the tick or
- * generated on demand by an RDR0 read - keeping one continuous waveform.
- */
-static uint32_t imx93_sai_rx_next_word(IMX93SaiState *s)
-{
-    /* ~375 Hz sawtooth at 48 kHz: ramp over 128 frames, both channels. */
-    uint16_t s16 = (uint16_t)((s->rx_words & 0x7f) << 9);
-
-    s->rx_words++;
-    return ((uint32_t)s16 << 16) | s16;
-}
-
-/*
- * Receive tick: with RCSR.RE set, the SAI clocks one word in per audio word
- * period. As the FIFO fills past the watermark, request an eDMA drain (the
- * eDMA reads RDR0 -> memory, paced by this fill, mirroring the transmit path).
- */
+/* Fill one word into the receive FIFO at the audio word rate. */
 static void imx93_sai_rx_tick(void *opaque)
 {
     IMX93SaiState *s = opaque;
@@ -217,18 +249,16 @@ static void imx93_sai_rx_tick(void *opaque)
         return;
     }
 
-    if (s->rx_count < IMX93_SAI_FIFO_DEPTH) {
-        s->rx_fifo[s->rx_wptr] = imx93_sai_rx_next_word(s);
-        s->rx_wptr = (s->rx_wptr + 1) % IMX93_SAI_FIFO_DEPTH;
-        s->rx_count++;
-    }
+    imx93_sai_rx_push(s);
 
+    /*
+     * As the FIFO fills past the watermark, request an eDMA burst. The eDMA
+     * services it synchronously, reading RDR0 (fixed source) into the ring -
+     * paced by this fill rate, which keeps the period interrupts at real time.
+     */
     if (dma && s->rx_count > watermark) {
-        qemu_irq_pulse(s->rx_dma_req);
+        qemu_irq_pulse(s->dma_req_rx);
     }
-
-    imx93_sai_rx_update_flags(s);
-    imx93_sai_update_irq(s);
 
     timer_mod(s->rx_timer,
               qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
@@ -287,28 +317,9 @@ static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
     case SAI_TFR0:
         /* Read/write FIFO pointers so the driver can compute the fill. */
         return ((uint32_t)s->tx_wptr << 16) | s->tx_rptr;
-    case SAI_RDR0: {
-        /* Pop one received word; the eDMA reads here to drain the RX FIFO. */
-        uint32_t word;
-
-        if (s->rx_count > 0) {
-            word = s->rx_fifo[s->rx_rptr];
-            s->rx_rptr = (s->rx_rptr + 1) % IMX93_SAI_FIFO_DEPTH;
-            s->rx_count--;
-            imx93_sai_rx_update_flags(s);
-            imx93_sai_update_irq(s);
-        } else {
-            /*
-             * FIFO empty but the receiver is running: the eDMA is draining
-             * faster than the word-rate tick fills (its minor loop bursts
-             * several words per request). Synthesise the next sample on demand
-             * so a real capture never reads silence - the "ADC always has a
-             * sample". rx_words keeps the waveform continuous across paths.
-             */
-            word = (R(s, SAI_RCSR) & RCSR_RE) ? imx93_sai_rx_next_word(s) : 0;
-        }
-        return word;
-    }
+    case SAI_RDR0:
+        /* Pop a captured word (the eDMA's fixed-address source read). */
+        return imx93_sai_rx_pop(s);
     case SAI_RFR0:
         return ((uint32_t)s->rx_wptr << 16) | s->rx_rptr;
     default:
@@ -371,13 +382,16 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
         if (v & TCSR_FR) {
             imx93_sai_rx_reset_fifo(s);
         }
+        /* FIFO/software reset are momentary: never latch them. */
         v &= ~(TCSR_FR | TCSR_SR);
+
+        /* Status field: keep read-only bits, write-1-to-clear the sticky. */
         v = (v & ~TCSR_STATUS) | (old & TCSR_RO) |
             (old & TCSR_W1C & ~((uint32_t)value & TCSR_W1C));
         R(s, SAI_RCSR) = v;
 
         if ((v & RCSR_RE) && !(old & RCSR_RE)) {
-            /* Receiver enabled: start clocking synthesised words in. */
+            /* Receiver enabled: start filling the FIFO with samples. */
             imx93_sai_rx_update_flags(s);
             timer_mod(s->rx_timer,
                       qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
@@ -417,6 +431,7 @@ static void imx93_sai_reset(DeviceState *dev)
     imx93_sai_rx_reset_fifo(s);
     s->tx_words = 0;
     s->rx_words = 0;
+    s->rx_phase = 0;
     s->cap_head = 0;
     s->cap_count = 0;
     imx93_sai_voice_set(s, false);
@@ -437,8 +452,8 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
                           TYPE_IMX93_SAI, IMX93_SAI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
-    qdev_init_gpio_out_named(dev, &s->dma_req, "dma-req", 1);
-    qdev_init_gpio_out_named(dev, &s->rx_dma_req, "rx-dma-req", 1);
+    qdev_init_gpio_out_named(dev, &s->dma_req_tx, "dma-req-tx", 1);
+    qdev_init_gpio_out_named(dev, &s->dma_req_rx, "dma-req-rx", 1);
     s->tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_tx_tick, s);
     s->rx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, imx93_sai_rx_tick, s);
 
@@ -471,6 +486,7 @@ static const VMStateDescription vmstate_imx93_sai = {
         VMSTATE_UINT32(rx_wptr, IMX93SaiState),
         VMSTATE_UINT32(rx_count, IMX93SaiState),
         VMSTATE_UINT64(rx_words, IMX93SaiState),
+        VMSTATE_UINT16(rx_phase, IMX93SaiState),
         VMSTATE_END_OF_LIST()
     },
 };

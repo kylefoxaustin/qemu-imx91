@@ -880,30 +880,29 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         }
 
         /*
-         * SAI3 TX FIFO requests are serviced by eDMA2 (the wm8962 playback
-         * path): wire its DMA-request line so the cyclic channel advances as
-         * the FIFO drains, pacing PCM playback at the audio word rate.
+         * eDMA requests are routed by DMA-request source id: each peripheral's
+         * dma-req drives the eDMA 'dma-req' input indexed by the source id from
+         * the EVK DTB dmas= props, and the eDMA matches it against the armed
+         * channel's CH_MUX[7:0] (eDMA2). So SAI3 TX, SAI3 RX, and the XCVR can
+         * each advance their OWN cyclic channel concurrently - the 4-way audio
+         * case (play + capture + SPDIF) no longer collides on a single line.
+         * SAI3 TX/RX are serviced by eDMA2 (wm8962 playback/capture).
          */
-        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
-        /*
-         * SAI3 RX (capture) requests share the same eDMA2 request input: the
-         * eDMA services whichever cyclic channel is armed, so an arecord-only
-         * capture stream advances as the RX FIFO fills.
-         */
-        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "rx-dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req-tx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0x3c));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req-rx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0x3d));
         /*
          * SAI1 (AONMIX) is the cpu DAI for the bt-sco card and, on the
-         * imx91-...-mqs DTB, for the MQS PWM "codec": MQS has no data path of
-         * its own, it just converts SAI1's I2S stream, so MQS playback rides
-         * SAI1 TX. Its FIFO requests are serviced by eDMA1 (shared with MICFIL,
-         * as the eDMA advances whichever cyclic channel is armed).
+         * imx91-...-mqs DTB, for the MQS PWM "codec" (MQS rides SAI1 TX). Its
+         * TX/RX requests are serviced by eDMA1. eDMA1 (AONMIX) routes via an
+         * integrated request mux rather than CH_MUX, so its CH_MUX reads 0 and
+         * the eDMA's first-armed-cyclic fallback delivers these.
          */
-        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
-        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "rx-dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "dma-req-tx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0x15));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[0]), "dma-req-rx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0x16));
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
@@ -921,7 +920,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
          * channel is armed, so a MICFIL-only arecord routes here).
          */
         qdev_connect_gpio_out_named(DEVICE(&s->micfil), "dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0));
+            qdev_get_gpio_in_named(DEVICE(&s->edma1), "dma-req", 0x1d));
     }
 
     /*
@@ -1062,7 +1061,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
      * services whichever cyclic channel is armed.
      */
     qdev_connect_gpio_out_named(DEVICE(&s->xcvr), "dma-req", 0,
-        qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+        qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0x42));
 
     /* TSTMR1/2 timestamp timers + SEMA42 hardware semaphores (Group A). */
     {
