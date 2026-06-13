@@ -134,15 +134,17 @@ static uint32_t rx_fill(QTestState *qts)
  * Receive (capture) path: with no codec wired, the model synthesises a
  * sawtooth into the RX FIFO at the audio word rate once RCSR.RE is set. Enable
  * the receiver, advance the virtual clock, and read RDR0 - the words must be
- * the ramp (non-silent, varying, identical in both S16 channels). This is the
- * capture analogue of the transmit-FIFO test; the eDMA drains RDR0 the same way
- * it fills TDR0 for playback.
+ * the ramp (non-silent, varying). The shared SAI model packs one 16-bit sample
+ * per FIFO word in the low half (high half zero) and steps the sawtooth by
+ * 0x100 each word (phase++ << 8). This is the capture analogue of the
+ * transmit-FIFO test; the eDMA drains RDR0 the same way it fills TDR0 for
+ * playback.
  */
 static void test_rx_capture(void)
 {
     QTestState *qts = qtest_init("-machine imx91-11x11-evk -display none");
     uint32_t rcsr, prev = 0;
-    int i, nonzero = 0, varied = 0, chan_eq = 1;
+    int i, nonzero = 0, varied = 0, hi_clear = 1, ramp = 0;
 
     /* Program a watermark and enable the receiver. */
     wr(qts, SAI_RCR1, WATERMARK);
@@ -160,20 +162,24 @@ static void test_rx_capture(void)
     for (i = 0; i < 32; i++) {
         uint32_t w = rd(qts, SAI_RDR0);
 
-        if (w) {
+        if (w & 0xffff) {
             nonzero++;
         }
-        if ((w & 0xffff) != (w >> 16)) {
-            chan_eq = 0;                 /* L and R must match */
+        if (w >> 16) {
+            hi_clear = 0;       /* one 16-bit sample/word, high half 0 */
         }
         if (i && w != prev) {
-            varied++;                    /* ramping, not stuck */
+            varied++;           /* ramping, not stuck */
+        }
+        if (i && (uint16_t)(w - prev) == 0x100) {
+            ramp++;             /* sawtooth steps by 0x100 (phase++ << 8) */
         }
         prev = w;
     }
     g_assert_cmpint(nonzero, >, 16);
     g_assert_cmpint(varied, >, 8);
-    g_assert_cmpint(chan_eq, ==, 1);
+    g_assert_cmpint(hi_clear, ==, 1);
+    g_assert_cmpint(ramp, >, 8);
 
     /* FIFO reset drains it. */
     wr(qts, SAI_RCSR, TCSR_FR);
