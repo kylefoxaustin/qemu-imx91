@@ -146,9 +146,11 @@ Stock **NXP Linux 6.12.49** boots to userspace (PID 1) on the single Cortex-A55,
 on the **stock `imx91-11x11-evk` device tree** (with one board-side fix-up, see
 below).
 
-Each device is tagged **functional** (the host driver's data path ran end to end
-on the 91) or **brings up** (ported from the 93; the driver binds / registers,
-end-to-end not yet re-validated on the 91).
+Each device below is tagged **functional** (the host driver's data path runs end
+to end — data actually moves) or **brings up** (the driver binds and the device
+registers / enumerates — the registration bar, no working host data path yet).
+Many devices are ported from the i.MX 93; where the end-to-end path has not been
+independently re-validated on the 91, they are tagged **brings up**.
 
 - **Single-A55 boot — functional.** One Cortex-A55 to userspace (`nproc=1`),
   serial console on `ttyLP0`. The SiP `GET_SOC_INFO` SMC reports the 91's own
