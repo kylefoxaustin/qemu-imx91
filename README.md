@@ -19,10 +19,13 @@ those blocks subtracted and the SoC retargeted to the 91's single-core topology.
 It boots stock **NXP BSP Linux to userspace** on the single Cortex-A55 and
 brings up the EVK's core: **networking** (FEC + ENET_QoS, both with DHCP),
 **SD/eMMC storage** (ext4 mount, read/write), **GPIO/PMIC**, the **EdgeLock
-Enclave** mailbox, **eDMA3/4**, **I²C** (with the WM8962 codec + PMIC +
+Enclave** mailbox, **eDMA1/2**, **I²C** (with the WM8962 codec + PMIC +
 expanders), and an **LCDIF parallel-RGB display** that scans a framebuffer out
-of guest DRAM to a fixed panel. Intended use cases are BSP development,
-peripheral-driver development, and CI for the above. It is not cycle-accurate.
+of guest DRAM to a fixed panel. It also boots a **vanilla mainline kernel** with
+the mainline `imx91-11x11-evk` device tree (i.MX 91 support landed in v6.18) — a
+fully-OSS boot that doubles as the upstream CI functional test. Intended use
+cases are BSP development, peripheral-driver development, and CI for the above.
+It is not cycle-accurate.
 
 Unlike the i.MX 95, the **i.MX 91 has no System Manager** — Linux programs the
 CCM / ANATOP / SRC / power domains directly, so those blocks are modelled
@@ -155,6 +158,13 @@ independently re-validated on the 91, they are tagged **brings up**.
 - **Single-A55 boot — functional.** One Cortex-A55 to userspace (`nproc=1`),
   serial console on `ttyLP0`. The SiP `GET_SOC_INFO` SMC reports the 91's own
   identity, so `/sys/devices/soc0` reads `soc_id = i.MX91`, `revision = 1.0`.
+- **Vanilla mainline boot — functional.** Beyond the NXP BSP kernel, the machine
+  boots a stock upstream kernel (v6.18-rc3) with the **mainline**
+  `imx91-11x11-evk` device tree (i.MX 91 landed in mainline v6.18) to a BusyBox
+  userspace — a fully-OSS, redistributable tuple with zero NXP bits. A stock
+  mainline kernel + mainline dts booting the model is the upstream-fidelity
+  signal; it is the basis for the kernel-free-CI functional test
+  (`tests/functional/aarch64/test_imx91_evk.py`).
 - **Networking — functional.** Both NICs live with DHCP — FEC (`eth0`, reuses
   `hw/net/imx_fec.c`) and the from-scratch ENET_QoS/dwmac4 (`eth1`,
   `hw/net/imx93_dwmac.c`). Use `-nic user -nic user`.
@@ -172,7 +182,8 @@ independently re-validated on the 91, they are tagged **brings up**.
   OCOTP MAC/SoC-UID fuse nvmem.
 - **Clocks / power — functional.** CCM clock roots+gates, ANATOP fractional-N
   PLLs, the MEDIAMIX power domain (genpd) and block-control GPR.
-- **eDMA3/4 — functional.** real TCD execution (drives the LPI2C transfers).
+- **eDMA1/2 — functional.** real TCD execution (drives the LPI2C transfers and
+  the audio FIFO drains, with per-CH_MUX source-id request routing).
 - **Display (LCDIF parallel RGB) — functional.** Booting the
   `…-tianma-wvga-panel` dtb, the imx-drm stack binds the LCDIFv3 CRTC and the
   parallel-display-format bridge (on the MEDIAMIX block-ctrl — no separate
@@ -187,7 +198,7 @@ independently re-validated on the 91, they are tagged **brings up**.
   frame round-trips through controller loopback (`cansend` → `candump`). The EVK
   dtb enables one of the two FlexCAN controllers; inter-controller TX/RX over
   QEMU's CAN bus (`-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`) is
-  covered by a kernel-free qtest (to be ported from the i.MX 93).
+  covered by a kernel-free qtest (plus a 1000-frame stress).
 - **Audio playback (SAI3 + WM8962) — functional.** The ASoC stack registers the
   three EVK ALSA cards (SAI1 bt-sco, MICFIL, and the WM8962/SAI3 card via the
   modelled WM8962 codec on LPI2C1). A generated square wave plays on the
@@ -227,11 +238,14 @@ independently re-validated on the 91, they are tagged **brings up**.
 
 ## Roadmap
 
-The current release is **`imx91-v1.0`** — the first complete, soak-validated
-i.MX 91 model: stock Linux boots to userspace, the entire DT-referenced SoC
-surface is modelled, and every major data path (networking, storage, display,
-audio play/capture/SPDIF, camera, CAN, USB, I²C/SPI/I3C, FlexIO) is validated
-end to end. What remains is upstream submission, not new capability.
+The current release is **`imx91-v1.1`** — the complete, soak-validated i.MX 91
+model (`v1.0`) plus upstream readiness: stock Linux boots to userspace, the
+entire DT-referenced SoC surface is modelled, and every major data path
+(networking, storage, display, audio play/capture/SPDIF, camera, CAN, USB,
+I²C/SPI/I3C, FlexIO) is validated end to end. `v1.1` adds the kernel-free-CI
+functional test booting a **vanilla mainline kernel** on fully-OSS assets, the
+SAI rx-capture qtest fix, and an in-guest LCDIF display test in the soak. What
+remains is upstream submission, not new capability.
 
 | Feature | What | Target |
 |---|---|---|
@@ -251,6 +265,12 @@ To boot Linux to userspace you need three artifacts, all built from the
 
 The `tests/*/run.sh` scripts take `KERNEL=`, `DTB=`, `INITRD=` (and `QEMU=`)
 env vars and print exactly which to set if an artifact is missing.
+
+**No NXP access? A fully-OSS boot works too.** A vanilla mainline kernel
+(≥ v6.18, arm64 defconfig), the mainline `imx91-11x11-evk.dtb` built from that
+tree, and the static-aarch64 BusyBox initramfs from `tests/busybox-imx91/`
+boot the machine to a shell with **zero NXP bits** — all GPL, freely
+redistributable. This is exactly the tuple the upstream functional test uses.
 
 ## Known limitations
 
@@ -279,12 +299,14 @@ env vars and print exactly which to set if an artifact is missing.
   Linux. DDR at `0x8000_0000`. No second A55 and no Cortex-M33 (both i.MX 93).
 - Real device models for everything boot/net/storage/display/I²C exercise:
   LPUART, CCM, ANATOP, MEDIAMIX (blk-ctrl GPR + SRC power slice), ELE MU, MU1
-  (now a standalone A55-side mailbox — no M33 peer), LPI2C + PMICs, GPIO, uSDHC,
-  FEC + ENET_QoS, eDMA3/4, LCDIFv3, ISI, SAI/MICFIL/WM8962, ChipIdea USB,
-  FlexCAN, and virtio-mmio. Everything else is a logging stub (the IOMUXC pinmux
-  is a deliberate no-op).
+  (now a standalone A55-side mailbox — no M33 peer), MU2, LPI2C + PMICs, GPIO,
+  uSDHC, FEC + ENET_QoS, eDMA1/2, LCDIFv3, ISI, SAI/MICFIL/XCVR/WM8962, FlexSPI,
+  Silvaco I3C, DDR controller + PMU, ChipIdea USB, FlexCAN, and virtio-mmio.
+  Everything else is a logging stub (the IOMUXC pinmux is a deliberate no-op).
 - The NXP BSP uses its **downstream `drm/imx` drivers** (`DRM_IMX_LCDIFV3`,
-  the parallel-display-format bridge), not the mainline ones.
+  the parallel-display-format bridge), not the mainline ones; the machine also
+  boots a vanilla mainline kernel (which binds the upstream LPUART/CCM/eDMA/…
+  drivers), so it tracks both driver stacks.
 
 All memory-map addresses and IRQ numbers come from the NXP BSP (`imx91.dtsi` /
 the i.MX 91 Reference Manual), never guessed.
@@ -303,7 +325,9 @@ the i.MX 91 Reference Manual), never guessed.
 | `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
 | `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
 | `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), MICFIL (PDM capture), XCVR (SPDIF TX), LPI2C, ISI, FlexSPI (NOR + SPI-NAND read-id), FlexIO, DDRC, I3C |
-| `tests/soak-imx91/` | long-run soak: a per-boot function battery over the variant-DTB matrix (net/storage/audio/camera/CAN/I²C/SPI/I3C/FlexIO), VmRSS leak tracking, and the kernel-free qtests every N cycles |
+| `tests/soak-imx91/` | long-run soak: a per-boot function battery over the variant-DTB matrix (net/storage/audio/camera/CAN/I²C/SPI/I3C/FlexIO + an in-guest LCDIF fb0 test), VmRSS leak tracking, and the kernel-free qtests every N cycles |
+| `tests/functional/aarch64/test_imx91_evk.py` | upstream-style functional test: fetches a vanilla mainline kernel + mainline dtb + BusyBox initramfs (pinned `Asset` sha256, all OSS) and boots to a userspace marker — runs in QEMU's CI |
+| `tests/busybox-imx91/build.sh` | builds the static-aarch64 BusyBox initramfs the functional test + OSS demo boot |
 
 ## Building
 
@@ -371,6 +395,15 @@ now injects.
   per-boot function battery across the variant-DTB matrix with VmRSS leak
   tracking and periodic kernel-free qtests; the shared device models also pass an
   AddressSanitizer + UBSan sweep clean.
+- **`imx91-v1.0` — first complete release** — a 24-hour final soak (1423 boots,
+  zero function failures, flat RSS) closed the gate: every modelled data path
+  validated end to end, declared the first complete, soak-validated i.MX 91.
+- **Upstream readiness (`v1.0` → `v1.1`)** — added the QEMU-CI functional test
+  that boots a **vanilla mainline kernel** + the mainline `imx91-11x11-evk`
+  device tree + a BusyBox initramfs (all OSS, no NXP — so it runs in CI rather
+  than skipping on a restricted blob), with the i.MX 91 doc and MAINTAINERS
+  entry. Also fixed the SAI rx-capture qtest for the shared RX model and added
+  an in-guest LCDIF display test to the soak battery.
 
 ## License & credits
 
