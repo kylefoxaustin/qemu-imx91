@@ -10,29 +10,34 @@ from qemu_test import LinuxKernelTest, Asset
 
 class Imx91EvkMachine(LinuxKernelTest):
     """
-    Boot stock NXP BSP Linux on the imx91-11x11-evk machine to userspace.
+    Boot a fully-OSS, redistributable Linux on the imx91-11x11-evk machine.
 
     The i.MX 91 is a single Cortex-A55 (no Cortex-M33) member of the i.MX 9
     family, so the machine is -smp 1 and there is no co-processor firmware to
     load: a plain kernel + device tree + initramfs boot exercises the full
     Linux bring-up path (the single A55, GICv3, the LPUART console, the CCM
-    clock tree and ANATOP PLLs, eDMA, GPIO, ...). Reaching the userspace
-    marker confirms the machine boots a real BSP kernel end to end.
+    clock tree and ANATOP PLLs, eDMA, GPIO, ...).
+
+    The assets are 100% open source (no NXP BSP, freely redistributable as
+    CI assets): a vanilla mainline kernel and the mainline imx91-11x11-evk
+    device tree (i.MX 91 support landed in v6.18), plus a static-aarch64
+    BusyBox initramfs. Booting a stock mainline kernel + mainline dts to
+    userspace is itself the assertion that the machine matches upstream.
     """
 
     ASSET_KERNEL = Asset(
         ('https://github.com/kylefoxaustin/qemu-imx91/releases/download/'
-         'imx91-v1.0/Image-imx91-evk-6.12.49.bin'),
-        '037498d2ba56f330de83ebf7eb903a052ac8dd6e52d0b4d026e0ff62e777c6e3')
+         'imx91-v1.0/Image-imx91-6.18-rc3-arm64'),
+        '6ab3ddadb98a79cf3885bd070de03b855e9ead8a10b75a3c3d497caffc45032e')
 
     ASSET_DTB = Asset(
         ('https://github.com/kylefoxaustin/qemu-imx91/releases/download/'
-         'imx91-v1.0/imx91-11x11-evk.dtb'),
-        '16397128d5c08e170f3e282d50793ffd73739cca7967ed4ae4c8ebc39add28a7')
+         'imx91-v1.0/imx91-11x11-evk-6.18-rc3.dtb'),
+        '26c986c9ccc15ed9bee064442b16e77151f0d2518915921cb715623569174361')
 
     ASSET_INITRD = Asset(
         ('https://github.com/kylefoxaustin/qemu-imx91/releases/download/'
-         'imx91-v1.0/busybox-imx91.cpio.gz'),
+         'imx91-v1.0/rootfs-busybox-imx91.cpio.gz'),
         '357e88378f1765feaa59c3eb4bdcba078d32eafb5b8012eaa6e16d0f53c6c972')
 
     def test_aarch64_imx91_evk(self):
