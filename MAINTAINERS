@@ -988,6 +988,8 @@ F: hw/block/spi_nand.c
 F: hw/i3c/svc_i3c.c
 F: include/hw/i3c/svc_i3c.h
 F: tests/qtest/imx91-*-test.c
+F: tests/functional/aarch64/test_imx91_evk.py
+F: docs/system/arm/imx91-evk.rst
 
 MPS2 / MPS3
 M: Peter Maydell <peter.maydell@linaro.org>
