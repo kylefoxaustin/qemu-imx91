@@ -362,6 +362,18 @@ A good example: the ENET_QoS MAC was stuck in deferred probe; tracing it
 revealed the stock 91 dtb omits the secure-enclave tamper IRQ, which the board
 now injects.
 
+**Validation is layered.** Correctness rests on four independent gates, not one:
+(1) kernel-free **qtests** on the `imx91-11x11-evk` machine (12 devices —
+deterministic, CI-runnable, and for async timer races they use `clock_step` to
+pin the adversarial ordering); (2) an **AddressSanitizer + UBSan** sweep of the
+shared device models (zero findings); (3) a **24-hour concurrent soak** across
+the variant-DTB matrix (1423 boots, zero function failures, flat RSS) as the
+release gate; and (4) **vanilla-mainline boot** — a stock upstream kernel +
+mainline dts reaching userspace, which both serves the upstream CI functional
+test and confirms the model matches upstream, not just the BSP. The recurring
+lesson: a green deterministic qtest is *not* validation for a model with no live
+workload — the FlexIO IRQ-storm fix only proved out against a real-driver repro.
+
 ## Milestone history
 
 - **Bootstrap** — cloned the i.MX 93 port to `imx91-dev`; created the
