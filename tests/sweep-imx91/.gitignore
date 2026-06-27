@@ -1,0 +1,4 @@
+# Downloaded third-party sources + their cross-build trees (multi-GB, refetched
+# on demand by build-corpus.sh) and the live console of the last boot.
+.dlcache/
+.last-boot.log

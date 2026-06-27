@@ -1,0 +1,67 @@
+#!/bin/sh
+# i.MX 91 code-sweep in-guest battery (runs as /init).
+#
+# The host stages a corpus of cross-compiled, STATIC test binaries under
+# /sweep/corpus/<name>/, each with a run.sh that exercises the binary against a
+# built-in oracle and prints SOAK:PASS/FAIL/SKIP:<name>:<detail> to the console.
+# This driver just boots, iterates the corpus under a per-item timeout (so one
+# hang can't eat the whole sweep), and emits the BOOT + BATTERY:DONE sentinels
+# the host scorer keys on. Everything is static, so there is no lib/initramfs
+# dance.
+#
+# Per-item timeout is overridable: ITEM_TIMEOUT=<secs> on the kernel cmdline.
+
+PATH=/sweep/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+mount -t proc     proc     /proc    2>/dev/null
+mount -t sysfs    sysfs    /sys     2>/dev/null
+mount -t devtmpfs devtmpfs /dev     2>/dev/null
+mount -t tmpfs    tmpfs    /tmp     2>/dev/null
+
+# pull ITEM_TIMEOUT=N off the cmdline if present
+ITEM_TIMEOUT=60
+for tok in $(cat /proc/cmdline 2>/dev/null); do
+  case "$tok" in ITEM_TIMEOUT=*) ITEM_TIMEOUT="${tok#ITEM_TIMEOUT=}" ;; esac
+done
+
+MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo imx91)
+echo "SOAK:BOOT:$MODEL:userspace"
+
+# Portable per-item timeout: prefer coreutils/busybox `timeout`, else a manual
+# background-and-kill watchdog. Returns 124 on timeout (coreutils convention).
+have_timeout=0
+if command -v timeout >/dev/null 2>&1; then
+  if timeout 1 true >/dev/null 2>&1; then have_timeout=1; fi   # coreutils-style
+fi
+
+run_with_timeout() {   # run_with_timeout <secs> <cmd...>
+  secs="$1"; shift
+  if [ "$have_timeout" = 1 ]; then
+    timeout "$secs" "$@"; return $?
+  fi
+  "$@" &
+  cpid=$!
+  ( sleep "$secs"; kill -9 "$cpid" 2>/dev/null ) &
+  wpid=$!
+  wait "$cpid" 2>/dev/null; rc=$?
+  kill -9 "$wpid" 2>/dev/null
+  return $rc
+}
+
+for d in /sweep/corpus/*/; do
+  [ -f "$d/run.sh" ] || continue
+  name=$(basename "$d")
+  ( cd "$d" && run_with_timeout "$ITEM_TIMEOUT" sh run.sh )
+  rc=$?
+  if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+    echo "SOAK:FAIL:$name:timeout-after-${ITEM_TIMEOUT}s"
+  fi
+done
+
+echo "SOAK:BATTERY:DONE"
+sync
+# clean shutdown so the supervisor's qemu exits promptly
+poweroff -f 2>/dev/null || { echo o > /proc/sysrq-trigger 2>/dev/null; }
+# if neither worked, spin so we don't panic
+while :; do sleep 5; done

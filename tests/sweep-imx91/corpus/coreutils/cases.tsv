@@ -1,0 +1,42 @@
+# <name>	<command>   — deterministic, version-stable coreutils invocations,
+# POSIX-sh safe (no process substitution). The command runs with PATH pointed at
+# system coreutils on the host (to make the golden) and at the cross-built
+# coreutils in the guest (binary under test); outputs must match byte-for-byte.
+# Tools that are also shell builtins are invoked via `env` so the BINARY is
+# exercised, not the builtin.
+seq	seq 1 2 99
+factor	seq 1 200 | factor
+sort-n	seq 1 1000 | tac | sort -n | md5sum
+sort-rev	printf 'banana\napple\ncherry\ndate\n' | sort -r
+sort-u	printf '3\n1\n2\n3\n1\n' | sort -nu
+wc	seq 1 10000 | wc -lcw
+head	seq 1 1000 | head -n 7
+tail	seq 1 1000 | tail -n 7
+tac	printf 'a\nb\nc\nd\n' | tac
+cut	printf 'a:b:c:d\n1:2:3:4\n' | cut -d: -f2,4
+tr	printf 'Hello World\n' | tr 'a-z' 'A-Z'
+trd	printf 'a1b2c3\n' | tr -d '0-9'
+nl	printf 'x\ny\nz\n' | nl
+paste	seq 1 3 > /tmp/cu.p1; seq 4 6 > /tmp/cu.p2; paste -d, /tmp/cu.p1 /tmp/cu.p2
+uniq-c	printf 'a\na\nb\na\na\na\n' | uniq -c
+comm	seq 1 5 > /tmp/cu.c1; seq 3 8 > /tmp/cu.c2; comm /tmp/cu.c1 /tmp/cu.c2
+join	printf '1 a\n2 b\n3 c\n' > /tmp/cu.j1; printf '1 x\n2 y\n3 z\n' > /tmp/cu.j2; join /tmp/cu.j1 /tmp/cu.j2
+od	printf 'ABCD' | od -An -tx1
+base64	printf 'the quick brown fox' | base64
+base64d	printf 'dGhlIHF1aWNr' | base64 -d
+sha256	printf 'abc' | sha256sum
+sha512	printf 'abc' | sha512sum
+sha1	printf 'abc' | sha1sum
+md5	printf 'abc' | md5sum
+cksum	printf 'hello world' | cksum
+sum	printf 'hello world' | sum
+expr	expr 6 \* 7 + 100 / 4
+printf-bin	env printf '%05d-%x-%o-%e\n' 42 255 64 3.14159
+fmt	printf 'one two three four five six seven eight nine ten\n' | fmt -w 20
+fold	printf 'abcdefghijklmnop\n' | fold -w 4
+rev	printf 'abcdef\n12345\n' | rev
+numfmt	printf '1500000\n' | numfmt --to=si
+pr	seq 1 6 | pr -t -2
+shred-stat	env printf 'x' > /tmp/cu.s; stat -c '%s' /tmp/cu.s; rm -f /tmp/cu.s
+truncate-stat	truncate -s 4096 /tmp/cu.t; stat -c '%s' /tmp/cu.t; rm -f /tmp/cu.t
+date-fixed	date -u -d @1700000000 '+%Y-%m-%d %H:%M:%S'

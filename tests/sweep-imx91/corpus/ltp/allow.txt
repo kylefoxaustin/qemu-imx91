@@ -1,0 +1,40 @@
+# LTP syscall test allowlist (stems). build.sh stages every built binary whose
+# name matches ^<stem>[0-9] — i.e. the numbered variants of exactly that
+# syscall. Curated to SAFE, deterministic, hardware-independent tests: nothing
+# that changes global system state (no reboot/swapon/settimeofday/clock_settime/
+# module-load/mount/chroot/ptrace/acct/sysctl), nothing that fork-bombs or sleeps
+# long. The goal is broad core-syscall coverage that can't wedge the guest.
+
+# --- file: descriptors & basic I/O ---
+open openat close read read01 pread pread01 readv preadv write write01 pwrite pwritev
+lseek dup dup2 dup3 pipe pipe2 fsync fdatasync
+# --- file: metadata & namespace ---
+stat lstat fstat statx access faccessat
+chdir fchdir getcwd
+mkdir mkdirat rmdir rename renameat
+link linkat unlink unlinkat symlink symlinkat readlink readlinkat
+truncate ftruncate chmod fchmod fchmodat chown fchown lchown umask
+getdents getdents64 utime utimes utimensat futimesat
+# --- process: identity & scheduling ---
+getpid getppid getuid geteuid getgid getegid getresuid getresgid
+setpgid getpgid getpgrp getsid setsid
+fork vfork wait waitpid wait4 waitid
+times getrusage getpriority setpriority
+sched_getparam sched_getscheduler sched_get_priority_max sched_get_priority_min
+sched_yield sched_rr_get_interval
+uname sysinfo getrlimit
+gethostname getcpu
+# --- time ---
+gettimeofday time clock_gettime clock_getres clock_nanosleep nanosleep
+# --- memory ---
+mmap munmap mprotect madvise mlock mlock2 munlock mincore brk mremap msync
+# --- signals ---
+kill signal sigaction sigprocmask sigpending sigsuspend sigaltstack
+alarm setitimer getitimer
+# --- ipc / fd objects ---
+socket socketpair getsockname getsockopt setsockopt
+eventfd eventfd2 timerfd_create signalfd signalfd4 memfd_create
+poll ppoll select pselect epoll_create epoll_create1 epoll_ctl
+# --- misc, safe ---
+getrandom fcntl fcntl01 fcntl02 fcntl03 fcntl04 fcntl05
+dup3 fpathconf pathconf sysconf
