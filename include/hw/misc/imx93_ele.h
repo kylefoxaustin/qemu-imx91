@@ -15,6 +15,17 @@
  *
  * Only the transport + a success responder are modeled - no real enclave
  * services (RNG, crypto, fuse programming) are provided.
+ *
+ * Honesty rail (fleet "no silent-wrong" standard): commands that return DATA
+ * the driver reads as real values (READ_FUSE, GET_FW_VERSION, GET_STATE) are
+ * served SUCCESS with zeroed data - a latent silent-wrong. The model keeps the
+ * happy path faithful by default (so probe/boot work) but: (1) counts these in
+ * the QOM-gettable "ele-uncomputed-cmds" and logs a loud LOG_GUEST_ERROR once;
+ * and (2) an operator opt-in QOM "ele-unmodelled-errcode" (default 0 = faithful
+ * success) makes the responder return that non-success status for them, so a
+ * guest that checks ELE status sees an honest "did not compute" fault instead
+ * of trusting fabricated zeros. Mirrors the i.MX 95 Neutron honest-fault
+ * pattern.
  */
 
 #ifndef IMX93_ELE_H
@@ -50,6 +61,11 @@ struct IMX93EleState {
     /* RX response registers + receive-full status bits. */
     uint32_t rr[IMX93_ELE_NUM_RR];
     uint32_t rsr;
+
+    /* Honesty rail (see file header). */
+    uint32_t unmodelled_errcode;    /* QOM, 0 = faithful success (default) */
+    uint64_t uncomputed_cmds;       /* QOM count of fake-data replies */
+    bool     warned_unmodelled;     /* throttle the LOG_GUEST_ERROR to once */
 };
 
 #endif /* IMX93_ELE_H */

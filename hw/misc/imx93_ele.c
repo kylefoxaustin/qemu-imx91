@@ -89,15 +89,37 @@ static void imx93_ele_process(IMX93EleState *s)
     uint8_t ver = hdr & 0xff;
     uint8_t command = (hdr >> 16) & 0xff;
     unsigned words = imx93_ele_rsp_words(command);
+    uint32_t status = ELE_SUCCESS_IND;
     unsigned i;
 
     /*
-     * Header: rsp_tag, size, command, ver. Word 1 carries the success status;
-     * any further words are zero.
+     * Honesty rail: a >2-word reply means the driver reads DATA words we fill
+     * with zero (READ_FUSE/GET_FW_VERSION/GET_STATE) - a fabricated value with
+     * a success flag. Count it, warn once, and honour the operator's opt-in
+     * fault.
+     */
+    if (words > 2) {
+        s->uncomputed_cmds++;
+        if (!s->warned_unmodelled) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                "imx93-ele: command 0x%02x returns UNMODELLED zero data "
+                "(no real ELE fuse/version/state values); do not trust it. "
+                "Set ele-unmodelled-errcode to fault the guest honestly.\n",
+                command);
+            s->warned_unmodelled = true;
+        }
+        if (s->unmodelled_errcode) {
+            status = s->unmodelled_errcode;     /* != 0xD6 -> guest sees fail */
+        }
+    }
+
+    /*
+     * Header: rsp_tag, size, command, ver. Word 1 carries the status; any
+     * further words are zero (unmodelled data).
      */
     s->rr[0] = ((uint32_t)ELE_RSP_TAG << 24) | ((uint32_t)command << 16) |
                ((uint32_t)words << 8) | ver;
-    s->rr[1] = ELE_SUCCESS_IND;
+    s->rr[1] = status;
     for (i = 2; i < words; i++) {
         s->rr[i] = 0;
     }
@@ -203,6 +225,9 @@ static void imx93_ele_reset(DeviceState *dev)
     s->rsr = 0;
     memset(s->txbuf, 0, sizeof(s->txbuf));
     memset(s->rr, 0, sizeof(s->rr));
+    /* Honesty counters reset; the operator's errcode knob persists. */
+    s->uncomputed_cmds = 0;
+    s->warned_unmodelled = false;
     imx93_ele_update_irq(s);
 }
 
@@ -216,11 +241,21 @@ static void imx93_ele_init(Object *obj)
     sysbus_init_mmio(sbd, &s->iomem);
     sysbus_init_irq(sbd, &s->irq_tx);
     sysbus_init_irq(sbd, &s->irq_rx);
+
+    /*
+     * Honesty rail (see header). Operator opt-in fault status + a read-back
+     * counter of fabricated-data replies, both via QMP qom-get/qom-set.
+     */
+    object_property_add_uint32_ptr(obj, "ele-unmodelled-errcode",
+                                   &s->unmodelled_errcode,
+                                   OBJ_PROP_FLAG_READWRITE);
+    object_property_add_uint64_ptr(obj, "ele-uncomputed-cmds",
+                                   &s->uncomputed_cmds, OBJ_PROP_FLAG_READ);
 }
 
 static const VMStateDescription vmstate_imx93_ele = {
     .name = TYPE_IMX93_ELE,
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(gier, IMX93EleState),
@@ -232,6 +267,8 @@ static const VMStateDescription vmstate_imx93_ele = {
         VMSTATE_UINT32(msg_size, IMX93EleState),
         VMSTATE_UINT32_ARRAY(rr, IMX93EleState, IMX93_ELE_NUM_RR),
         VMSTATE_UINT32(rsr, IMX93EleState),
+        VMSTATE_UINT32_V(unmodelled_errcode, IMX93EleState, 2),
+        VMSTATE_UINT64_V(uncomputed_cmds, IMX93EleState, 2),
         VMSTATE_END_OF_LIST()
     },
 };
