@@ -7,11 +7,20 @@
  *
  * Models enough of the i.MX93 SAR-ADC for the imx93_adc driver.
  * Self-calibration (MCR.CALSTART) completes immediately, with
- * MSR.CALBUSY/CALFAIL clear. A normal conversion (MCR.NSTART) fills the
- * per-channel data registers (PCDRn, 12-bit) for the channels in NCMR0, sets
- * the end-of-conversion status (ISR) and raises the EOC interrupt the driver
- * waits on. Conversions return a fixed mid-scale sample; no analog input
- * source is modelled.
+ * MSR.CALBUSY/CALFAIL clear. A normal conversion (MCR.NSTART) sets the
+ * end-of-conversion status (ISR) and raises the EOC interrupt the driver waits
+ * on; PCDRn then returns the per-channel conversion value.
+ *
+ * Fidelity: there is no analog pin to sample in emulation, so the conversion
+ * value comes from the operator - each channel is a read/write QOM property
+ * "adc-ch0".."adc-ch7" settable at runtime via QMP qom-set (the model's analog
+ * of the board's pin voltage). Whatever the operator injects is what the guest
+ * reads back, so ADC-consuming code sees a faithful, controllable datapath
+ * rather than a hidden constant (the previous fixed mid-scale 0x800 was a
+ * silent-wrong: a plausible value with a success flag and no way to tell or
+ * drive it). The default is a distinct-per-channel test pattern
+ * (0x100+ch*0x111) so an un-driven channel is still deterministic. Mirrors the
+ * i.MX 95 ADC fix.
  */
 
 #include "qemu/osdep.h"
@@ -39,22 +48,28 @@
 #define ISR_EOC         (1u << 1)
 
 #define PCDR_CDATA_MASK 0xfff
-#define ADC_MIDSCALE    0x800   /* fixed mid-scale sample (no analog source) */
 
 static void adc_update_irq(IMX93AdcState *s)
 {
     qemu_set_irq(s->irq, !!(s->isr & s->imr & (ISR_EOC | ISR_ECH)));
 }
 
+/*
+ * Default per-channel value when the operator hasn't driven a channel;
+ * distinct per channel so an un-driven channel is still deterministic.
+ */
+static uint32_t adc_default(int ch)
+{
+    return (0x100 + ch * 0x111) & PCDR_CDATA_MASK;
+}
+
 static void adc_convert(IMX93AdcState *s)
 {
-    int ch;
-
-    for (ch = 0; ch < IMX93_ADC_NCH; ch++) {
-        if (s->ncmr0 & (1u << ch)) {
-            s->pcdr[ch] = ADC_MIDSCALE & PCDR_CDATA_MASK;
-        }
-    }
+    /*
+     * No analog source: the per-channel PCDRn already holds the operator-set
+     * (or default) conversion value, so a scan just latches end-of-conversion
+     * and raises the IRQ - it does NOT overwrite the value with a constant.
+     */
     s->isr |= ISR_EOC | ISR_ECH;
     adc_update_irq(s);
 }
@@ -77,7 +92,8 @@ static uint64_t adc_read(void *opaque, hwaddr offset, unsigned size)
         return s->ncmr0;
     default:
         if (offset >= ADC_PCDR0 && offset < ADC_PCDR0 + 4 * IMX93_ADC_NCH) {
-            return s->pcdr[(offset - ADC_PCDR0) / 4];
+            /* operator-injected conversion value (12-bit) */
+            return s->pcdr[(offset - ADC_PCDR0) / 4] & PCDR_CDATA_MASK;
         }
         return 0;
     }
@@ -122,12 +138,32 @@ static const MemoryRegionOps adc_ops = {
 static void adc_reset(DeviceState *dev)
 {
     IMX93AdcState *s = IMX93_ADC(dev);
+    int ch;
 
     s->mcr = MCR_PWDN;      /* powered down until the driver enables it */
     s->isr = 0;
     s->imr = 0;
     s->ncmr0 = 0;
-    memset(s->pcdr, 0, sizeof(s->pcdr));
+    for (ch = 0; ch < IMX93_ADC_NCH; ch++) {
+        s->pcdr[ch] = adc_default(ch);
+    }
+}
+
+static void adc_init(Object *obj)
+{
+    IMX93AdcState *s = IMX93_ADC(obj);
+    int ch;
+
+    /*
+     * Per-channel conversion value, settable at runtime via QMP qom-set
+     * (e.g. qom-set <path> adc-ch3 0x555) - the operator drives the "voltage".
+     */
+    for (ch = 0; ch < IMX93_ADC_NCH; ch++) {
+        char name[16];
+        snprintf(name, sizeof(name), "adc-ch%d", ch);
+        object_property_add_uint32_ptr(obj, name, &s->pcdr[ch],
+                                       OBJ_PROP_FLAG_READWRITE);
+    }
 }
 
 static void adc_realize(DeviceState *dev, Error **errp)
@@ -169,6 +205,7 @@ static const TypeInfo adc_types[] = {
         .name = TYPE_IMX93_ADC,
         .parent = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(IMX93AdcState),
+        .instance_init = adc_init,
         .class_init = adc_class_init,
     },
 };
