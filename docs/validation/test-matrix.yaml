@@ -1,0 +1,78 @@
+# i.MX 91 test-matrix annotation — the HUMAN-owned half of the matrix.
+#
+# Fleet CI guardrail (operator + holobench, 2026-06-28): the test-result matrix is
+# CI-generated, but a green test cannot tell CI how DEEPLY a block is modelled.
+# So this file owns the fields CI must NOT invent:
+#   - tier      (A / B / C / N/A) ...... fidelity depth, human judgment
+#   - caveat    (optional ⚑) ........... fidelity warning -> fidelity-audit.md
+#   - present / absent ................. chip topology (absent => N/A, never a fail)
+# CI (gen-matrix.py) fills ONLY the test-result column from the actual harness run
+# and assembles docs/validation/test-result-matrix.md. CI must read tier/caveat
+# from HERE and never infer tier from a pass (mis-tiering would itself be a silent
+# fail). See docs/validation/fidelity-audit.md for the fidelity verdicts.
+#
+# Tiers:  A=data-path-verified (oracle)  B=driver-bring-up  C=registration  N/A=absent
+# test:   qtest:<bin> | boot | harness:<dir>   (how CI obtains the pass/fail)
+
+soc:          i.MX91
+board:        imx91-11x11-evk
+qemu_machine: imx91-11x11-evk
+
+present:
+  - { block: "Cortex-A55 (single core)",        tier: A, test: boot,                       evidence: "Boots Linux to shell; runs all qtests" }
+  - { block: "GICv3 (dist + redist)",           tier: A, test: boot,                       evidence: "Underpins boot + every qtest IRQ path" }
+  - { block: "eDMA1/2 (i.MX9)",                 tier: A, test: boot,                       evidence: "Real src->dst move; audio-capture DADDR-persist e2e" }
+  - { block: "SAI1/2/3",                        tier: A, test: "qtest:imx91-sai-test",     evidence: "samples to userspace (audio e2e)" }
+  - { block: "MICFIL (PDM mic)",                tier: A, test: "qtest:imx91-micfil-test",  evidence: "audio capture e2e" }
+  - { block: "XCVR (audio transceiver)",        tier: A, test: "qtest:imx91-xcvr-test",    evidence: "" }
+  - { block: "FlexSPI1 (NOR + SPI-NAND)",       tier: A, test: "qtest:imx91-flexspi-test", evidence: "boots from real flash contents" }
+  - { block: "ISI (parallel-camera capture)",   tier: A, test: "qtest:imx91-isi-test",     evidence: "v4l2_cap frame oracle" }
+  - { block: "FlexCAN x2",                      tier: A, test: "qtest:imx91-flexcan-test",  evidence: "CAN frame round-trip" }
+  - { block: "FlexIO1 (I2C/SPI/UART emul)",     tier: A, test: "qtest:imx91-flexio-test",  evidence: "event-driven shift-race fix" }
+  - { block: "I3C1",                            tier: A, test: "qtest:imx91-i3c-test",      evidence: "" }
+  - { block: "LPI2C x8",                        tier: A, test: "qtest:imx91-lpi2c-test",    evidence: "" }
+  - { block: "LPSPI x8",                        tier: A, test: "qtest:imx91-lpspi-test",    evidence: "" }
+  - { block: "FEC / ENET",                      tier: A, test: "harness:functest-imx91",   evidence: "boot networking (real frames)" }
+  - { block: "EQOS (DWMAC)",                    tier: A, test: "harness:functest-imx91",   evidence: "boot networking" }
+  - { block: "USDHC x3",                        tier: A, test: "harness:functest-imx91",   evidence: "SDHCI ADMA real block data" }
+  - { block: "LPUART x8",                       tier: A, test: boot,                       evidence: "Console I/O" }
+  - { block: "SiP SoC-info SMC (id/rev/UID)",   tier: A, test: boot,                       evidence: "guest-verified /sys/devices/soc0/soc_id = i.MX91 rev A0" }
+  - { block: "DDRC (i.MX9)",                    tier: B, test: "qtest:imx91-ddrc-test",    evidence: "controller config/register bring-up" }
+  - { block: "LCDIF (parallel-RGB v3)",         tier: B, test: "harness:display-imx91",    evidence: "QMP screendump" }
+  - { block: "USB-OTG x2 (ChipIdea)",           tier: B, test: "harness:functest-imx91",   evidence: "" }
+  - { block: "TPM x6",                          tier: B, test: boot,                       evidence: "clockevent/clocksource at boot" }
+  - { block: "GPIO x4",                         tier: B, test: "harness:functest-imx91",   evidence: "" }
+  - { block: "WDOG x5",                         tier: B, test: "harness:functest-imx91",   evidence: "" }
+  - { block: "TMU (thermal)",                   tier: B, test: boot,                       evidence: "honest-parameterizable: settable temperature prop (default 40C)", caveat: "fixed-but-settable, documented" }
+  - { block: "ADC1",                            tier: B, test: "harness:functest-imx91",   evidence: "operator-settable adc-chN QOM props (default 0x100+ch*0x111); injection verified (was silent-wrong, fixed 2026-06-28)" }
+  - { block: "OCOTP (fuses)",                   tier: B, test: boot,                       evidence: "SoC serial/UID read (configured MAC/UID)" }
+  - { block: "BBNSM (RTC / secure)",            tier: B, test: boot,                       evidence: "" }
+  - { block: "SYSCTR / TSTMR",                  tier: B, test: boot,                       evidence: "system timebase" }
+  - { block: "SEMA42 x2",                       tier: B, test: "harness:functest-imx91",   evidence: "" }
+  - { block: "MU1 / MU2 (messaging units)",     tier: B, test: boot,                       evidence: "" }
+  - { block: "CCM / ANATOP / SRC (clocks)",     tier: B, test: boot,                       evidence: "Linux programs directly (no SM)" }
+  - { block: "ELE (EdgeLock Enclave, MU)",      tier: B, test: boot,                       evidence: "honest-fault rail: ele-uncomputed-cmds counter + opt-in ele-unmodelled-errcode guest fault (verified); SoC-id is via SiP, not ELE", caveat: "residual: GET_INFO/RNG DMA-payload cmds unmodelled (no 91 consumer)" }
+  - { block: "WM8962 codec (I2C)",              tier: B, test: "harness:audio-imx91",      evidence: "" }
+  - { block: "MT9M114 sensor (I2C)",            tier: B, test: "harness:camera-imx91",     evidence: "" }
+  - { block: "PCA9451 PMIC / PCA9538 expander (I2C)", tier: B, test: boot,                 evidence: "I2C regdev" }
+
+absent:
+  - { block: "Ethos-U65 NPU",          reason: "No NPU on i.MX 91 (93-only). The fleet's worst silent-wrong class is absent here." }
+  - { block: "Cortex-M33 (+ its MU peer)", reason: "No M33 on i.MX 91" }
+  - { block: "2nd Cortex-A55",         reason: "i.MX 91 is single-core" }
+  - { block: "PXP 2D engine",          reason: "Not present on i.MX 91" }
+  - { block: "MIPI-DSI",               reason: "i.MX 91 has parallel-RGB LCDIF only" }
+  - { block: "MIPI-CSI",               reason: "i.MX 91 has parallel camera (ISI) only" }
+  - { block: "LVDS",                   reason: "Not present on i.MX 91" }
+  - { block: "ADV7535 HDMI bridge",    reason: "No DSI -> no HDMI-bridge chain" }
+  - { block: "System Manager (SM)",    reason: "Absent on i.MX 93/91; Linux drives CCM/ANATOP/SRC directly" }
+
+# Self-hosting capability tier (ported from i.MX 95; fleet diff-ability). Proves
+# the emulated A55 can COMPILE AND RUN real code in-guest (not just cross-then-run)
+# - the 10k-dev board-farm "build your code ON the board" guarantee. Harness:
+# tests/in-guest-build-imx91/. Each level checks in-guest stdout vs the program's
+# own // EXPECT: line; pass=N fail=0 to be green.
+in_guest_build:
+  - { level: 1, name: "tcc + musl (busybox initramfs)",       script: "tests/in-guest-build-imx91/run.sh",           status: PASS, evidence: "pass=3 fail=0 (2026-06-29): native aarch64 tcc built from source; sum/fib/qsort compiled+run in-guest" }
+  - { level: 2, name: "native gcc/g++ glibc rootfs (SD root)", script: "tests/in-guest-build-imx91/run-gcc.sh",       status: PASS, evidence: "pass=3 fail=0 (2026-06-29): real GCC 14.3.0; C + libm + C++ STL compiled+run in-guest off /dev/mmcblk0" }
+  - { level: 3, name: "real upstream projects build + self-test", script: "tests/in-guest-build-imx91/run-gcc-build.sh", status: PASS, evidence: "pass=3 fail=0 (2026-06-29): bzip2/zlib/lua built natively + their own make test passed in-guest" }
