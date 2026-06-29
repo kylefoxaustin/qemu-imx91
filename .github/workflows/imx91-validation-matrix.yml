@@ -1,0 +1,82 @@
+# i.MX 91 validation matrix — CI-generated test-result matrix.
+#
+# Implements the fleet CI guardrail (operator + holobench, 2026-06): the matrix is
+# generated from the ACTUAL qtest run, while the fidelity TIER + caveats come from
+# the human-authored docs/validation/test-matrix.yaml. tests/gen-test-matrix.py
+# assembles the two; it never infers a tier from a green test. This job builds the
+# aarch64 target + the i.MX 91 qtests, runs the generator (which exits non-zero if
+# any qtest fails), and publishes the matrix as a job summary + artifact.
+#
+# Scope: build + qtests + matrix only. The boot / in-guest-build tiers need BSP
+# kernel + rootfs assets not present in CI; the generator labels those rows from
+# their declared kind and gates ONLY on the qtest rows it actually runs.
+name: imx91-validation-matrix
+
+on:
+  push:
+    branches: [imx91-dev]
+    paths:
+      - 'hw/**'
+      - 'include/hw/**'
+      - 'tests/qtest/imx91-*'
+      - 'tests/gen-test-matrix.py'
+      - 'docs/validation/test-matrix.yaml'
+      - '.github/workflows/imx91-validation-matrix.yml'
+  pull_request:
+    branches: [imx91-dev]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build pkg-config libglib2.0-dev libpixman-1-dev \
+            flex bison python3 python3-pip python3-venv
+          pip3 install --user meson PyYAML
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure (aarch64-softmmu only)
+        run: |
+          ./configure --target-list=aarch64-softmmu \
+            --disable-docs --disable-tools --disable-werror
+
+      - name: Build qemu-system-aarch64 + i.MX 91 qtests
+        run: |
+          ninja -C build qemu-system-aarch64
+          # Build exactly the wired i.MX 91 qtest binaries the generator runs.
+          ninja -C build \
+            tests/qtest/imx91-ddrc-test    tests/qtest/imx91-flexcan-test \
+            tests/qtest/imx91-flexio-test  tests/qtest/imx91-flexspi-test \
+            tests/qtest/imx91-i3c-test     tests/qtest/imx91-isi-test \
+            tests/qtest/imx91-lpi2c-test   tests/qtest/imx91-lpspi-test \
+            tests/qtest/imx91-micfil-test  tests/qtest/imx91-sai-test \
+            tests/qtest/imx91-xcvr-test
+
+      - name: Generate test-result matrix (gates on qtest regressions)
+        run: |
+          QTEST_QEMU_BINARY="$PWD/build/qemu-system-aarch64" \
+            python3 tests/gen-test-matrix.py -o build/test-result-matrix.generated.md
+          {
+            echo "## i.MX 91 test-result matrix (CI-generated)"
+            echo
+            cat build/test-result-matrix.generated.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload generated matrix
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: imx91-test-result-matrix
+          path: build/test-result-matrix.generated.md

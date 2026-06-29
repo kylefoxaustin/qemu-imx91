@@ -140,11 +140,20 @@ explicit and auditable; none should ever appear as a failing test.
   probes for it should see "not present," not a silent-wrong success.
 - **⚑** — read `fidelity-audit.md` before trusting that block for real data.
 
-## CI generation (planned)
+## CI generation
 
-Per the operator directive, this matrix becomes CI-generated: CI fills the
-**Test result** column from the actual harness run, while **Tier** and the ⚑
-caveats are read from an in-repo annotation (`test-matrix.yaml`) — CI assembles,
-it does **not** invent tiers (mis-tiering would itself be a silent fail). Pending
-the fleet-canonical template that holobench distills after the first repo (i.MX 93)
-clears upstream review.
+Per the operator directive, this matrix is CI-generated. The GitHub Actions
+workflow [`.github/workflows/imx91-validation-matrix.yml`](../../.github/workflows/imx91-validation-matrix.yml)
+builds the aarch64 target + the i.MX 91 qtests and runs
+[`tests/gen-test-matrix.py`](../../tests/gen-test-matrix.py), which fills the
+**Test result** column from the actual qtest run while reading **Tier** and the ⚑
+caveats verbatim from the in-repo annotation [`test-matrix.yaml`](test-matrix.yaml) —
+CI assembles, it does **not** invent tiers (mis-tiering would itself be a silent
+fail). The generator exits non-zero on any qtest regression, so the job gates on
+it; the assembled matrix is published as a job summary + artifact. The boot /
+in-guest-build tiers need BSP assets absent in CI, so the generator labels those
+rows from their declared kind and gates only on the qtest rows it runs.
+
+This document is the curated human reference; the CI-generated form is the
+machine artifact. Final convergence to the fleet-canonical template follows after
+the first repo (i.MX 93) clears upstream review (holobench distills + propagates).
