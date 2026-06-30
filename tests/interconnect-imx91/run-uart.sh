@@ -36,21 +36,16 @@ SOCK=${SOCK:-$(mktemp -u /tmp/imx91-uartlink.XXXXXX.sock)}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK" "$SOCK"; kill ${SPID:-} ${CPID:-} 2>/dev/null' EXIT
 SPID=; CPID=
 
-# ---- patch the DTB: enable LPUART2 (serial@44390000), PIO mode --------------
-# Two edits in the serial@44390000 node:
-#   1. status "disabled" -> "okay"   (the serial1 alias already points here)
-#   2. drop dmas/dma-names           -> the driver uses PIO RX/TX
-# Why (2): the imx_lpuart model is PIO-only (hw/char/imx_lpuart.c: "no DMA"). With
-# dmas present the Linux imx-lpuart driver uses DMA-RX and waits on an eDMA
-# completion the model never raises (the LPUART<->eDMA request line is unmodelled),
-# so received bytes never reach userspace. In PIO mode the model's RDRF+RIE path
-# delivers them. See README "LPUART DMA caveat".
+# ---- patch the DTB: enable LPUART2 (serial@44390000) ------------------------
+# The base EVK DTB only enables LPUART1 (the console), so flip serial@44390000
+# from status="disabled" to "okay" (the serial1 alias already points here). The
+# node keeps its dmas= props: the model services DMA-mode RX (the LPUART asserts
+# its eDMA request + an IDLE interrupt, and the eDMA pages bytes from DATA into
+# the driver's cyclic ring), so no PIO workaround is needed.
 "$DTC" -I dtb -O dts "$DTB" 2>/dev/null > "$WORK/base.dts" || die "dtc decompile failed"
 awk '
   /serial@44390000 \{/ { inn = 1 }
-  inn && /status = "disabled"/ { sub(/disabled/, "okay") }
-  inn && (/dmas = </ || /dma-names = /) { next }
-  inn && /^\t\t\t\};/ { inn = 0 }
+  inn && /status = "disabled"/ { sub(/disabled/, "okay"); inn = 0 }
   { print }
 ' "$WORK/base.dts" > "$WORK/uart.dts"
 "$DTC" -I dts -O dtb "$WORK/uart.dts" 2>/dev/null > "$WORK/uart.dtb" || die "dtc recompile failed"

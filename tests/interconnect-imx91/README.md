@@ -57,19 +57,23 @@ PASS: payload crossed LPUART2<->socket<->LPUART2 byte-exact between two guests
 The base EVK DTB only enables LPUART1 (the console, `ttyLP0`), so the harness
 generates a patched DTB (via the BSP `dtc`) enabling `serial@44390000` (LPUART2);
 the `serial1` alias already points at it. SKIPs cleanly if `dtc` isn't found.
+The node keeps its `dmas` props — DMA-mode RX is modelled, so no PIO workaround.
 
-### LPUART DMA caveat (a real model finding)
+### LPUART DMA-RX (a model fix this harness drove out)
 
-The patched DTB also **strips `dmas`/`dma-names`** from the LPUART2 node, forcing
-PIO. Reason: `hw/char/imx_lpuart.c` is **PIO-only** (RDRF + RIE, no DMA). With
-`dmas` present the Linux `imx-lpuart` driver uses **DMA-RX** and waits on an eDMA
-completion the model never raises (the LPUART↔eDMA request line is unmodelled) —
-so received bytes sit in the model's RX register and never reach userspace (the
-read just times out; no wrong data, but no data). In PIO mode the model's RDRF/RIE
-path delivers them and the link works both directions. Console TX is unaffected
-(PIO). Recorded in [`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md);
-the proper fix is to model the LPUART↔eDMA RX/TX request lines (as audio capture
-does for SAI/MICFIL), which would let DMA-mode RX work without the DTB tweak.
+Bringing up this link uncovered that DMA-mode UART RX wasn't modelled, and the fix
+landed in `hw/char/imx_lpuart.c`: the i.MX `imx-lpuart` driver pages RX through a
+**cyclic eDMA** channel and flushes it on an **IDLE interrupt** (it sets
+`dma_idle_int`), not via RDRF. So the model now, on each received byte with
+`BAUD.RDMAE` set, asserts the LPUART's `dma-req-rx` line (the eDMA pages the byte
+from `DATA` into the driver's ring) and raises `STAT.IDLE` (driving the driver's
+ring flush). The real blocker was the MMIO `.valid.min_access_size = 4`: the eDMA
+reads `DATA` a **byte** at a time, so the access was rejected before reaching the
+handler and `rx_full` never cleared — fixed by allowing byte-wide `valid` access
+(the `.impl` width keeps the handler in 32-bit units). Each LPUART's RX request is
+wired to its eDMA at the DTB source id in `fsl-imx91.c`. TX needs no request line
+(mem→device runs whole at channel start). Recorded in
+[`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md).
 
 ## How Holobench wires it
 
