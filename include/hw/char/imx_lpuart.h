@@ -36,6 +36,14 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMXLPUARTState, IMX_LPUART)
 #define LPUART_PINCFG           0x0C
 #define LPUART_BAUD             0x10
 #define LPUART_STAT             0x14
+
+/*
+ * BAUD DMA-enable bits. RDMAE: a received byte raises a DMA request line
+ * instead of (the driver clears) the RX interrupt. TDMAE is unused by the
+ * model: TX is mem->device, which the eDMA runs whole at channel start.
+ */
+#define LPUART_BAUD_RDMAE       (1u << 21)
+#define LPUART_BAUD_TDMAE       (1u << 23)
 #define LPUART_CTRL             0x18
 #define LPUART_DATA             0x1C
 #define LPUART_MATCH            0x20
@@ -104,6 +112,7 @@ struct IMXLPUARTState {
     MemoryRegion    iomem;
     CharFrontend    chr;
     qemu_irq        irq;
+    qemu_irq        dma_req_rx;     /* RX DMA request line (BAUD.RDMAE) */
 
     /* Register state. Only the writable bits are tracked. */
     uint32_t        baud;
