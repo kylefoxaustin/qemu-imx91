@@ -6,7 +6,8 @@ the i.MX 91 does — and in the exact shape Holobench wires links into a lab
 (a QEMU socket bridge between two instances), so the 91 is drop-in lab-ready.
 
 ```sh
-tests/interconnect-imx91/run-eth.sh     # two i.MX 91 instances, FEC <-> socket <-> FEC
+tests/interconnect-imx91/run-eth.sh     # two instances, FEC <-> socket <-> FEC
+tests/interconnect-imx91/run-uart.sh    # two instances, LPUART2 <-> socket <-> LPUART2
 ```
 
 ## Ethernet link (`run-eth.sh`)
@@ -41,18 +42,46 @@ synchronous external abort (`0x96000050`) during probe. This is a guest-memory
 sizing requirement, not a model bug — the FEC works (it moves the bytes). The
 boot/functest harnesses already use a large `-m` for the same reason.
 
+## UART link (`run-uart.sh`)
+
+Two i.MX 91 guests, each board's **LPUART2 (`/dev/ttyLP1`)** bridged by a QEMU
+socket chardev (`-chardev socket,...,server=on` on the receiver, `server=off` on
+the sender, attached as each board's 2nd `-serial`). The receiver reads a line,
+the sender writes the payload; the receiver verifies it **byte-exact**. Verified:
+
+```
+LINK:PASS:recv:got byte-exact [IMX91-UART-LINK-payload-0123456789]
+PASS: payload crossed LPUART2<->socket<->LPUART2 byte-exact between two guests
+```
+
+The base EVK DTB only enables LPUART1 (the console, `ttyLP0`), so the harness
+generates a patched DTB (via the BSP `dtc`) enabling `serial@44390000` (LPUART2);
+the `serial1` alias already points at it. SKIPs cleanly if `dtc` isn't found.
+
+### LPUART DMA caveat (a real model finding)
+
+The patched DTB also **strips `dmas`/`dma-names`** from the LPUART2 node, forcing
+PIO. Reason: `hw/char/imx_lpuart.c` is **PIO-only** (RDRF + RIE, no DMA). With
+`dmas` present the Linux `imx-lpuart` driver uses **DMA-RX** and waits on an eDMA
+completion the model never raises (the LPUART↔eDMA request line is unmodelled) —
+so received bytes sit in the model's RX register and never reach userspace (the
+read just times out; no wrong data, but no data). In PIO mode the model's RDRF/RIE
+path delivers them and the link works both directions. Console TX is unaffected
+(PIO). Recorded in [`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md);
+the proper fix is to model the LPUART↔eDMA RX/TX request lines (as audio capture
+does for SAI/MICFIL), which would let DMA-mode RX work without the DTB tweak.
+
 ## How Holobench wires it
 
-The two-instance `-nic socket,listen=`/`-nic socket,connect=` pair is the same
-transport Holobench's LabCoordinator uses for ethernet segments (per-link socket,
-isolated transport). To wire the 91 into a lab, point one instance's
-`-nic socket,connect=` at the segment's listener; the model side stays stock.
+The two-instance socket pair (`-nic socket,listen=`/`connect=` for ethernet,
+`-chardev socket,server=on/off` for UART) is the same per-link, isolated-transport
+shape Holobench's LabCoordinator uses for ethernet segments and serial links. To
+wire the 91 into a lab, point one instance's connector at the segment's listener;
+the model side stays stock.
 
 ## Roadmap (other links)
 
-Ethernet is proven. Next transports to add the same byte-exact oracle for:
-- **UART** — bridge a second LPUART (`/dev/ttyLP*`) between two instances via a
-  `-serial socket` chardev; pass + verify a payload.
+Ethernet and UART are proven. Next transports to add the same byte-exact oracle:
 - **USB** — the 91's ChipIdea controller over `usbredir` (the 93<->MCX link shape);
   shares the upstream importer-contract + char-socket reconnect work the fleet is
   already hardening.
