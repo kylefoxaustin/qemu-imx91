@@ -113,6 +113,30 @@ All three levels green (2026-06-29):
 | 2 | real GCC 14.3.0 / g++ + glibc rootfs off SD (`/dev/mmcblk0`) — C, libm, C++ STL | **pass=3 fail=0** |
 | 3 | real upstream projects (bzip2/zlib/lua) built natively + their own `make test` | **pass=3 fail=0** |
 
+## Interconnect capability — pass real data between instances
+
+Mission #5: the model passes real data over its links between QEMU instances, in
+the per-link socket shape a lab coordinator wires. Harness:
+[`tests/interconnect-imx91/`](../../tests/interconnect-imx91/).
+
+| Link | What | Result |
+|------|------|--------|
+| Ethernet | two 91s, FEC eth0 `-nic socket` bridge, byte-exact payload | **PASS** |
+| UART | two 91s, LPUART2 `/dev/ttyLP1` `-chardev socket` bridge, byte-exact | **PASS** |
+| USB | 91 usbredir host ↔ MCX gadget, HS enum + EP1 bulk-echo byte-exact | **PASS** |
+
+## Developer access — PuTTY (serial + SSH)
+
+The board-farm "a dev reaches the board like a real EVK" check. Harness:
+[`tests/putty-imx91/`](../../tests/putty-imx91/) boots the full BSP rootfs:
+
+| Path | What | Result |
+|------|------|--------|
+| Serial | `serial-getty@ttyLP0` → `imx91evk login:` → root shell (PuTTY over serial) | **PASS** |
+| SSH | openssh sshd → `ssh root@` over an eQOS `hostfwd` | **PASS** |
+
+Both FEC (eth0) + eQOS (eth1) bind and DHCP — real ethernet, no netdev workaround.
+
 ## Absent IP — N/A (NOT a negative result)
 
 These blocks do **not exist on i.MX 91 silicon**. Listed so the absence is
