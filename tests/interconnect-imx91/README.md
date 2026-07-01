@@ -8,6 +8,7 @@ the i.MX 91 does — and in the exact shape Holobench wires links into a lab
 ```sh
 tests/interconnect-imx91/run-eth.sh     # two instances, FEC <-> socket <-> FEC
 tests/interconnect-imx91/run-uart.sh    # two instances, LPUART2 <-> socket <-> LPUART2
+tests/interconnect-imx91/run-usb.sh     # 91 usbredir host <-> MCX gadget, enum + bulk
 ```
 
 ## Ethernet link (`run-eth.sh`)
@@ -75,19 +76,48 @@ wired to its eDMA at the DTB source id in `fsl-imx91.c`. TX needs no request lin
 (mem→device runs whole at channel start). Recorded in
 [`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md).
 
+## USB link (`run-usb.sh`)
+
+USB is host/device asymmetric: the 91's ChipIdea controller is a **host** (EHCI),
+so the 91 is the usbredir **host/importer** (stock `-device usb-redir`) and the
+**device** end is the fleet's MCX gadget (`frdm-mcxn947` running the HS/ChipIdea
+usbredir device firmware, `tests/mcxn-usb-link/serve.sh` in the mcxn947qemu tree)
+— the same pairing the i.MX 93 ↔ MCX link uses. The harness launches the gadget
+server on a private socket, boots the 91 as the importer, waits for enumeration,
+then runs the [`usbbulk`](usbbulk.c) usbfs oracle. Verified end-to-end:
+
+```
+usb 2-1: new high-speed USB device number 2 using ci_hdrc
+ENUM: device enumerated after 1s   →   BULK:FOUND 1fc9:0094 at bus 2 dev 2
+BULK: EP1 OUT wrote 64 bytes / EP1 IN read 64 bytes
+BULK:PASS: 64 bytes echoed byte-for-byte over the live link
+```
+
+Full chain both ways: guest usbfs app → i.MX 91 Linux USB → ci_hdrc/EHCI → QEMU
+usb-redir → unix socket → MCX firmware EP1 echo → back. **Depends on the ChipIdea
+`PORTSC.PSPD` fix** (commit `bf8262fec5`, cross-validated from the i.MX 93) —
+without it the 91 host downgrades the HS gadget to full-speed and clamps its
+512-byte bulk EPs.
+
+**Gotcha (2×TCG contention):** the gadget server and the 91 both run under TCG on
+one host, so let the server warm up before the 91 boots (`WARMUP=5` default) —
+otherwise the enumeration control transfers starve and the device attaches at HS
+but never finishes reading descriptors. SKIPs cleanly if the mcxn947qemu gadget
+server isn't present (set `MCXSERVE=`).
+
 ## How Holobench wires it
 
-The two-instance socket pair (`-nic socket,listen=`/`connect=` for ethernet,
-`-chardev socket,server=on/off` for UART) is the same per-link, isolated-transport
-shape Holobench's LabCoordinator uses for ethernet segments and serial links. To
-wire the 91 into a lab, point one instance's connector at the segment's listener;
-the model side stays stock.
+The per-link socket pair (`-nic socket,listen=`/`connect=` for ethernet,
+`-chardev socket,server=on/off` for UART, and a usbredir socket for USB) is the
+same isolated-transport shape Holobench's LabCoordinator uses. To wire the 91
+into a lab, point its connector/importer at the segment's listener/device end;
+the model side stays stock. For USB the 91 is the host importer
+(`-device usb-redir,chardev=...`) against the MCX device end — the exact arg-pair
+the fleet's i.MX 93 ↔ MCX link uses.
 
 ## Roadmap (other links)
 
-Ethernet and UART are proven. Next transports to add the same byte-exact oracle:
-- **USB** — the 91's ChipIdea controller over `usbredir` (the 93<->MCX link shape);
-  shares the upstream importer-contract + char-socket reconnect work the fleet is
-  already hardening.
+Ethernet, UART and USB are proven. Next transports to add the same byte-exact
+oracle:
 - **SPI/CAN** — LPSPI / FlexCAN are qtest-proven at the controller level; a
   cross-instance bridge is the remaining step.
