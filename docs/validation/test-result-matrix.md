@@ -135,7 +135,8 @@ The board-farm "a dev reaches the board like a real EVK" check. Harness:
 | Serial | `serial-getty@ttyLP0` → `imx91evk login:` → root shell (PuTTY over serial) | **PASS** |
 | SSH | openssh sshd → `ssh root@` over an eQOS `hostfwd` | **PASS** |
 
-Both FEC (eth0) + eQOS (eth1) bind and DHCP — real ethernet, no netdev workaround.
+Both FEC (eth0) + eQOS (eth1) bind and DHCP on the **stock EVK dtb** — real
+ethernet, no netdev tweak needed.
 
 ## Absent IP — N/A (NOT a negative result)
 

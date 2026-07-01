@@ -45,5 +45,7 @@ over real modeled ethernet — no virtio-net workaround needed.
 
 This is the shape of Holobench's developer-access exercise (PuTTY over serial +
 SSH into an EVK). For a lab, point PuTTY at the serial backend (`-serial pty`/a
-socket) for the console, or SSH to the `hostfwd` port. The i.MX 91 needs no
-netdev workaround (contrast the i.MX 95 ENETC, which didn't bind a guest netdev).
+socket) for the console, or SSH to the `hostfwd` port. The i.MX 91's FEC + eQOS
+bind and DHCP on the **stock EVK dtb**, so no netdev tweak is needed. (The i.MX 95
+ENETC also binds/COMPUTES, but its stock dtb points the ports at unmodeled
+external PHYs and needs a one-line fixed-link dtb override; the 91 needs none.)
