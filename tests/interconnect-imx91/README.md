@@ -105,6 +105,32 @@ otherwise the enumeration control transfers starve and the device attaches at HS
 but never finishes reading descriptors. SKIPs cleanly if the mcxn947qemu gadget
 server isn't present (set `MCXSERVE=`).
 
+## USB-CDC serial link (`run-usb-cdc.sh`)
+
+The richer cousin of the vendor bulk-echo: the device end is the fleet's MCX
+**CDC-ACM** gadget (`serve.sh cdc`), so the 91's real `cdc_acm` driver binds it as
+`/dev/ttyACM0` and we round-trip a payload through the tty — the "PuTTY into the
+board over USB-serial" path. The oracle is [`ttyecho`](ttyecho.c) (static, termios,
+no libusb): open `/dev/ttyACM0` raw, write, read the echo, verify **byte-exact**.
+
+```
+usb 2-1: new high-speed USB device number 2 using ci_hdrc
+cdc_acm 2-1:1.0: ttyACM0: USB ACM device   →   ENUM: /dev/ttyACM0 present after 1s
+TTYACM: sent 37/37 bytes (first-write retries=0)
+TTYACM:PASS: 37 bytes round-tripped over USB-CDC serial
+```
+
+Full chain both ways: guest `cdc_acm` write → ci_hdrc/EHCI → usb-redir → socket →
+MCX gadget EP1-OUT → firmware echo → EP1-IN → `cdc_acm` read. So a developer can
+**PuTTY into the 91 over `/dev/ttyACM`** — cross-confirmed against the i.MX 93 host.
+
+Beyond the shared `PORTSC.PSPD` fix, the device end needs the MCX CDC gadget's
+`SET_LINE_CODING` + write + interrupt-callback SIGSEGV fixes. **First-write timing
+race:** `cdc_acm`'s first bulk-OUT, issued right after bind, can `EIO` before the
+freshly-configured CDC-data endpoint is ready; `ttyecho` masks it with a ~200 ms
+settle + retry-on-`EIO` (how a real app that just opened a modem behaves). SKIPs
+cleanly if the gadget server or `cdc-acm.ko` (a BSP module) are absent.
+
 ## How Holobench wires it
 
 The per-link socket pair (`-nic socket,listen=`/`connect=` for ethernet,
