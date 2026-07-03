@@ -53,7 +53,8 @@ apply to any i.MX 91 board** — the 91 instantiates no remote accelerator.
 | **ISI (parallel camera capture)** | **COMPUTES** | Writes captured frames to guest memory (sensor→ISI pipeline); `v4l2_cap` oracle reads real frame data. qtest `imx91-isi-test` green. |
 | **FEC / EQOS (ENET)** | **COMPUTES** | Moves real Ethernet frames (boot DHCP/networking). |
 | **USDHC ×3** | **COMPUTES** | SDHCI ADMA datapath moves real block data (boot/rootfs from SD/eMMC). |
-| **FlexCAN, FlexIO, I3C, LPI2C, LPSPI, XCVR, DDRC** | **COMPUTES** | Register/data round-trips verified by their qtests (all green); FlexIO carries the event-driven shift-race fix. |
+| **LPSPI** | **COMPUTES (PIO)** | `hw/ssi/imx93_lpspi.c` — a real SPI master: each TDR write shifts a byte onto a QEMU SSI bus (`ssi_transfer`) and returns the shifted-in byte. Verified end-to-end by `tests/interconnect-imx91/run-spi.sh` (two 91s pass a payload `/dev/spidev` → `spi-link` → socket → `spi-link` → `/dev/spidev`, byte-exact). Bringing up the real `spi-fsl-lpspi` driver drove out two fixes the qtest missed: `PARAM.PCSNUM` now non-zero (else `spi_register_controller` → `-EINVAL`, `num_chipselect=0` — the controller couldn't register at all) and each frame raises `FCF` (the PIO driver waits on frame-complete; otherwise `-110` timeout). A good example of interconnect/real-driver testing catching what a register qtest passed over. |
+| **FlexCAN, FlexIO, I3C, LPI2C, XCVR, DDRC** | **COMPUTES** | Register/data round-trips verified by their qtests (all green); FlexIO carries the event-driven shift-race fix. |
 | **OCOTP** | **COMPUTES / honest** | Returns configured MAC/UID fuse words (no soc-id field — that's the SiP SMC). No hidden constant surfaced in the audit. |
 | **GPIO, WDOG, TPM, MU, BBNSM, SYSCTR, SEMA42, CCM/ANATOP/SRC** | **COMPUTES** (control/timing) | Register/IRQ/timing semantics; relied on by a full Linux boot to shell. No compute-fakery (these are control blocks, not data engines). |
 

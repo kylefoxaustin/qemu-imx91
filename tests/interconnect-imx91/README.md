@@ -6,9 +6,11 @@ the i.MX 91 does — and in the exact shape Holobench wires links into a lab
 (a QEMU socket bridge between two instances), so the 91 is drop-in lab-ready.
 
 ```sh
-tests/interconnect-imx91/run-eth.sh     # two instances, FEC <-> socket <-> FEC
-tests/interconnect-imx91/run-uart.sh    # two instances, LPUART2 <-> socket <-> LPUART2
-tests/interconnect-imx91/run-usb.sh     # 91 usbredir host <-> MCX gadget, enum + bulk
+tests/interconnect-imx91/run-eth.sh      # two instances, FEC <-> socket <-> FEC
+tests/interconnect-imx91/run-uart.sh     # two instances, LPUART2 <-> socket <-> LPUART2
+tests/interconnect-imx91/run-spi.sh      # two instances, LPSPI <-> spi-link <-> socket
+tests/interconnect-imx91/run-usb.sh      # 91 usbredir host <-> MCX gadget, enum + bulk
+tests/interconnect-imx91/run-usb-cdc.sh  # 91 host <-> MCX CDC gadget, /dev/ttyACM serial
 ```
 
 ## Ethernet link (`run-eth.sh`)
@@ -141,9 +143,35 @@ the model side stays stock. For USB the 91 is the host importer
 (`-device usb-redir,chardev=...`) against the MCX device end — the exact arg-pair
 the fleet's i.MX 93 ↔ MCX link uses.
 
+## SPI link (`run-spi.sh`)
+
+Two i.MX 91 guests, each driving its **LPSPI1** master via `spidev`
+(`/dev/spidev0.0`), bridged by the new **`spi-link`** SSI peripheral over a QEMU
+socket chardev. SPI is master-driven, so each side is an LPSPI master with a
+`spi-link` peripheral on its bus (`-device spi-link,bus=lpspi1,chardev=…`): the
+sender clocks the payload out (MOSI → spi-link → socket → peer), the receiver
+clocks dummy bytes to shift it in (MISO ← spi-link ← socket). The oracle is
+[`spilink`](spilink.c) (raw spidev ioctls, static). Verified:
+
+```
+SPILINK:SENT 33 bytes [IMX91-SPI-LINK-payload-0123456789]
+SPILINK:PASS: 33 bytes crossed the SPI link byte-exact
+PASS: payload crossed LPSPI<->spi-link<->socket<->spi-link<->LPSPI byte-exact
+```
+
+The base EVK DTB disables the LPSPIs, so the harness enables `spi@44360000`
+(lpspi1), drops its `dmas` (the `imx93_lpspi` model is PIO — `ssi_transfer`), and
+adds a `spidev@0` child (`rohm,dh2228fv`, in the kernel spidev allow-list) so the
+guest exposes `/dev/spidev*`. Bringing this up drove out two `imx93_lpspi` model
+fixes (both needed before the real `spi-fsl-lpspi` driver could bind): the `PARAM`
+register now reports a non-zero `PCSNUM` (else `spi_register_controller` fails
+`-EINVAL` with `num_chipselect=0`), and each frame raises `FCF` (the driver waits
+on frame-complete and would otherwise time out `-110`). Recorded in
+[`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md).
+
 ## Roadmap (other links)
 
-Ethernet, UART and USB are proven. Next transports to add the same byte-exact
-oracle:
-- **SPI/CAN** — LPSPI / FlexCAN are qtest-proven at the controller level; a
-  cross-instance bridge is the remaining step.
+Ethernet, UART, USB (bulk + CDC-serial) and SPI are proven. Next transport to add
+the same byte-exact oracle:
+- **CAN** — FlexCAN is qtest-proven at the controller level; a cross-instance
+  bridge is the remaining step.
