@@ -28,6 +28,11 @@ the long-term aim is upstream-mergeability into QEMU mainline.
 
 **Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
 
+![qemu-imx91 — single Cortex-A55, the entry-tier i.MX 9](docs/images/imx91-hero.png)
+
+*Part of a consistent hero-image family across the QEMU fleet — solid silicon for
+the emulator repos, one accent per node (i.MX 91 green).*
+
 ![i.MX 91 LCDIF parallel-RGB display scanout — the Linux boot logo on the emulated panel](docs/images/imx91-boot-logo.png)
 
 *The Linux kernel boot logo — one Tux for the single Cortex-A55 — scanned out at
