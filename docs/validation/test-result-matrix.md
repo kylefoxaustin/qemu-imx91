@@ -42,8 +42,11 @@ never infer it from a pass**:
 A ⚑ in the Evidence column flags a **fidelity caveat** (see `fidelity-audit.md`).
 
 **Snapshot provenance:** Test-result column verified against
-`build/qemu-system-aarch64` on 2026-06-28; model at commit `7ce8a8d`
-(`imx91-dev`). qtest suite: **11/11 passed, 18 assertions, 0 failures.**
+`build/qemu-system-aarch64` on 2026-07-03; model at commit `ff4901e`
+(`imx91-dev`). qtest suite: **11 files / 18 tests passed, 0 failures**
+(re-run by `gen-test-matrix.py`; it caught + gated a stale LPSPI `PARAM`
+assertion this pass). All six interconnect links (ethernet / UART / SPI / CAN /
+USB-bulk / USB-CDC) are proven byte-exact between instances.
 
 ## Present IP
 
