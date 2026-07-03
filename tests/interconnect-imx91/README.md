@@ -9,6 +9,7 @@ the i.MX 91 does — and in the exact shape Holobench wires links into a lab
 tests/interconnect-imx91/run-eth.sh      # two instances, FEC <-> socket <-> FEC
 tests/interconnect-imx91/run-uart.sh     # two instances, LPUART2 <-> socket <-> LPUART2
 tests/interconnect-imx91/run-spi.sh      # two instances, LPSPI <-> spi-link <-> socket
+tests/interconnect-imx91/run-can.sh      # two instances, FlexCAN <-> can-host-chardev <-> socket
 tests/interconnect-imx91/run-usb.sh      # 91 usbredir host <-> MCX gadget, enum + bulk
 tests/interconnect-imx91/run-usb-cdc.sh  # 91 host <-> MCX CDC gadget, /dev/ttyACM serial
 ```
@@ -169,9 +170,31 @@ register now reports a non-zero `PCSNUM` (else `spi_register_controller` fails
 on frame-complete and would otherwise time out `-110`). Recorded in
 [`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md).
 
-## Roadmap (other links)
+## CAN link (`run-can.sh`)
 
-Ethernet, UART, USB (bulk + CDC-serial) and SPI are proven. Next transport to add
-the same byte-exact oracle:
-- **CAN** — FlexCAN is qtest-proven at the controller level; a cross-instance
-  bridge is the remaining step.
+Two i.MX 91 guests, each with a **FlexCAN** (`can0`) on its own local `can-bus`,
+joined to the peer by **`can-host-chardev`** (`net/can/can_host_chardev.c`, the
+fleet-shared generic CAN transport) over a QEMU socket chardev — so **no
+host-kernel `vcan`/SocketCAN (root)** is needed, unlike `can-host-socketcan`. A
+known CAN frame crosses byte-exact; the oracle is [`canlink`](canlink.c) (raw
+rtnetlink bring-up + SocketCAN send/recv, static). Verified:
+
+```
+CANLINK:SENT id=0x321 [CANLink!]
+CANLINK:PASS: frame id=0x321 [CANLink!] crossed the CAN link byte-exact
+PASS: CAN frame crossed FlexCAN<->can-bus<->can-host-chardev<->socket<->...<->FlexCAN
+```
+
+The stock EVK DT already enables `flexcan2` (`can@425b0000` → `can0`), so no DT
+overlay is needed; both machine can-buses are wired to one bus (`-machine
+canbus0=cb,canbus1=cb`) so whichever node the guest enumerates as `can0` is on
+the bridged bus. `can-host-chardev` was carried from the i.MX 95 (the fleet's
+generic, upstream-shaped CAN transport); the 91's FlexCAN needed **no model
+changes** — it was already a proper `can-bus` client. The CAN stack loads as
+modules from the BSP.
+
+## Roadmap — all wired transports proven
+
+Ethernet, UART, SPI, USB (bulk + CDC-serial) and **CAN** are all proven
+byte-exact between instances. Mission #5 (inter-QEMU data over the board's real
+buses) is complete for the i.MX 91's wired links.
