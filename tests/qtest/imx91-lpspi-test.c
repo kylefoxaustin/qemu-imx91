@@ -36,7 +36,10 @@
 #define TCR_CONT (1u << 21)
 
 #define VERID_VALUE 0x02000004
-#define PARAM_VALUE 0x00000404
+/* PARAM: TXFIFO/RXFIFO depth nibbles = 4 (16 entries) + PCSNUM = 4 (bits 19:16);
+ * a non-zero PCSNUM is required or the fsl-lpspi driver registers 0 chip-selects
+ * and spi_register_controller fails -EINVAL. */
+#define PARAM_VALUE 0x00040404
 
 #define RXCOUNT(fsr) (((fsr) >> 16) & 0xff)
 

@@ -180,7 +180,16 @@ static const MemoryRegionOps lpspi_ops = {
     .read = lpspi_read,
     .write = lpspi_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid = { .min_access_size = 4, .max_access_size = 4 },
+    /*
+     * Accept byte-wide accesses, not just 32-bit. When SPI runs over eDMA the
+     * DMA engine bursts each data word to TDR/RDR one byte at a time; a 4-byte-
+     * only .valid guard silently drops those narrower writes (the transfer
+     * "completes" but no byte reaches ssi_transfer). Same class as the LPUART
+     * DMA-RX byte-access fix. (The 91 currently falls back to PIO since SPI eDMA
+     * isn't wired, but the guard must not silently drop narrower bursts.)
+     */
+    .valid = { .min_access_size = 1, .max_access_size = 4 },
+    .impl = { .min_access_size = 1, .max_access_size = 4 },
 };
 
 static void lpspi_reset(DeviceState *dev)
