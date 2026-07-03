@@ -10,6 +10,7 @@ tests/interconnect-imx91/run-eth.sh      # two instances, FEC <-> socket <-> FEC
 tests/interconnect-imx91/run-uart.sh     # two instances, LPUART2 <-> socket <-> LPUART2
 tests/interconnect-imx91/run-spi.sh      # two instances, LPSPI <-> spi-link <-> socket
 tests/interconnect-imx91/run-can.sh      # two instances, FlexCAN <-> can-host-chardev <-> socket
+tests/interconnect-imx91/run-spi-stress.sh  # spi-link back-pressure: continuous clock, no vCPU hang
 tests/interconnect-imx91/run-usb.sh      # 91 usbredir host <-> MCX gadget, enum + bulk
 tests/interconnect-imx91/run-usb-cdc.sh  # 91 host <-> MCX CDC gadget, /dev/ttyACM serial
 ```
@@ -169,6 +170,15 @@ register now reports a non-zero `PCSNUM` (else `spi_register_controller` fails
 `-EINVAL` with `num_chipselect=0`), and each frame raises `FCF` (the driver waits
 on frame-complete and would otherwise time out `-110`). Recorded in
 [`docs/validation/fidelity-audit.md`](../../docs/validation/fidelity-audit.md).
+
+**Back-pressure hardening + stress ([`run-spi-stress.sh`](run-spi-stress.sh)).**
+The `spi-link` MOSI write is non-blocking: outgoing bytes are queued in a tx FIFO
+and drained with `qemu_chr_fe_write()` behind a `G_IO_OUT` watch, so a continuous
+full-duplex clock that outruns a peer (which back-pressures the socket) never
+blocks the vCPU inside a TDR write — it used to hang there (flagged fleet-wide by
+93/95). `run-spi-stress.sh` clocks ~600 KB at a peer that never drains and asserts
+the sender still reaches `STRESS:DONE` (no hang); under sustained overflow the
+link drops MOSI bytes (an overrun, logged once) rather than hanging the guest.
 
 ## CAN link (`run-can.sh`)
 
