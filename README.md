@@ -9,29 +9,22 @@ A QEMU machine type for the NXP **i.MX 91** SoC, targeting the **11×11 EVK**
 > port and, beneath it, upstream QEMU. The upstream QEMU README is preserved at
 > [`README.rst`](README.rst) — this file describes the i.MX 91-specific work.
 
-qemu-imx91 is the **first QEMU model of the i.MX 91**. The i.MX 91 is a
-**subset of the i.MX 93** (NXP AN14012 / AN14561): a **single Cortex-A55** (no
-second A55, no Cortex-M33), **no Ethos-U65 NPU**, **no PXP 2D engine**, and
-**no MIPI-DSI / MIPI-CSI / LVDS** — the display is **LCDIF parallel RGB** only,
-and the camera is the parallel path. So this machine is the i.MX 93 port with
-those blocks subtracted and the SoC retargeted to the 91's single-core topology.
+qemu-imx91 is the **first QEMU model of the i.MX 91**, and one node in a fleet of
+NXP QEMU ports (i.MX 91 / 93 / 95 and the MCXN947 microcontroller) that share
+device models and a validation standard. The i.MX 91 is a **subset of the i.MX 93**
+(NXP AN14012 / AN14561): a **single Cortex-A55** — no second A55, no Cortex-M33,
+no Ethos-U65 NPU, no PXP 2D engine, no MIPI-DSI / MIPI-CSI / LVDS (the display is
+**LCDIF parallel RGB** only, the camera the parallel path). So this machine is the
+i.MX 93 port with those blocks subtracted and the SoC retargeted to the 91's
+single-core topology. It is not cycle-accurate.
 
-It boots stock **NXP BSP Linux to userspace** on the single Cortex-A55 and
-brings up the EVK's core: **networking** (FEC + ENET_QoS, both with DHCP),
-**SD/eMMC storage** (ext4 mount, read/write), **GPIO/PMIC**, the **EdgeLock
-Enclave** mailbox, **eDMA1/2**, **I²C** (with the WM8962 codec + PMIC +
-expanders), and an **LCDIF parallel-RGB display** that scans a framebuffer out
-of guest DRAM to a fixed panel. It also boots a **vanilla mainline kernel** with
-the mainline `imx91-11x11-evk` device tree (i.MX 91 support landed in v6.18) — a
-fully-OSS boot that doubles as the upstream CI functional test. Intended use
-cases are BSP development, peripheral-driver development, and CI for the above.
-It is not cycle-accurate.
-
-Unlike the i.MX 95, the **i.MX 91 has no System Manager** — Linux programs the
-CCM / ANATOP / SRC / power domains directly, so those blocks are modelled
-functionally rather than served by firmware over SCMI. Structural conventions
-follow the upstream i.MX 8MP code (`hw/arm/fsl-imx8mp.{c,h}`) and the i.MX 93
-port; the long-term aim is to be upstream-mergeable into QEMU mainline.
+It boots stock **NXP BSP Linux to userspace** on the single Cortex-A55 — and a
+**vanilla mainline kernel** on the mainline `imx91-11x11-evk` device tree (i.MX 91
+support landed upstream in v6.18), a fully-OSS boot that doubles as the upstream CI
+functional test. Beyond booting, it passes real data between instances over five
+board buses (see [Interconnect](#interconnect--board-to-board-mission-5)). Intended
+use: BSP development, peripheral-driver development, multi-board lab work, and CI;
+the long-term aim is upstream-mergeability into QEMU mainline.
 
 **Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
 
@@ -45,8 +38,7 @@ port; the long-term aim is to be upstream-mergeable into QEMU mainline.
 
 This fork **builds and runs as-is** — a plain clone lands on `imx91-dev`.
 
-**1. Clone and build** — a standard QEMU build (see [Building](#building) for
-host packages):
+**1. Clone and build** (host packages under [Building](#building)):
 
     git clone https://github.com/kylefoxaustin/qemu-imx91.git
     cd qemu-imx91
@@ -55,279 +47,155 @@ host packages):
     ninja qemu-system-aarch64
     ./qemu-system-aarch64 -M help | grep imx91     # -> imx91-11x11-evk
 
-**2. The full stack — Linux to userspace.** Booting Linux needs a kernel
-`Image`, the `imx91-11x11-evk.dtb`, and a root filesystem, all built from the
-NXP BSP (not redistributable, so not in the repo — see
+**2. Boot Linux to userspace.** You need a kernel `Image`, the
+`imx91-11x11-evk.dtb`, and a rootfs — from the NXP BSP or fully-OSS mainline (see
 [Required artifacts](#required-artifacts)). The easy path is
-`tests/boot-imx91/run.sh`. The equivalent manual invocation:
+`tests/boot-imx91/run.sh`; the equivalent manual invocation:
 
     ./build/qemu-system-aarch64 -M imx91-11x11-evk -m 4G -display none \
         -kernel <Image> -dtb <imx91-11x11-evk.dtb> -initrd <rootfs.cpio.gz> \
         -append "earlycon=lpuart32,mmio32,0x44380010 console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
-        -serial mon:stdio -serial null
+        -nic user -nic user -serial mon:stdio -serial null
 
 Three details are load-bearing:
 
-- **The i.MX 91 is single-core**, so the machine is `-smp 1` (the default) — no
-  `-smp` flag needed; the second A55 and the Cortex-M33 of the i.MX 93 are absent.
-- **earlycon address `0x44380010`, not `0x44380000`.** The i.MX LPUART has
-  VERID/PARAM/GLOBAL/PINCFG at 0x00–0x0C and BAUD at 0x10. Linux's regular
-  driver applies the `reg_off = 0x10` offset to the DT base automatically;
-  earlycon does not, so the cmdline address must be pre-offset.
-- **`cpuidle.off=1`** is the conservative first-boot default (avoids the
-  GICv3 WakeRequest gap shared by all GICv3 QEMU machines).
+- **The i.MX 91 is single-core** — `-smp 1` (the default), no flag needed. The
+  second A55 and the i.MX 93's Cortex-M33 are absent.
+- **earlycon address `0x44380010`, not `0x44380000`.** The LPUART has
+  VERID/PARAM/GLOBAL/PINCFG at 0x00–0x0C and BAUD at 0x10; Linux's driver applies
+  the `reg_off = 0x10` automatically, but earlycon does not, so the cmdline
+  address must be pre-offset.
+- **`cpuidle.off=1`** is the conservative first-boot default (avoids the GICv3
+  WakeRequest gap shared by all GICv3 QEMU machines).
 
-For networking, give the board NICs a host backend with **`-nic user -nic user`**
-(this populates QEMU's `nd_table` so the FEC and ENET_QoS get a peer; a bare
-`-netdev` leaves them unconnected). For the display, boot the
+`-nic user -nic user` gives the FEC and ENET_QoS a host backend (a bare `-netdev`
+leaves them unconnected). For the display, boot the
 `imx91-11x11-evk-tianma-wvga-panel.dtb` variant (the base EVK dtb has no panel).
-
-## Scope: what's modelled, what's deferred
-
-QEMU SoC machines model controllers so their **Linux drivers bind and the
-subsystem registers** — not so every byte reaches a host sink. This port holds
-that bar, and goes past it where the data path is the point and is validatable
-end to end:
-
-- **Functional data paths (validated on the i.MX 91).** Networking (FEC +
-  ENET_QoS, both DHCP), storage (uSDHC → ext4 mount + read/write/sync), the
-  **LCDIF parallel-RGB display** (framebuffer scanout to `/dev/fb0`,
-  screendump-verified), I²C (the WM8962 codec answers on LPI2C1), and the
-  **EdgeLock Enclave** (the secure-enclave driver configures `hsm0`, which
-  resolves the OCOTP fuse nvmem the ENET_QoS MAC depends on), **FlexCAN** (a
-  frame round-trips through `can0` loopback), **ChipIdea USB host** (a
-  `-device usb-storage` enumerates via `ci_hdrc` and its disk mounts as
-  `/dev/sda`), and **command-line-attachable I²C** (a `-device tmp105,bus=lpi2c1`
-  is enumerated and read from Linux, so the machine hosts peripherals beyond the
-  EVK).
-- **Runs non-stock device trees.** The machine boots the BSP's ~100 variant
-  DTBs — the other boards (FRDM-IMX91, FRDM-IMX91S, 9x9 QSB) and per-peripheral
-  variants (mqs, i3c, 8mic, lpuart, flexspi-nand, panels, usbwifi) — to
-  userspace; a catch-all background region keeps even a hand-edited DTB poking
-  an unmodeled address from data-aborting. The MQS card plays (SAI1→eDMA1), the
-  8-mic MICFIL card captures 8 channels, the i3c DTB's wm8962-on-I3C probes
-  (Silvaco master bridging to legacy I2C) so its audio card registers, and
-  `flexspi-flash=gd5f4gq4` runs the flexspi-nand DTB (the SPI-NAND enumerates +
-  reads). Covered by `tests/dtb-matrix-imx91`.
-- **Complete DT-referenced SoC surface.** Every peripheral any of those DTBs
-  enables is now modelled; the last gap, the DDR controller + DDR PMU, has a
-  register/perf-interface compat model so `imx9_ddr0` registers and `perf`
-  opens its events — though the counters read 0, because QEMU can't measure
-  real DDR bandwidth (DRAM is plain host memory, no controller in the path, no
-  cache model). What remains unmodelled is only RM blocks no DTB brings up
-  (LPTMR/LPIT/TRGMUX/GPC/CoreSight/boot-ROM/USB-PHY) and deliberate register
-  stubs (IOMUXC/SRC/TRDC/block-controls).
-- **Functional, validated via cross-compiled oracles.** SAI3/WM8962 audio
-  playback (a square wave round-trips to a captured `.wav`) and the parallel
-  camera path (5/5 real V4L2 frames off `/dev/video0`) — both ported from the
-  i.MX 93 and re-confirmed on the 91 with the `tests/audio-imx91` /
-  `tests/camera-imx91` harnesses (the `imx-image-core` rootfs lacks `aplay` /
-  `v4l2-ctl`, so the tests cross-compile a tiny ALSA/V4L2 client).
-- **SAI capture — functional, end to end.** Recording from the WM8962/SAI3 card
-  returns real, non-silent, continuously varying samples to userspace: the SAI
-  *receive* path synthesises a sawtooth into the RX FIFO (and on demand when the
-  eDMA bursts ahead of the word-rate), and the eDMA drains RDR0 → memory the
-  mirror of how it fills TDR0 for playback. Covered by a qtest and an ALSA
-  capture oracle (`tests/audio-imx91/run-capture.sh`). Reaching this exposed a
-  latent eDMA bug — minor loops only wrote back SADDR, so every device→memory
-  (capture) transfer overwrote the same bytes; persisting DADDR fixed all
-  capture directions at once.
-- **MICFIL (PDM) capture — functional, end to end.** Recording from the MICFIL
-  card returns real, non-silent S32 samples to userspace: the model synthesises
-  a sawtooth into the data FIFO once the module is enabled (CTRL1.PDMIEN) and
-  requests an eDMA drain of DATACH0 as it fills. Covered by a qtest and the ALSA
-  capture oracle. Wiring this exposed a second eDMA bug — minor-loop offset
-  (SMLOE/MLOFF) wasn't decoded, so the byte count read as ~1 GB and hung; the
-  model now honours MLOFF (used by MICFIL to walk DATACH0..n then rewind).
-- **Removed (not on i.MX 91 silicon).** Second Cortex-A55, Cortex-M33 + RPMsg,
-  Ethos-U65 NPU, PXP 2D engine, MIPI-DSI, MIPI-CSI, LVDS, and the ADV7535
-  HDMI bridge — all present on the i.MX 93, none on the i.MX 91.
 
 ## What runs today
 
-Stock **NXP Linux 6.12.49** boots to userspace (PID 1) on the single Cortex-A55,
-on the **stock `imx91-11x11-evk` device tree** (with one board-side fix-up, see
-below).
+Stock **NXP Linux 6.12.49** boots to userspace on the single Cortex-A55, on the
+**stock `imx91-11x11-evk` device tree** (with one board-side dtb fix-up, see
+[Known limitations](#known-limitations)). This table is the condensed capability
+view; the per-IP-block evidence, with the same **Tier / N-A** language, lives in
+[`docs/validation/test-result-matrix.md`](docs/validation/test-result-matrix.md)
+(one source of truth, `test-matrix.yaml`, two renderings). Tiers: **A** data-path
+verified (real data moves, integrity-checked) · **B** driver bring-up (binds,
+registers/IRQ/timing correct) · **N/A** absent on i.MX 91 silicon (never a
+failure).
 
-Each device below is tagged **functional** (the host driver's data path runs end
-to end — data actually moves) or **brings up** (the driver binds and the device
-registers / enumerates — the registration bar, no working host data path yet).
-Many devices are ported from the i.MX 93; where the end-to-end path has not been
-independently re-validated on the 91, they are tagged **brings up**.
+| Subsystem | Tier | Evidence |
+|---|:--:|---|
+| Cortex-A55 boot (`nproc=1`), GICv3 | A | Boots Linux to a shell on `ttyLP0`; SiP `GET_SOC_INFO` reports `soc_id = i.MX91`, rev 1.0 |
+| Vanilla-mainline boot | A | Stock upstream kernel (v6.18) + mainline dts to a BusyBox shell — the OSS CI tuple |
+| Networking — FEC (`eth0`) + ENET_QoS/dwmac4 (`eth1`) | A | Both DHCP; real frames (`hw/net/imx_fec.c`, `hw/net/imx93_dwmac.c`) |
+| Storage — uSDHC ×3 | A | SDHCI ADMA moves real block data; ext4 `mmcblk0` r/w/sync |
+| eDMA1/2 | A | Real TCD execution — I²C transfers, audio FIFO drains, per-CH_MUX source-id routing |
+| Display — LCDIFv3 parallel-RGB | A | imx-drm binds, 800×480 `/dev/fb0`, framebuffer DMA'd out + screendump byte-correct |
+| Audio play — SAI3/WM8962, SPDIF/XCVR | A | Square wave → eDMA → wav backend, peak-checked; concurrent multi-stream via per-CH_MUX routing |
+| Audio capture — SAI3, MICFIL (PDM) | A | Real non-silent samples to userspace (drove out two eDMA bugs: DADDR-persist, MLOFF decode) |
+| Camera — MT9M114 → parallel-CSI → ISI → V4L2 | A | 5/5 byte-checked 1280×720 YUYV frames off `/dev/video0`; host-file frame injection |
+| FlexSPI1 (NOR + SPI-NAND) | A | Boots from real flash contents; JEDEC + read verified |
+| FlexCAN ×2 | A | `can0` up; frame round-trip; **board-to-board** (see Interconnect) |
+| LPSPI ×8 | A | Per-bus SSI master; `is25lp064` JEDEC byte-exact; drives **board-to-board SPI** |
+| ChipIdea USB host (`ci_hdrc`) | A | `usb-storage` → `/dev/sda` byte-correct; usbredir host (see Interconnect) |
+| I²C — LPI2C ×8 (+ WM8962/PMIC/expanders), FlexIO-as-I²C | A | Codec answers; `-device tmp105,bus=…` enumerated + read; FlexIO shift-race fixed |
+| I3C1 (Silvaco) | B | I3C master bridges to legacy I²C; wm8962-on-I3C audio card registers |
+| ELE (EdgeLock Enclave), GPIO, CCM/ANATOP/SRC, MU1/MU2, TMU, ADC1, DDRC, OCOTP, BBNSM, SYSCTR, WDOG, SEMA42 | B | Drivers bind; registers/IRQ/timing correct (ELE + ADC carry honest-fault / operator-settable rails) |
 
-- **Single-A55 boot — functional.** One Cortex-A55 to userspace (`nproc=1`),
-  serial console on `ttyLP0`. The SiP `GET_SOC_INFO` SMC reports the 91's own
-  identity, so `/sys/devices/soc0` reads `soc_id = i.MX91`, `revision = 1.0`.
-- **Vanilla mainline boot — functional.** Beyond the NXP BSP kernel, the machine
-  boots a stock upstream kernel (v6.18-rc3) with the **mainline**
-  `imx91-11x11-evk` device tree (i.MX 91 landed in mainline v6.18) to a BusyBox
-  userspace — a fully-OSS, redistributable tuple with zero NXP bits. A stock
-  mainline kernel + mainline dts booting the model is the upstream-fidelity
-  signal; it is the basis for the kernel-free-CI functional test
-  (`tests/functional/aarch64/test_imx91_evk.py`).
-- **Networking — functional.** Both NICs live with DHCP — FEC (`eth0`, reuses
-  `hw/net/imx_fec.c`) and the from-scratch ENET_QoS/dwmac4 (`eth1`,
-  `hw/net/imx93_dwmac.c`). Use `-nic user -nic user`.
-- **Storage — functional.** SD/MMC via uSDHC from `-drive if=sd`; mounts a real
-  ext4 image (`mmcblk0`) and reads/writes/syncs it.
-- **I²C — functional.** LPI2C masters with the board's WM8962 codec (answers at
-  0x1a on LPI2C1), the PCA9451A PMIC, and the PCAL6524 / ADP5585 expanders.
-  Command-line-attachable: `-device tmp105,bus=lpi2c1,address=0x49` is enumerated
-  by `i2cdetect` and read by `i2cget` from Linux — the machine hosts peripherals
-  the EVK never wired.
-- **GPIO + ELE — functional.** GPIO controllers (the i.MX 91 uses the same
-  `fsl,imx93-gpio` model — its imx7ulp two-aperture DT layout maps onto the same
-  registers, no model change needed); **ELE** (EdgeLock Enclave) s4 MU +
-  responder, with the secure-enclave driver bringing up `hsm0` and resolving the
-  OCOTP MAC/SoC-UID fuse nvmem.
-- **Clocks / power — functional.** CCM clock roots+gates, ANATOP fractional-N
-  PLLs, the MEDIAMIX power domain (genpd) and block-control GPR.
-- **eDMA1/2 — functional.** real TCD execution (drives the LPI2C transfers and
-  the audio FIFO drains, with per-CH_MUX source-id request routing).
-- **Display (LCDIF parallel RGB) — functional.** Booting the
-  `…-tianma-wvga-panel` dtb, the imx-drm stack binds the LCDIFv3 CRTC and the
-  parallel-display-format bridge (on the MEDIAMIX block-ctrl — no separate
-  device), sets an 800×480 mode and creates `/dev/fb0`; the LCDIFv3 model DMAs
-  the framebuffer out of guest DRAM and scans it out to the emulated display
-  (a written pattern is captured byte-correct via QMP screendump).
-- **USB host (ChipIdea OTG) — functional.** A `-device usb-storage,drive=…`
-  enumerates through `ci_hdrc` (`new full-speed USB device … using ci_hdrc`) and
-  attaches as a SCSI disk; its ext4 image mounts as `/dev/sda` and reads back
-  byte-correct. `lsusb` lists it.
-- **CAN (FlexCAN) — functional.** The `flexcan` driver brings `can0` up and a
-  frame round-trips through controller loopback (`cansend` → `candump`). The EVK
-  dtb enables one of the two FlexCAN controllers; inter-controller TX/RX over
-  QEMU's CAN bus (`-object can-bus,id=cb -machine canbus0=cb,canbus1=cb`) is
-  covered by a kernel-free qtest (plus a 1000-frame stress).
-- **Audio playback (SAI3 + WM8962) — functional.** The ASoC stack registers the
-  three EVK ALSA cards (SAI1 bt-sco, MICFIL, and the WM8962/SAI3 card via the
-  modelled WM8962 codec on LPI2C1). A generated square wave plays on the
-  WM8962/SAI3 card: the SAI3 TX FIFO drains the samples through eDMA, and with
-  QEMU's wav audio backend the played PCM comes back in a real `.wav`
-  (peak-checked square wave). See `tests/audio-imx91/run.sh`.
-- **SPDIF playback (XCVR) — functional.** The `snd-soc-fsl-xcvr` driver brings
-  up the `imxaudioxcvr` card; PCM plays out the XCVR's SPDIF-TX FIFO, draining
-  through eDMA2 to the wav backend (peak-checked). Covered by a qtest and the
-  ALSA playback oracle.
-- **Concurrent multi-stream audio — functional.** eDMA requests route per
-  CH_MUX source id, so streams sharing one eDMA instance run at once: SAI3
-  playback + SAI3 capture + XCVR/SPDIF transmit (all on eDMA2) plus MICFIL
-  capture (eDMA1) flow to completion simultaneously, where a shared dma-req line
-  previously let only one eDMA2 stream make progress.
-- **FlexIO-as-I2C — functional.** The FlexIO IP is on the 91 silicon (the stock
-  EVK leaves its `flexio@425c0000` i2c-master disabled). Enabling it, the
-  in-kernel `i2c-imx-flexio` driver registers an adapter and a
-  `-device tmp105,bus=flexio1-i2c` enumerates and is read from Linux. The shift
-  datapath runs on a virtual-clock timer with a defer-on-undrained-RX gate that
-  closes a ~1/1000 IRQ-storm race (converged byte-identical with the i.MX 93).
-- **Camera capture — functional.** Booting the `…-mt9m114` dtb, the parallel
-  path runs end to end — MT9M114 → parallel-CSI → ISI → V4L2 — delivering real
-  frames off `/dev/video0`. The ISI model DMAs a moving test pattern into the
-  ping-pong buffers; a V4L2 client enabling the (default-disabled) sensor link
-  and propagating the pad formats streams 5/5 byte-checked 1280×720 YUYV frames.
-  See `tests/camera-imx91/run.sh`. Beyond the built-in pattern, the ISI can
-  stream frames from a **host file/dir** supplied at launch
-  (`-global driver=imx93.isi,property=frames,value=<path>`) — a format-agnostic
-  byte source (one raw file, or a directory of `*.raw` looped) so a real
-  image/video can drive the capture path.
-- **LPSPI — functional (SSI slave round-trip).** Each of the 8 LPSPI masters
-  exposes a named SSI bus, so an SPI peripheral attaches at runtime:
-  `-device is25lp064,bus=lpspi1,drive=…`. A qtest reads the flash's JEDEC ID
-  (0x9d 0x60 0x17) byte-exact through the controller (TDR → SSI transfer →
-  RDR), and also covers the CR.MEN gate, TCF/FCF latch and RX-FIFO reset.
+**Absent on i.MX 91 silicon — N/A (never a failure):**
 
-## Roadmap
+| Block | Why absent |
+|---|---|
+| Ethos-U65 NPU · 2nd Cortex-A55 · Cortex-M33 (+ MU peer) | Not on the i.MX 91 (i.MX 93 has them) |
+| System Manager (SM/SCMI) | i.MX 91/93 have none; Linux programs CCM/ANATOP/SRC directly |
+| PXP 2D engine · MIPI-DSI · MIPI-CSI · LVDS · ADV7535 HDMI bridge | Not present — display is parallel-RGB LCDIF, camera is parallel ISI |
 
-The current release is **`imx91-v1.1`** — the complete, soak-validated i.MX 91
-model (`v1.0`) plus upstream readiness: stock Linux boots to userspace, the
-entire DT-referenced SoC surface is modelled, and every major data path
-(networking, storage, display, audio play/capture/SPDIF, camera, CAN, USB,
-I²C/SPI/I3C, FlexIO) is validated end to end. `v1.1` adds the kernel-free-CI
-functional test booting a **vanilla mainline kernel** on fully-OSS assets, the
-SAI rx-capture qtest fix, and an in-guest LCDIF display test in the soak. What
-remains is upstream submission, not new capability.
+**SoC identity is correct.** Linux reads the chip id from the SiP SoC-info SMC
+(`fsl_imx91_sip_handler`), which returns `0xa0009100` → id `0x91`, rev 1.0 (A0);
+no i.MX 93 `0x9300` artifact remains. It also **runs the BSP's ~100 variant DTBs**
+(other boards, per-peripheral cards) to userspace — a catch-all region keeps a
+hand-edited DTB poking an unmodeled address from data-aborting.
 
-| Feature | What | Target |
-|---|---|---|
-| Upstreaming | Submit the machine to qemu-devel as a follow-on to the i.MX 93 series — the shared device models land with the 93; this adds the 91 SoC + board, the three 91-only device models (DDR controller, SPI-NAND, Silvaco I3C), and the kernel-free qtests | next |
-| Inert RM blocks | LPTMR / LPIT / TRGMUX, GPC regs, SRAM controller, CoreSight, boot ROM — no DTB enables them, so nothing exercises them | only if a use case demands |
+## Interconnect — board-to-board (mission #5)
+
+Beyond running on one board, the i.MX 91 **passes real data between QEMU
+instances** over its buses, in the per-link socket shape a lab coordinator
+([holobench](https://github.com/kylefoxaustin/holobench)) wires — so two emulated
+boards hook up over a stock QEMU socket, no host kernel/root. Every link has a
+byte-exact oracle. Harness:
+[`tests/interconnect-imx91/`](tests/interconnect-imx91/).
+
+| Transport | Shape | Status |
+|---|---|:--:|
+| **Ethernet** | two 91s, FEC `eth0` over `-nic socket` | PASS |
+| **UART** | two 91s, LPUART2 `/dev/ttyLP1` over `-chardev socket` | PASS |
+| **SPI** | two 91s, LPSPI1 `/dev/spidev0.0` via the **`spi-link`** device over `-chardev socket` | PASS |
+| **CAN** | two 91s, FlexCAN `can0` via **`can-host-chardev`** over `-chardev socket` | PASS |
+| **USB (bulk)** | 91 as usbredir host ↔ an MCXN947 gadget; EP1 bulk-echo byte-exact | PASS |
+| **USB-CDC (serial)** | 91 `cdc_acm` ↔ MCX CDC gadget → `/dev/ttyACM0` serial round-trip | PASS |
+
+Two of the transports needed **new shared devices**, contributed to the fleet:
+`spi-link` (`hw/ssi/spi_link.c`, originated here — an SSI peripheral that bridges
+an SPI bus to a chardev; non-blocking tx so a continuous clock can't hang the
+vCPU) and `can-host-chardev` (`net/can/can_host_chardev.c`, carried from the
+i.MX 95 — bridges a QEMU can-bus to a chardev, no host vcan/root). Bringing SPI up
+also drove out two `imx93_lpspi` model fixes the register qtest had passed over
+(`PARAM.PCSNUM` and per-frame `FCF` — without them the real `fsl-lpspi` driver
+couldn't register a controller).
+
+**Cross-SoC validated.** `spi_link.c` and `can-host-chardev` are proven byte-exact
+across **i.MX 91 / 93 / 95 / MCXN947** — PIO↔eDMA masters and Linux↔bare-metal-M33
+— so any two boards interoperate. The USB-CDC link means a developer can **PuTTY
+into the emulated 91 over `/dev/ttyACM`**, and the board is otherwise reachable
+exactly like a real EVK: `serial-getty` login on `ttyLP0` and `ssh` over eQOS
+([`tests/putty-imx91/`](tests/putty-imx91/)).
+
+## Validation
+
+Correctness rests on **five independent gates**, not one:
+
+1. **Kernel-free qtests** on the `imx91-11x11-evk` machine (FlexCAN, LPSPI, SAI
+   TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C — async
+   timer races use `clock_step` to pin the ordering). CI-runnable; the matrix is
+   assembled by [`tests/gen-test-matrix.py`](tests/gen-test-matrix.py), which
+   reads Tier from `test-matrix.yaml` and fills the result from the run — it
+   gates on any qtest regression.
+2. **AddressSanitizer + UBSan** sweep of the shared device models (zero findings).
+3. **24-hour concurrent soak** across the variant-DTB matrix (1423 boots, zero
+   function failures, flat RSS) as the release gate.
+4. **Vanilla-mainline boot** — a stock upstream kernel + mainline dts to userspace,
+   confirming the model matches upstream (the QEMU-CI functional test).
+5. **Interconnect + cross-SoC** — byte-exact board-to-board over all five
+   transports, cross-validated against the i.MX 93 / 95 / MCXN947 nodes.
+
+The recurring lesson: a green deterministic qtest is *not* validation for a model
+with no live workload — the FlexIO IRQ-storm fix and the LPSPI PARAM/FCF fixes only
+proved out (or surfaced) against a real-driver repro. Fidelity judgments live in
+[`docs/validation/fidelity-audit.md`](docs/validation/fidelity-audit.md); the
+model can also **compile and run real code in-guest on the A55**
+([`tests/in-guest-build-imx91/`](tests/in-guest-build-imx91/), three levels green)
+and build real third-party projects
+([`tests/sweep-imx91/`](tests/sweep-imx91/)).
 
 ## Required artifacts
 
-To boot Linux to userspace you need three artifacts, all built from the
+To boot Linux you need three artifacts, all built from the
 [NXP i.MX Yocto BSP](https://github.com/nxp-imx/meta-imx) (`MACHINE=imx91evk`):
 
 | Artifact | Where from |
 | --- | --- |
-| Kernel `Image`            | `linux-imx`, imx defconfig (the BSP kernel) |
+| Kernel `Image` | `linux-imx`, imx defconfig |
 | `imx91-11x11-evk.dtb` (or `…-tianma-wvga-panel.dtb` for display) | same kernel build |
-| initramfs / rootfs        | any aarch64 rootfs with `/init` (e.g. the BSP `imx-image-core`) |
+| initramfs / rootfs | any aarch64 rootfs with `/init` (e.g. BSP `imx-image-core`) |
 
-The `tests/*/run.sh` scripts take `KERNEL=`, `DTB=`, `INITRD=` (and `QEMU=`)
-env vars and print exactly which to set if an artifact is missing.
+The `tests/*/run.sh` scripts take `KERNEL=`, `DTB=`, `INITRD=`, `QEMU=` env vars
+and print exactly which to set if one is missing.
 
-**No NXP access? A fully-OSS boot works too.** A vanilla mainline kernel
-(≥ v6.18, arm64 defconfig), the mainline `imx91-11x11-evk.dtb` built from that
-tree, and the static-aarch64 BusyBox initramfs from `tests/busybox-imx91/`
-boot the machine to a shell with **zero NXP bits** — all GPL, freely
-redistributable. This is exactly the tuple the upstream functional test uses.
-
-## Known limitations
-
-- **Secure-enclave tamper IRQ is injected.** The stock i.MX 91 EVK dtb's
-  `fsl,imx93-se` node omits the tamper-IRQ `interrupts` property that the i.MX
-  93's carries, so the `fsl-se` driver would fail `platform_get_irq()` and never
-  register — cascading to the OCOTP nvmem provider and leaving the ENET_QoS MAC
-  in deferred probe forever. The board's `modify_dtb` injects the two AONMIX
-  secvio/tamper SPIs (34/35, the same lines the i.MX 93 dtb wires) so the
-  secure-enclave driver registers and the fuse nvmem cells resolve.
-- **`fsl-se … Failed to read tamper status` is benign.** The ELE registers fine
-  (`ele-trng`, `hsm0` configured). The tamper read is an NXP SiP SMC normally
-  serviced by TF-A; a `-kernel` boot has no secure firmware, so it errors.
-- The base `imx91-11x11-evk.dtb` has no display panel (`display-subsystem: no
-  available port`); use the `…-tianma-wvga-panel` variant for the display.
-- **LPSPI models one chip-select per bus.** Each LPSPI exposes a named SSI bus
-  and a single attached slave round-trips (its CS is asserted by default). The
-  model does not yet decode `TCR.PCS` to select among *multiple* slaves on one
-  bus — fine for the usual one-slave-per-controller case, a gap only if a board
-  muxes several SPI devices on a single LPSPI.
-- Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
-
-## Architecture overview
-
-- **1× Cortex-A55** (GICv3 / GIC-600, no ITS), the application core running
-  Linux. DDR at `0x8000_0000`. No second A55 and no Cortex-M33 (both i.MX 93).
-- Real device models for everything boot/net/storage/display/I²C exercise:
-  LPUART, CCM, ANATOP, MEDIAMIX (blk-ctrl GPR + SRC power slice), ELE MU, MU1
-  (now a standalone A55-side mailbox — no M33 peer), MU2, LPI2C + PMICs, GPIO,
-  uSDHC, FEC + ENET_QoS, eDMA1/2, LCDIFv3, ISI, SAI/MICFIL/XCVR/WM8962, FlexSPI,
-  Silvaco I3C, DDR controller + PMU, ChipIdea USB, FlexCAN, and virtio-mmio.
-  Everything else is a logging stub (the IOMUXC pinmux is a deliberate no-op).
-- The NXP BSP uses its **downstream `drm/imx` drivers** (`DRM_IMX_LCDIFV3`,
-  the parallel-display-format bridge), not the mainline ones; the machine also
-  boots a vanilla mainline kernel (which binds the upstream LPUART/CCM/eDMA/…
-  drivers), so it tracks both driver stacks.
-
-All memory-map addresses and IRQ numbers come from the NXP BSP (`imx91.dtsi` /
-the i.MX 91 Reference Manual), never guessed.
-
-## Repository tour
-
-| Path | Purpose |
-| --- | --- |
-| `hw/arm/fsl-imx91.c`, `include/hw/arm/fsl-imx91.h` | SoC realization: single A55, GIC, device wiring, memory map, virtio-mmio, logging stubs (derived from fsl-imx93 with the 93-only blocks removed) |
-| `hw/arm/imx91-evk.c` | 11×11 EVK board file (SD attach, DTB virtio-mmio + secure-enclave-IRQ injection) |
-| `hw/arm/Kconfig`, `hw/arm/meson.build` | `FSL_IMX91` / `FSL_IMX91_EVK` config + build wiring |
-| (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk,flexio}.c`, `hw/misc/imx_mu.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec.c,imx93_dwmac.c}`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,imx93_xcvr,wm8962}.c`, `hw/net/can/flexcan.c`, `hw/sd` uSDHC, ChipIdea USB |
-| `tests/boot-imx91/run.sh` | boot Linux to the serial console (Path-C probe pass) |
-| `tests/functest-imx91/` | end-to-end smoke test: uSDHC r/w, I²C, both Ethernets (DHCP) |
-| `tests/display-imx91/` | headless LCDIF scanout verify (write `/dev/fb0`, QMP screendump, assert non-black) |
-| `tests/camera-imx91/` | V4L2 capture oracle (`v4l2_cap.c`): mt9m114 → CSI → ISI → real frames on `/dev/video0` |
-| `tests/audio-imx91/` | SAI3/WM8962 PCM playback (`pcm_play.c`); `WAV=` captures the played square wave to a `.wav` |
-| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine: FlexCAN (MCR handshake + inter-controller TX/RX + 1000-frame stress), LPSPI (transfer engine + is25lp064 JEDEC round-trip), SAI (TX FIFO + RX-capture sawtooth), MICFIL (PDM capture), XCVR (SPDIF TX), LPI2C, ISI, FlexSPI (NOR + SPI-NAND read-id), FlexIO, DDRC, I3C |
-| `tests/soak-imx91/` | long-run soak: a per-boot function battery over the variant-DTB matrix (net/storage/audio/camera/CAN/I²C/SPI/I3C/FlexIO + an in-guest LCDIF fb0 test), VmRSS leak tracking, and the kernel-free qtests every N cycles |
-| `tests/functional/aarch64/test_imx91_evk.py` | upstream-style functional test: fetches a vanilla mainline kernel + mainline dtb + BusyBox initramfs (pinned `Asset` sha256, all OSS) and boots to a userspace marker — runs in QEMU's CI |
-| `tests/busybox-imx91/build.sh` | builds the static-aarch64 BusyBox initramfs the functional test + OSS demo boot |
+**No NXP access? A fully-OSS boot works too.** A vanilla mainline kernel (≥ v6.18,
+arm64 defconfig), the mainline `imx91-11x11-evk.dtb`, and the static-aarch64
+BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
+**zero NXP bits** — the exact tuple the upstream functional test uses.
 
 ## Building
 
@@ -342,85 +210,97 @@ the i.MX 91 Reference Manual), never guessed.
         gcc libc6-dev pkg-config libglib2.0-dev libpixman-1-dev \
         libgtk-3-dev binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu
 
-## Smoke tests
+## Architecture overview
 
-    # machine registers
-    ./build/qemu-system-aarch64 -M help | grep imx91
+- **1× Cortex-A55** (GICv3 / GIC-600, no ITS), DDR at `0x8000_0000`. No second A55
+  and no Cortex-M33 (both on the i.MX 93). No System Manager — Linux drives CCM /
+  ANATOP / SRC / power domains directly (functional models, not SCMI-over-firmware).
+- Real device models for everything boot/net/storage/display/I²C/audio/camera
+  exercises: LPUART, CCM, ANATOP, MEDIAMIX (blk-ctrl GPR + SRC power slice), ELE
+  MU, MU1 (a standalone A55-side mailbox — no M33 peer), MU2, LPI2C + PMICs, GPIO,
+  uSDHC, FEC + ENET_QoS, eDMA1/2, LCDIFv3, ISI, SAI/MICFIL/XCVR/WM8962, FlexSPI,
+  Silvaco I3C, DDR controller + PMU, ChipIdea USB, FlexCAN, LPSPI (+ the `spi-link`
+  interconnect peripheral), and virtio-mmio. Everything else is a logging stub
+  (the IOMUXC pinmux is a deliberate no-op).
+- Structural conventions follow upstream `hw/arm/fsl-imx8mp.{c,h}` and the i.MX 93
+  port. All memory-map addresses and IRQ numbers come from the NXP BSP
+  (`imx91.dtsi` / the i.MX 91 Reference Manual), never guessed. The BSP uses its
+  downstream `drm/imx` drivers; the machine also boots a vanilla mainline kernel,
+  so it tracks both driver stacks.
 
-    # Linux to userspace (needs the BSP artifacts)
-    KERNEL=<Image> DTB=<dtb> INITRD=<rootfs> tests/boot-imx91/run.sh
+## Repository tour
 
-## Methodology & contributing
+| Path | Purpose |
+| --- | --- |
+| `hw/arm/fsl-imx91.c`, `include/hw/arm/fsl-imx91.h` | SoC realization: single A55, GIC, device wiring, memory map (derived from fsl-imx93, 93-only blocks removed) |
+| `hw/arm/imx91-evk.c` | 11×11 EVK board file (SD attach, DTB virtio-mmio + secure-enclave-IRQ injection) |
+| `hw/arm/Kconfig`, `hw/arm/meson.build` | `FSL_IMX91` / `FSL_IMX91_EVK` config + build wiring |
+| `hw/ssi/spi_link.c`, `net/can/can_host_chardev.c` | the board-to-board **interconnect** transports (SPI + CAN chardev bridges) |
+| (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk,flexio}.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec,imx93_dwmac}.c`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,imx93_xcvr,wm8962}.c`, `hw/net/can/flexcan.c`, ChipIdea USB |
+| `tests/boot-imx91/`, `tests/functest-imx91/` | boot to console; end-to-end smoke (uSDHC r/w, I²C, both Ethernets) |
+| `tests/display-imx91/`, `tests/camera-imx91/`, `tests/audio-imx91/` | LCDIF scanout, V4L2 capture, and ALSA play/capture oracles |
+| `tests/interconnect-imx91/` | board-to-board links: `run-{eth,uart,spi,can,usb,usb-cdc}.sh` + `run-spi-stress.sh` |
+| `tests/putty-imx91/`, `tests/in-guest-build-imx91/`, `tests/sweep-imx91/` | developer access (serial + SSH), in-guest build (3 levels), third-party code sweep |
+| `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine |
+| `tests/soak-imx91/` | long-run soak over the variant-DTB matrix, VmRSS leak tracking, periodic qtests |
+| `tests/functional/aarch64/test_imx91_evk.py` | upstream-style functional test: vanilla kernel + mainline dtb + BusyBox (all OSS), runs in QEMU CI |
+| `docs/validation/` | the test-result matrix, fidelity audit, and `test-matrix.yaml` (tier source of truth) |
 
-The i.MX 91 is built by **subtracting an i.MX 93** rather than green-field
-modelling: clone the i.MX 93 port, remove the blocks the 91 lacks, retarget to
-`imx91-11x11-evk`, then Path-C the gaps (boot real Linux, read the exact abort /
-deferred-probe stall, map or fix that, repeat) and re-validate by booting to
-userspace after each change. Every address and IRQ comes from the NXP DTS / RM,
-never guessed; data paths are validated end to end ("it bound" ≠ "data flows").
-A good example: the ENET_QoS MAC was stuck in deferred probe; tracing it
-revealed the stock 91 dtb omits the secure-enclave tamper IRQ, which the board
-now injects.
+## Known limitations
 
-**Validation is layered.** Correctness rests on four independent gates, not one:
-(1) kernel-free **qtests** on the `imx91-11x11-evk` machine (12 devices —
-deterministic, CI-runnable, and for async timer races they use `clock_step` to
-pin the adversarial ordering); (2) an **AddressSanitizer + UBSan** sweep of the
-shared device models (zero findings); (3) a **24-hour concurrent soak** across
-the variant-DTB matrix (1423 boots, zero function failures, flat RSS) as the
-release gate; and (4) **vanilla-mainline boot** — a stock upstream kernel +
-mainline dts reaching userspace, which both serves the upstream CI functional
-test and confirms the model matches upstream, not just the BSP. The recurring
-lesson: a green deterministic qtest is *not* validation for a model with no live
-workload — the FlexIO IRQ-storm fix only proved out against a real-driver repro.
+- **Secure-enclave tamper IRQ is injected.** The stock EVK dtb's `fsl,imx93-se`
+  node omits the tamper-IRQ `interrupts` property, so `fsl-se` would fail
+  `platform_get_irq()` and never register — cascading to OCOTP nvmem and leaving
+  the ENET_QoS MAC in deferred probe forever. The board's `modify_dtb` injects the
+  two AONMIX secvio/tamper SPIs (34/35, as the i.MX 93 dtb wires them).
+- **`fsl-se … Failed to read tamper status` is benign.** The ELE registers fine;
+  the tamper read is a SiP SMC normally serviced by TF-A, absent in a `-kernel` boot.
+- The base `imx91-11x11-evk.dtb` has no display panel — use the
+  `…-tianma-wvga-panel` variant for the display.
+- **LPSPI reports 4 chip-selects but does not decode `TCR.PCS` to select among
+  multiple slaves on one bus** — fine for the usual one-slave-per-controller case
+  (and the board-to-board link), a gap only if a board muxes several SPI devices
+  on one LPSPI.
+- Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
 
-## Milestone history
+## Roadmap & milestone history
 
-- **Bootstrap** — cloned the i.MX 93 port to `imx91-dev`; created the
-  `fsl-imx91` SoC + `imx91-11x11-evk` machine as a renamed copy (shared i.MX 9x
-  device models reused unchanged).
-- **Chop-down** — removed the second A55, the Cortex-M33 (+ RPMsg / MU peer),
-  the Ethos-U65 NPU, the PXP 2D engine, and the MIPI-DSI/CSI + LVDS + ADV7535
-  display chain; retargeted to single-core. Validated boot-to-userspace after
-  each stage; checkpatch clean throughout.
-- **Functional bring-up** — uSDHC storage (r/w/sync), both Ethernets (DHCP),
-  I²C (WM8962 + command-line-attachable tmp105), the EdgeLock secure enclave
-  (the dtb tamper-IRQ fix-up), the LCDIF parallel-RGB display scanout, FlexCAN
-  (`can0` loopback round-trip), and ChipIdea USB host (`usb-storage` → `/dev/sda`
-  mount), all validated end to end.
-- **Deterministic CI** — kernel-free qtests on the imx91-11x11-evk machine for
-  FlexCAN (incl. inter-controller TX/RX + a 1000-frame stress), LPI2C, ISI, SAI,
-  FlexSPI and FlexIO; all green.
-- **Audio + camera re-validated** — SAI3/WM8962 plays a square wave back to a
-  captured `.wav`, and the MT9M114 → parallel-CSI → ISI path streams 5/5 real
-  V4L2 frames off `/dev/video0`, both via cross-compiled ALSA/V4L2 oracles
-  (the `imx-image-core` rootfs ships no `aplay`/`v4l2-ctl`).
-- **Audio breadth (`imx91-v0.2` → `v1.0`)** — added SPDIF/XCVR playback, and
-  per-CH_MUX eDMA request routing so SAI3 play+capture, SPDIF transmit (eDMA2)
-  and MICFIL capture (eDMA1) run *concurrently*. The ISI gained a host
-  frame-injection source so real images/video can drive the camera path.
-- **FlexIO shift-race fix** — closed a ~1/1000 FlexIO-as-I2C IRQ-storm/hang by
-  deferring the shift while the prior RX byte is undrained, validated against the
-  real `i2c-imx-flexio` driver and a 36-hour soak; converged byte-identical with
-  the i.MX 93.
-- **Soak + hardening** — a full soak harness (`tests/soak-imx91`) runs a
-  per-boot function battery across the variant-DTB matrix with VmRSS leak
-  tracking and periodic kernel-free qtests; the shared device models also pass an
-  AddressSanitizer + UBSan sweep clean.
-- **`imx91-v1.0` — first complete release** — a 24-hour final soak (1423 boots,
-  zero function failures, flat RSS) closed the gate: every modelled data path
-  validated end to end, declared the first complete, soak-validated i.MX 91.
-- **Upstream readiness (`v1.0` → `v1.1`)** — added the QEMU-CI functional test
-  that boots a **vanilla mainline kernel** + the mainline `imx91-11x11-evk`
-  device tree + a BusyBox initramfs (all OSS, no NXP — so it runs in CI rather
-  than skipping on a restricted blob), with the i.MX 91 doc and MAINTAINERS
-  entry. Also fixed the SAI rx-capture qtest for the shared RX model and added
-  an in-guest LCDIF display test to the soak battery.
+The current release is **`imx91-v1.1`** — the complete, soak-validated model plus
+upstream readiness — extended this cycle with the **board-to-board interconnect**
+(five transports, cross-SoC validated). What remains is **upstream submission**
+(the machine + board + the three 91-only device models — DDR controller, SPI-NAND,
+Silvaco I3C — as a follow-on to the i.MX 93 series) and, on the interconnect side,
+**I²C board-to-board** (carryable from the i.MX 93's `i2c-link`). Inert RM blocks
+(LPTMR/LPIT/TRGMUX/GPC/CoreSight/boot-ROM/USB-PHY) stay unmodeled until a use case
+demands them.
+
+Milestones, in order:
+
+- **Bootstrap → chop-down** — cloned the i.MX 93 port; removed the 2nd A55, the
+  Cortex-M33 (+ RPMsg/MU peer), Ethos-U65, PXP, and the MIPI-DSI/CSI + LVDS +
+  ADV7535 chain; retargeted to single-core, validating boot-to-userspace at each step.
+- **Functional bring-up** — storage, both Ethernets (DHCP), I²C, the EdgeLock
+  enclave (the dtb tamper-IRQ fix-up), LCDIF display scanout, FlexCAN, ChipIdea USB.
+- **Audio + camera** — SAI3/WM8962 + SPDIF/XCVR playback, SAI/MICFIL capture
+  (drove out two eDMA bugs), concurrent multi-stream via per-CH_MUX routing, and
+  the MT9M114 → ISI → V4L2 path (with host frame injection).
+- **Deterministic CI + FlexIO fix** — kernel-free qtests across the machine; the
+  ~1/1000 FlexIO-as-I²C IRQ-storm closed with an event-driven gate (converged
+  byte-identical with the i.MX 93).
+- **`imx91-v1.0`** — first complete release: a 24-hour final soak (1423 boots,
+  zero failures, flat RSS) with every modeled data path validated end to end.
+- **`v1.1` — upstream readiness** — the QEMU-CI functional test on a vanilla
+  mainline kernel + OSS assets, the doc + MAINTAINERS entry, SAI rx-capture qtest
+  fix, in-guest LCDIF soak test.
+- **Interconnect (mission #5)** — ethernet / UART / SPI / CAN / USB (bulk + CDC
+  serial) board-to-board, byte-exact; the new `spi-link` device (contributed to
+  the fleet) and carried `can-host-chardev`; cross-validated across i.MX 91/93/95
+  and MCXN947; a back-pressure hardening pass so continuous clocking can't hang.
 
 ## License & credits
 
-GPL-2.0-or-later, same as QEMU. Derived from the qemu-imx93 fork of upstream
-QEMU; see [`README.rst`](README.rst) and `LICENSE` for QEMU's own authorship and
+GPL-2.0-or-later, same as QEMU. Derived from the qemu-imx93 fork of upstream QEMU;
+see [`README.rst`](README.rst) and `LICENSE` for QEMU's own authorship and
 licensing.
 
 ---
