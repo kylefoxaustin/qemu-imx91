@@ -139,13 +139,15 @@ byte-exact oracle. Harness:
 | **CAN** | two 91s, FlexCAN `can0` via **`can-host-chardev`** over `-chardev socket` | PASS |
 | **USB (bulk)** | 91 as usbredir host ↔ an MCXN947 gadget; EP1 bulk-echo byte-exact | PASS |
 | **USB-CDC (serial)** | 91 `cdc_acm` ↔ MCX CDC gadget → `/dev/ttyACM0` serial round-trip | PASS |
+| **I²C** | two 91s, LPI2C3 masters ↔ an **`i2c-link`** target at `0x42` over `-chardev socket` | PASS |
 
-Two of the transports needed **new shared devices**, contributed to the fleet:
-`spi-link` (`hw/ssi/spi_link.c`, originated here — an SSI peripheral that bridges
-an SPI bus to a chardev; non-blocking tx so a continuous clock can't hang the
-vCPU) and `can-host-chardev` (`net/can/can_host_chardev.c`, carried from the
-i.MX 95 — bridges a QEMU can-bus to a chardev, no host vcan/root). Bringing SPI up
-also drove out two `imx93_lpspi` model fixes the register qtest had passed over
+Several transports use **shared chardev-bridge devices**, pooled across the fleet:
+`spi-link` (`hw/ssi/spi_link.c`, originated here — an SSI peripheral bridging an
+SPI bus to a chardev; non-blocking tx so a continuous clock can't hang the vCPU),
+`can-host-chardev` (`net/can/can_host_chardev.c`, carried from the i.MX 95 — a
+can-bus↔chardev bridge, no host vcan/root), and `i2c-link` (`hw/i2c/i2c_link.c`,
+carried from the i.MX 93 — an I²C target bridging a bus to a chardev). Bringing SPI
+up also drove out two `imx93_lpspi` model fixes the register qtest had passed over
 (`PARAM.PCSNUM` and per-frame `FCF` — without them the real `fsl-lpspi` driver
 couldn't register a controller).
 
@@ -272,10 +274,9 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
 
 The current release is **`imx91-v1.1`** — the complete, soak-validated model plus
 upstream readiness — extended this cycle with the **board-to-board interconnect**
-(five transports, cross-SoC validated). What remains is **upstream submission**
+(six transports, cross-SoC validated). What remains is **upstream submission**
 (the machine + board + the three 91-only device models — DDR controller, SPI-NAND,
-Silvaco I3C — as a follow-on to the i.MX 93 series) and, on the interconnect side,
-**I²C board-to-board** (carryable from the i.MX 93's `i2c-link`). Inert RM blocks
+Silvaco I3C — as a follow-on to the i.MX 93 series). Inert RM blocks
 (LPTMR/LPIT/TRGMUX/GPC/CoreSight/boot-ROM/USB-PHY) stay unmodeled until a use case
 demands them.
 
@@ -297,7 +298,7 @@ Milestones, in order:
 - **`v1.1` — upstream readiness** — the QEMU-CI functional test on a vanilla
   mainline kernel + OSS assets, the doc + MAINTAINERS entry, SAI rx-capture qtest
   fix, in-guest LCDIF soak test.
-- **Interconnect (mission #5)** — ethernet / UART / SPI / CAN / USB (bulk + CDC
+- **Interconnect (mission #5)** — ethernet / UART / SPI / CAN / I²C / USB (bulk + CDC
   serial) board-to-board, byte-exact; the new `spi-link` device (contributed to
   the fleet) and carried `can-host-chardev`; cross-validated across i.MX 91/93/95
   and MCXN947; a back-pressure hardening pass so continuous clocking can't hang.

@@ -128,6 +128,7 @@ the per-link socket shape a lab coordinator wires. Harness:
 | UART | two 91s, LPUART2 `/dev/ttyLP1` `-chardev socket` bridge, byte-exact | **PASS** |
 | SPI | two 91s, LPSPI1 `/dev/spidev0.0` via `spi-link` `-chardev socket`, byte-exact | **PASS** |
 | CAN | two 91s, FlexCAN `can0` via `can-host-chardev` `-chardev socket`, frame byte-exact | **PASS** |
+| I²C | two 91s, LPI2C3 via `i2c-link` target `-chardev socket`, byte-exact | **PASS** |
 | USB | 91 usbredir host ↔ MCX gadget, HS enum + EP1 bulk-echo byte-exact | **PASS** |
 | USB-CDC | 91 `cdc_acm` ↔ MCX CDC gadget, `/dev/ttyACM0` serial round-trip byte-exact | **PASS** |
 

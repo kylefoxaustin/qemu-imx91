@@ -10,6 +10,7 @@ tests/interconnect-imx91/run-eth.sh      # two instances, FEC <-> socket <-> FEC
 tests/interconnect-imx91/run-uart.sh     # two instances, LPUART2 <-> socket <-> LPUART2
 tests/interconnect-imx91/run-spi.sh      # two instances, LPSPI <-> spi-link <-> socket
 tests/interconnect-imx91/run-can.sh      # two instances, FlexCAN <-> can-host-chardev <-> socket
+tests/interconnect-imx91/run-i2c.sh      # two instances, LPI2C <-> i2c-link <-> socket
 tests/interconnect-imx91/run-spi-stress.sh  # spi-link back-pressure: continuous clock, no vCPU hang
 tests/interconnect-imx91/run-usb.sh      # 91 usbredir host <-> MCX gadget, enum + bulk
 tests/interconnect-imx91/run-usb-cdc.sh  # 91 host <-> MCX CDC gadget, /dev/ttyACM serial
@@ -203,8 +204,30 @@ generic, upstream-shaped CAN transport); the 91's FlexCAN needed **no model
 changes** — it was already a proper `can-bus` client. The CAN stack loads as
 modules from the BSP.
 
+## I²C link (`run-i2c.sh`)
+
+Two i.MX 91 guests, each LPI2C3 master talking to a local **`i2c-link`** target at
+`0x42` (`hw/i2c/i2c_link.c`, carried from the i.MX 93) that bridges its bus to a
+QEMU socket chardev. Since I²C is master/slave (not symmetric like SPI/CAN), the
+shape is a **bridged mailbox**: the sender's master *writes* the payload to `0x42`
+(forwarded to the peer), the receiver's master *reads* from `0x42` (the link
+returns the bytes the peer wrote). The oracle is [`i2clink`](i2clink.c) (raw
+`I2C_RDWR` ioctls, static). Verified:
+
+```
+I2CLINK:SENT 33 bytes [IMX91-I2C-LINK-payload-0123456789] -> 0x42
+PASS: payload crossed LPI2C<->i2c-link<->socket<->i2c-link<->LPI2C byte-exact
+```
+
+The stock EVK DT already enables LPI2C3 (`i2c@42530000`) and `i2c-dev` is built in,
+so **no DT overlay or module load** is needed (the simplest of the harnesses).
+`i2c-link` uses the same non-blocking tx (tx FIFO + `G_IO_OUT` watch) as `spi-link`
+— the back-pressure lesson carried into it from the start. So `spi-link` (SPI),
+`can-host-chardev` (CAN) and `i2c-link` (I²C) give all three master/slave buses a
+generic chardev bridge.
+
 ## Roadmap — all wired transports proven
 
-Ethernet, UART, SPI, USB (bulk + CDC-serial) and **CAN** are all proven
+Ethernet, UART, SPI, CAN, I²C and USB (bulk + CDC-serial) are all proven
 byte-exact between instances. Mission #5 (inter-QEMU data over the board's real
 buses) is complete for the i.MX 91's wired links.
