@@ -76,3 +76,78 @@ in_guest_build:
   - { level: 1, name: "tcc + musl (busybox initramfs)",       script: "tests/in-guest-build-imx91/run.sh",           status: PASS, evidence: "pass=3 fail=0 (2026-06-29): native aarch64 tcc built from source; sum/fib/qsort compiled+run in-guest" }
   - { level: 2, name: "native gcc/g++ glibc rootfs (SD root)", script: "tests/in-guest-build-imx91/run-gcc.sh",       status: PASS, evidence: "pass=3 fail=0 (2026-06-29): real GCC 14.3.0; C + libm + C++ STL compiled+run in-guest off /dev/mmcblk0" }
   - { level: 3, name: "real upstream projects build + self-test", script: "tests/in-guest-build-imx91/run-gcc-build.sh", status: PASS, evidence: "pass=3 fail=0 (2026-06-29): bzip2/zlib/lua built natively + their own make test passed in-guest" }
+
+# README capability-table view (condensed rendering; the detailed per-block table
+# is docs/validation/test-result-matrix.md). One source of truth = this file, two
+# renderings. gen-test-matrix.py --inject-readme regenerates the README table from
+# here and VERIFIES every present/absent block is covered exactly once and every
+# group is single-tier (so the README table and the matrix cannot drift).
+readme_groups:
+  - { label: "Cortex-A55 boot (nproc=1), GICv3", tier: A,
+      evidence: "Boots Linux to a shell on ttyLP0; SiP GET_SOC_INFO reports soc_id=i.MX91, rev 1.0",
+      blocks: ["Cortex-A55 (single core)", "GICv3 (dist + redist)", "SiP SoC-info SMC (id/rev/UID)"] }
+  - { label: "Networking — FEC (eth0) + ENET_QoS/dwmac4 (eth1)", tier: A,
+      evidence: "Both DHCP; real frames",
+      blocks: ["FEC / ENET", "EQOS (DWMAC)"] }
+  - { label: "Storage — uSDHC x3", tier: A,
+      evidence: "SDHCI ADMA moves real block data; ext4 mmcblk0 r/w/sync",
+      blocks: ["USDHC x3"] }
+  - { label: "eDMA1/2", tier: A,
+      evidence: "Real TCD execution - I2C transfers, audio FIFO drains, per-CH_MUX source-id routing",
+      blocks: ["eDMA1/2 (i.MX9)"] }
+  - { label: "Serial console — LPUART x8", tier: A,
+      evidence: "Console I/O on ttyLP0; LPUART2 drives the UART interconnect",
+      blocks: ["LPUART x8"] }
+  - { label: "Audio — SAI/MICFIL/XCVR (play + capture)", tier: A,
+      evidence: "Square wave -> eDMA -> wav byte-checked; SAI/MICFIL capture real samples; concurrent multi-stream",
+      blocks: ["SAI1/2/3", "MICFIL (PDM mic)", "XCVR (audio transceiver)"] }
+  - { label: "Camera — MT9M114 -> parallel-CSI -> ISI -> V4L2", tier: A,
+      evidence: "5/5 byte-checked 1280x720 YUYV frames off /dev/video0; host-file frame injection",
+      blocks: ["ISI (parallel-camera capture)"] }
+  - { label: "FlexSPI1 (NOR + SPI-NAND)", tier: A,
+      evidence: "Boots from real flash contents; JEDEC + read verified",
+      blocks: ["FlexSPI1 (NOR + SPI-NAND)"] }
+  - { label: "FlexCAN x2", tier: A,
+      evidence: "can0 up; frame round-trip; board-to-board (see Interconnect)",
+      blocks: ["FlexCAN x2"] }
+  - { label: "LPSPI x8", tier: A,
+      evidence: "Per-bus SSI master; is25lp064 JEDEC byte-exact; drives board-to-board SPI",
+      blocks: ["LPSPI x8"] }
+  - { label: "I2C — LPI2C x8 + FlexIO-as-I2C", tier: A,
+      evidence: "Codec answers; -device tmp105,bus=... enumerated + read; FlexIO shift-race fixed; drives I2C interconnect",
+      blocks: ["LPI2C x8", "FlexIO1 (I2C/SPI/UART emul)"] }
+  - { label: "I3C1 (Silvaco)", tier: A,
+      evidence: "I3C master bridges to legacy I2C; wm8962-on-I3C audio card registers",
+      blocks: ["I3C1"] }
+  - { label: "Display — LCDIFv3 parallel-RGB", tier: B,
+      evidence: "imx-drm binds, 800x480 /dev/fb0, framebuffer DMA'd out + screendump byte-correct",
+      blocks: ["LCDIF (parallel-RGB v3)"] }
+  - { label: "ChipIdea USB host (ci_hdrc)", tier: B,
+      evidence: "usb-storage -> /dev/sda byte-correct; usbredir host (see Interconnect)",
+      blocks: ["USB-OTG x2 (ChipIdea)"] }
+  - { label: "Clocks/power — CCM / ANATOP / SRC", tier: B,
+      evidence: "Linux programs directly (no System Manager)",
+      blocks: ["CCM / ANATOP / SRC (clocks)"] }
+  - { label: "ELE (EdgeLock Enclave, MU)", tier: B,
+      evidence: "Driver binds; honest-fault rail (ele-uncomputed-cmds counter + opt-in guest fault)",
+      blocks: ["ELE (EdgeLock Enclave, MU)"] }
+  - { label: "Timers + control — TPM, SYSCTR, WDOG, SEMA42, MU1/2, GPIO, BBNSM, DDRC", tier: B,
+      evidence: "Drivers bind; registers/IRQ/timing correct",
+      blocks: ["TPM x6", "SYSCTR / TSTMR", "WDOG x5", "SEMA42 x2", "MU1 / MU2 (messaging units)", "GPIO x4", "BBNSM (RTC / secure)", "DDRC (i.MX9)"] }
+  - { label: "Sensors/analog — TMU, ADC1, OCOTP", tier: B,
+      evidence: "Driver binds; ADC carries operator-settable adc-chN props; TMU settable temperature",
+      blocks: ["TMU (thermal)", "ADC1", "OCOTP (fuses)"] }
+  - { label: "I2C peripherals — WM8962, MT9M114, PMIC/expanders", tier: B,
+      evidence: "Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev)",
+      blocks: ["WM8962 codec (I2C)", "MT9M114 sensor (I2C)", "PCA9451 PMIC / PCA9538 expander (I2C)"] }
+
+readme_absent:
+  - { label: "Ethos-U65 NPU · 2nd Cortex-A55 · Cortex-M33 (+ MU peer)",
+      reason: "Not on the i.MX 91 (the i.MX 93 has them)",
+      blocks: ["Ethos-U65 NPU", "2nd Cortex-A55", "Cortex-M33 (+ its MU peer)"] }
+  - { label: "System Manager (SM/SCMI)",
+      reason: "i.MX 91/93 have none; Linux programs CCM/ANATOP/SRC directly",
+      blocks: ["System Manager (SM)"] }
+  - { label: "PXP 2D engine · MIPI-DSI · MIPI-CSI · LVDS · ADV7535 HDMI bridge",
+      reason: "Not present - display is parallel-RGB LCDIF, camera is parallel ISI",
+      blocks: ["PXP 2D engine", "MIPI-DSI", "MIPI-CSI", "LVDS", "ADV7535 HDMI bridge"] }

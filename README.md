@@ -21,7 +21,7 @@ single-core topology. It is not cycle-accurate.
 It boots stock **NXP BSP Linux to userspace** on the single Cortex-A55 — and a
 **vanilla mainline kernel** on the mainline `imx91-11x11-evk` device tree (i.MX 91
 support landed upstream in v6.18), a fully-OSS boot that doubles as the upstream CI
-functional test. Beyond booting, it passes real data between instances over five
+functional test. Beyond booting, it passes real data between instances over six
 board buses (see [Interconnect](#interconnect--board-to-board-mission-5)). Intended
 use: BSP development, peripheral-driver development, multi-board lab work, and CI;
 the long-term aim is upstream-mergeability into QEMU mainline.
@@ -89,32 +89,37 @@ verified (real data moves, integrity-checked) · **B** driver bring-up (binds,
 registers/IRQ/timing correct) · **N/A** absent on i.MX 91 silicon (never a
 failure).
 
+<!-- BEGIN capability-table (generated from test-matrix.yaml) -->
 | Subsystem | Tier | Evidence |
 |---|:--:|---|
-| Cortex-A55 boot (`nproc=1`), GICv3 | A | Boots Linux to a shell on `ttyLP0`; SiP `GET_SOC_INFO` reports `soc_id = i.MX91`, rev 1.0 |
-| Vanilla-mainline boot | A | Stock upstream kernel (v6.18) + mainline dts to a BusyBox shell — the OSS CI tuple |
-| Networking — FEC (`eth0`) + ENET_QoS/dwmac4 (`eth1`) | A | Both DHCP; real frames (`hw/net/imx_fec.c`, `hw/net/imx93_dwmac.c`) |
-| Storage — uSDHC ×3 | A | SDHCI ADMA moves real block data; ext4 `mmcblk0` r/w/sync |
-| eDMA1/2 | A | Real TCD execution — I²C transfers, audio FIFO drains, per-CH_MUX source-id routing |
-| Display — LCDIFv3 parallel-RGB | A | imx-drm binds, 800×480 `/dev/fb0`, framebuffer DMA'd out + screendump byte-correct |
-| Audio play — SAI3/WM8962, SPDIF/XCVR | A | Square wave → eDMA → wav backend, peak-checked; concurrent multi-stream via per-CH_MUX routing |
-| Audio capture — SAI3, MICFIL (PDM) | A | Real non-silent samples to userspace (drove out two eDMA bugs: DADDR-persist, MLOFF decode) |
-| Camera — MT9M114 → parallel-CSI → ISI → V4L2 | A | 5/5 byte-checked 1280×720 YUYV frames off `/dev/video0`; host-file frame injection |
+| Cortex-A55 boot (nproc=1), GICv3 | A | Boots Linux to a shell on ttyLP0; SiP GET_SOC_INFO reports soc_id=i.MX91, rev 1.0 |
+| Networking — FEC (eth0) + ENET_QoS/dwmac4 (eth1) | A | Both DHCP; real frames |
+| Storage — uSDHC x3 | A | SDHCI ADMA moves real block data; ext4 mmcblk0 r/w/sync |
+| eDMA1/2 | A | Real TCD execution - I2C transfers, audio FIFO drains, per-CH_MUX source-id routing |
+| Serial console — LPUART x8 | A | Console I/O on ttyLP0; LPUART2 drives the UART interconnect |
+| Audio — SAI/MICFIL/XCVR (play + capture) | A | Square wave -> eDMA -> wav byte-checked; SAI/MICFIL capture real samples; concurrent multi-stream |
+| Camera — MT9M114 -> parallel-CSI -> ISI -> V4L2 | A | 5/5 byte-checked 1280x720 YUYV frames off /dev/video0; host-file frame injection |
 | FlexSPI1 (NOR + SPI-NAND) | A | Boots from real flash contents; JEDEC + read verified |
-| FlexCAN ×2 | A | `can0` up; frame round-trip; **board-to-board** (see Interconnect) |
-| LPSPI ×8 | A | Per-bus SSI master; `is25lp064` JEDEC byte-exact; drives **board-to-board SPI** |
-| ChipIdea USB host (`ci_hdrc`) | A | `usb-storage` → `/dev/sda` byte-correct; usbredir host (see Interconnect) |
-| I²C — LPI2C ×8 (+ WM8962/PMIC/expanders), FlexIO-as-I²C | A | Codec answers; `-device tmp105,bus=…` enumerated + read; FlexIO shift-race fixed |
-| I3C1 (Silvaco) | B | I3C master bridges to legacy I²C; wm8962-on-I3C audio card registers |
-| ELE (EdgeLock Enclave), GPIO, CCM/ANATOP/SRC, MU1/MU2, TMU, ADC1, DDRC, OCOTP, BBNSM, SYSCTR, WDOG, SEMA42 | B | Drivers bind; registers/IRQ/timing correct (ELE + ADC carry honest-fault / operator-settable rails) |
+| FlexCAN x2 | A | can0 up; frame round-trip; board-to-board (see Interconnect) |
+| LPSPI x8 | A | Per-bus SSI master; is25lp064 JEDEC byte-exact; drives board-to-board SPI |
+| I2C — LPI2C x8 + FlexIO-as-I2C | A | Codec answers; -device tmp105,bus=... enumerated + read; FlexIO shift-race fixed; drives I2C interconnect |
+| I3C1 (Silvaco) | A | I3C master bridges to legacy I2C; wm8962-on-I3C audio card registers |
+| Display — LCDIFv3 parallel-RGB | B | imx-drm binds, 800x480 /dev/fb0, framebuffer DMA'd out + screendump byte-correct |
+| ChipIdea USB host (ci_hdrc) | B | usb-storage -> /dev/sda byte-correct; usbredir host (see Interconnect) |
+| Clocks/power — CCM / ANATOP / SRC | B | Linux programs directly (no System Manager) |
+| ELE (EdgeLock Enclave, MU) | B | Driver binds; honest-fault rail (ele-uncomputed-cmds counter + opt-in guest fault) |
+| Timers + control — TPM, SYSCTR, WDOG, SEMA42, MU1/2, GPIO, BBNSM, DDRC | B | Drivers bind; registers/IRQ/timing correct |
+| Sensors/analog — TMU, ADC1, OCOTP | B | Driver binds; ADC carries operator-settable adc-chN props; TMU settable temperature |
+| I2C peripherals — WM8962, MT9M114, PMIC/expanders | B | Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev) |
 
 **Absent on i.MX 91 silicon — N/A (never a failure):**
 
 | Block | Why absent |
 |---|---|
-| Ethos-U65 NPU · 2nd Cortex-A55 · Cortex-M33 (+ MU peer) | Not on the i.MX 91 (i.MX 93 has them) |
+| Ethos-U65 NPU · 2nd Cortex-A55 · Cortex-M33 (+ MU peer) | Not on the i.MX 91 (the i.MX 93 has them) |
 | System Manager (SM/SCMI) | i.MX 91/93 have none; Linux programs CCM/ANATOP/SRC directly |
-| PXP 2D engine · MIPI-DSI · MIPI-CSI · LVDS · ADV7535 HDMI bridge | Not present — display is parallel-RGB LCDIF, camera is parallel ISI |
+| PXP 2D engine · MIPI-DSI · MIPI-CSI · LVDS · ADV7535 HDMI bridge | Not present - display is parallel-RGB LCDIF, camera is parallel ISI |
+<!-- END capability-table (generated from test-matrix.yaml) -->
 
 **SoC identity is correct.** Linux reads the chip id from the SiP SoC-info SMC
 (`fsl_imx91_sip_handler`), which returns `0xa0009100` → id `0x91`, rev 1.0 (A0);

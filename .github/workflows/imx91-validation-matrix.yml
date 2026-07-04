@@ -74,6 +74,16 @@ jobs:
             cat build/test-result-matrix.generated.md
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Check the README capability table is in sync with test-matrix.yaml
+        run: |
+          # Regenerate the README's condensed capability table from the YAML
+          # (verify_groups() also fails if a block is un-grouped or mis-tiered).
+          # If it changes anything, the committed README drifted from the YAML.
+          python3 tests/gen-test-matrix.py --inject-readme
+          git diff --exit-code -- README.md \
+            || { echo "README capability table is stale - run" \
+                 "'python3 tests/gen-test-matrix.py --inject-readme'"; exit 1; }
+
       - name: Upload generated matrix
         if: always()
         uses: actions/upload-artifact@v4

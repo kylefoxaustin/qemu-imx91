@@ -14,10 +14,19 @@ Usage:
   QTEST_QEMU_BINARY=build/qemu-system-aarch64 \
     tests/gen-test-matrix.py [--build-dir build] [-o docs/validation/test-result-matrix.md]
 
+  # regenerate the README's condensed capability table from the same YAML:
+  tests/gen-test-matrix.py --inject-readme            # -> README.md
+
 `qtest:<bin>` entries are executed (TAP ok/not-ok). `boot` and `harness:<dir>`
 entries are labelled from their declared kind -- a full CI also runs the boot
 smoke / functional harness and would upgrade those cells; this assembler does not
 fabricate a pass it didn't observe.
+
+The README's "What runs today" table is a SECOND rendering of test-matrix.yaml
+(condensed, via the readme_groups grouping) between the capability-table markers;
+--inject-readme regenerates it and verify_groups() fails if a block is un-grouped
+or a group's tier disagrees with the block's -- so the README and the detailed
+docs/validation/test-result-matrix.md cannot drift.
 """
 import argparse
 import os
@@ -68,6 +77,71 @@ def row(block, tier, result, evidence, caveat):
     return f"| {block} | {tier} | {result} | {ev} |"
 
 
+# ---- README condensed capability table (same YAML, second rendering) --------
+README_BEGIN = "<!-- BEGIN capability-table (generated from test-matrix.yaml) -->"
+README_END = "<!-- END capability-table (generated from test-matrix.yaml) -->"
+
+
+def verify_groups(spec):
+    """Every present/absent block is grouped exactly once; groups are single-tier.
+
+    This is the anti-drift guard: the README condensed table and the detailed
+    matrix render from the same blocks, so a block added/removed/re-tiered in the
+    YAML must be reflected in a readme_group or generation fails.
+    """
+    present = {b["block"]: b["tier"] for b in spec.get("present", [])}
+    absent = {b["block"] for b in spec.get("absent", [])}
+    seen_p, seen_a, errs = [], [], []
+    for g in spec.get("readme_groups", []):
+        for b in g["blocks"]:
+            seen_p.append(b)
+            if b not in present:
+                errs.append(f"readme_group '{g['label']}' lists unknown block {b}")
+            elif present[b] != g["tier"]:
+                errs.append(f"'{b}' is tier {present[b]} but group "
+                            f"'{g['label']}' is tier {g['tier']}")
+    for g in spec.get("readme_absent", []):
+        seen_a += [b for b in g["blocks"]]
+        errs += [f"readme_absent lists unknown block {b}"
+                 for b in g["blocks"] if b not in absent]
+    for b in present:
+        if seen_p.count(b) != 1:
+            errs.append(f"present block '{b}' grouped {seen_p.count(b)}x (want 1)")
+    for b in absent:
+        if seen_a.count(b) != 1:
+            errs.append(f"absent block '{b}' grouped {seen_a.count(b)}x (want 1)")
+    if errs:
+        raise SystemExit("readme_group drift:\n  " + "\n  ".join(errs))
+
+
+def render_readme_capability(spec):
+    out = ["| Subsystem | Tier | Evidence |", "|---|:--:|---|"]
+    for g in spec.get("readme_groups", []):
+        out.append(f"| {g['label']} | {g['tier']} | {g.get('evidence', '')} |")
+    out += ["", "**Absent on i.MX 91 silicon — N/A (never a failure):**", "",
+            "| Block | Why absent |", "|---|---|"]
+    for g in spec.get("readme_absent", []):
+        out.append(f"| {g['label']} | {g['reason']} |")
+    return "\n".join(out)
+
+
+def inject_readme(spec, path):
+    verify_groups(spec)
+    text = open(path).read()
+    if README_BEGIN not in text or README_END not in text:
+        raise SystemExit(f"{path}: missing capability-table markers")
+    head, rest = text.split(README_BEGIN, 1)
+    _, tail = rest.split(README_END, 1)
+    block = f"{README_BEGIN}\n{render_readme_capability(spec)}\n{README_END}"
+    new = head + block + tail
+    if new != text:
+        open(path, "w").write(new)
+        sys.stderr.write(f"updated {path} capability table from test-matrix.yaml\n")
+        return 1
+    sys.stderr.write(f"{path} capability table already in sync\n")
+    return 0
+
+
 def main():
     global qemu_build_dir
     ap = argparse.ArgumentParser()
@@ -78,7 +152,14 @@ def main():
                     default=os.path.join(REPO, "docs/validation/test-matrix.yaml"))
     ap.add_argument("--print", action="store_true",
                     help="print to stdout instead of writing the file")
+    ap.add_argument("--inject-readme", nargs="?", const=os.path.join(REPO, "README.md"),
+                    help="regenerate the README capability table from the YAML "
+                         "(between the capability-table markers) and exit")
     args = ap.parse_args()
+
+    if args.inject_readme is not None:
+        spec = yaml.safe_load(open(args.yaml))
+        return inject_readme(spec, args.inject_readme)
     qemu_build_dir = os.path.join(REPO, args.build_dir) \
         if not os.path.isabs(args.build_dir) else args.build_dir
     qemu = os.environ.get("QTEST_QEMU_BINARY") \
