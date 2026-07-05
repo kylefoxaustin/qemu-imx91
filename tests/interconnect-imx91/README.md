@@ -14,6 +14,7 @@ tests/interconnect-imx91/run-i2c.sh      # two instances, LPI2C <-> i2c-link <->
 tests/interconnect-imx91/run-spi-stress.sh  # spi-link back-pressure: continuous clock, no vCPU hang
 tests/interconnect-imx91/run-usb.sh      # 91 usbredir host <-> MCX gadget, enum + bulk
 tests/interconnect-imx91/run-usb-cdc.sh  # 91 host <-> MCX CDC gadget, /dev/ttyACM serial
+tests/interconnect-imx91/xcheck-uart-mcx.sh # mixed-SoC: 91 LPUART2 <-> MCX M33 (real uartlink.elf)
 ```
 
 ## Ethernet link (`run-eth.sh`)
@@ -64,6 +65,23 @@ The base EVK DTB only enables LPUART1 (the console, `ttyLP0`), so the harness
 generates a patched DTB (via the BSP `dtc`) enabling `serial@44390000` (LPUART2);
 the `serial1` alias already points at it. SKIPs cleanly if `dtc` isn't found.
 The node keeps its `dmas` props — DMA-mode RX is modelled, so no PIO workaround.
+
+**Mixed-SoC (`xcheck-uart-mcx.sh`).** The same LPUART2 link is proven cross-SoC
+against a bare-metal partner: `xcheck-uart-mcx.sh` bridges the 91's `/dev/ttyLP1`
+to an MCXN947 running the fleet's real `tests/mcxn-uart-link` firmware
+(`uartlink.elf`) over one socket — the exact shape holobench wires for
+`uart-link-imx-mcx`. The 91 runs an in-guest peer (`uartpeer.c`, the guest analogue
+of the MCX's `uart_peer.py`): send a **GO** byte, then **echo** the payload. The M33
+generates + verifies its `i*7+3` pattern and prints `UART LINK PASS 32`. Because
+the M33 waits for GO indefinitely, the 91's slow full-distro boot is absorbed (the
+same boot-disparity property that closed the CAN 91↔MCX lab). SKIPs cleanly if the
+`mcxn947qemu` tree / `arm-none-eabi-gcc` aren't present. Verified:
+
+```
+UARTPEER:PASS echoed 32 bytes byte-exact          # 91 (Linux aarch64)
+UART LINK PASS 32                                 # MCX (bare-metal M33)
+PASS: 32 bytes crossed 91 LPUART2 <-> socket <-> MCX LPUART2 byte-exact
+```
 
 ### LPUART DMA-RX (a model fix this harness drove out)
 
