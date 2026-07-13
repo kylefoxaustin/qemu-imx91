@@ -11,11 +11,32 @@
  * (period) and the per-channel CnSC/CnV (PWM mode + compare value). The PWM
  * output is not observable (no physical pin), so this is a functional register
  * model that lets the driver bind, register a pwmchip, and configure PWMs.
+ *
+ * ⭐ THE COUNTER TICKS AT THE CLOCK THE CCM ACTUALLY GIVES IT.  IT HAS NO DEFAULT.
+ *
+ * This module used to carry
+ *
+ *     #define TPM_CLK_HZ  24000000    /​* nominal module clock *​/
+ *
+ * with no Clock input at all -- so it could not have followed the clock tree even
+ * in principle.  It agreed with the tree only because the tree was ALSO fabricated
+ * (the CCM produced no frequencies, so Linux computed 24 MHz for everything).  Two
+ * fabrications that cancel look exactly like a correct model, and every timer test
+ * was green.
+ *
+ * pwm-imx-tpm derives its prescaler and MOD from clk_get_rate(), so a model whose
+ * counter ignores the tree makes the guest's own arithmetic wrong -- and the
+ * symptom is SPEED, not WRONGNESS, which no correctness check will ever see.
+ *
+ * Now: no clock, NO TICK.  A stopped clock gets diagnosed in a minute.  A
+ * plausible clock ships into somebody's product.
  */
 
 #include "qemu/osdep.h"
 #include "hw/timer/imx93_tpm.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
+#include "qemu/log.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
 #include "qemu/host-utils.h"
@@ -31,19 +52,33 @@
 #define SC_PS       (7u << 0)   /* prescaler = 1 << PS */
 #define GLOBAL_RST  (1u << 1)
 
-#define TPM_CLK_HZ  24000000    /* nominal module clock */
-
 static uint32_t tpm_count(IMX93TpmState *s)
 {
-    uint64_t ticks, period;
+    uint64_t ticks, period, hz;
     uint32_t ps;
 
     if (!(s->sc & SC_CMOD)) {
         return 0;               /* counter disabled */
     }
+
+    /*
+     * No default, and no `?:`.  If the CCM is giving this module no clock -- the
+     * root is gated off, its mux selects a source nobody drives, its PLL was never
+     * powered up -- then the counter DOES NOT ADVANCE, which is what the silicon
+     * does.  Inventing a frequency here is how a model tells firmware it is running
+     * at a speed it never had.
+     */
+    hz = clock_get_hz(s->clk);
+    if (hz == 0) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "imx93.tpm: counter enabled with no module clock; "
+                      "not ticking\n");
+        return 0;
+    }
+
     ps = s->sc & SC_PS;
     ticks = muldiv64(qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) - s->base_ns,
-                     TPM_CLK_HZ, NANOSECONDS_PER_SECOND) >> ps;
+                     hz, NANOSECONDS_PER_SECOND) >> ps;
     period = (s->mod & 0xffff) + 1;
     return ticks % period;
 }
@@ -133,6 +168,14 @@ static void tpm_reset(DeviceState *dev)
     s->base_ns = 0;
 }
 
+static void tpm_init(Object *obj)
+{
+    IMX93TpmState *s = IMX93_TPM(obj);
+
+    /* Created here, not in realize, so the SoC can connect it before we realize. */
+    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+}
+
 static void tpm_realize(DeviceState *dev, Error **errp)
 {
     IMX93TpmState *s = IMX93_TPM(dev);
@@ -144,9 +187,10 @@ static void tpm_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_tpm = {
     .name = TYPE_IMX93_TPM,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
+        VMSTATE_CLOCK(clk, IMX93TpmState),
         VMSTATE_INT64(base_ns, IMX93TpmState),
         VMSTATE_UINT32(sc, IMX93TpmState),
         VMSTATE_UINT32(mod, IMX93TpmState),
@@ -171,6 +215,7 @@ static const TypeInfo tpm_types[] = {
         .name = TYPE_IMX93_TPM,
         .parent = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(IMX93TpmState),
+        .instance_init = tpm_init,
         .class_init = tpm_class_init,
     },
 };

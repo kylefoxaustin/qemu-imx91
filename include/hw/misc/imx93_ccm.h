@@ -6,19 +6,24 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
  * The i.MX 93 has no System Manager, so Linux programs the CCM directly
- * (compatible "fsl,imx93-ccm"). This is a functional register model of the
- * i.MX 9 "clock root + LPCG" CCM, sufficient for the Linux clk-imx93 driver
- * to probe and bring up clocks: it implements read-what-you-write for the
- * root CONTROL and gate DIRECT registers, reports the per-root BUSY status
- * as always-idle so the driver's change-poll completes, and returns a
- * permissive AUTHEN (TrustZone non-secure + all domains whitelisted) so the
- * driver does not skip clocks. No real clock frequencies are produced.
+ * (compatible "fsl,imx93-ccm"). This models the i.MX 9 "clock root + LPCG" CCM
+ * as a REAL CLOCK TREE, not a register file wearing its name: each root's
+ * frequency is COMPUTED from the mux and divider the guest programmed,
+ *
+ *     root_hz = source(sel[slice], CONTROL.MUX) / (CONTROL.DIV + 1)
+ *
+ * and handed to consumers as a Clock. It used to produce no frequencies at all,
+ * while the timers hardcoded 24 MHz and could not follow the tree even in
+ * principle. The two agreed -- and they agreed because BOTH were fabricated.
  */
 
 #ifndef IMX93_CCM_H
 #define IMX93_CCM_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
+#include "hw/misc/imx93_anatop.h"
+#include "hw/misc/imx93_ccm_roots.h"
 #include "qom/object.h"
 #include "qemu/units.h"
 
@@ -34,6 +39,25 @@ struct IMX93CCMState {
 
     MemoryRegion iomem;
     uint32_t regs[IMX93_CCM_NUM_REGS];
+
+    /*
+     * Inputs: the 24 MHz reference, and the four PLLs the ANATOP computes from
+     * the registers the guest wrote.  Outputs: one clock per CLOCK_ROOT slice.
+     *
+     * A slice the RM documents but Linux never registers has NO SOURCE.  A root
+     * that is OFF has no frequency.  A root whose source is undriven (clk_ext1)
+     * has no frequency.  In every one of those cases the output is ZERO, and a
+     * consumer of zero DOES NOT TICK -- it does not fall back to a default.
+     *
+     *     WHERE THE SOURCE IS ABSENT, THE MODEL MUST EXPOSE THAT, NOT ABSORB IT.
+     *     A stopped clock gets diagnosed in a minute.  A plausible clock ships.
+     */
+    Clock *osc_in;
+    Clock *pll_in[IMX93_PLL__COUNT];
+    Clock *root_out[IMX93_CCM_NUM_SLICES];
 };
+
+/* Slice index of a root, for the SoC's wiring (CONTROL lives at slice * 0x80). */
+#define IMX93_CCM_SLICE(off)    ((off) / 0x80)
 
 #endif /* IMX93_CCM_H */

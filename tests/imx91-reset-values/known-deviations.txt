@@ -44,20 +44,15 @@ ADC1                     THRHLR5                    UNTRIAGED
 ADC1                     THRHLR6                    UNTRIAGED
 ADC1                     THRHLR7                    UNTRIAGED
 ANA_OSC                  DIGPROG_DEVICE_ID          UNTRIAGED
-ARMPLL                   DIV                        UNTRIAGED
 ARMPLL                   DIV_CLR                    UNTRIAGED
 ARMPLL                   DIV_SET                    UNTRIAGED
 ARMPLL                   DIV_TOG                    UNTRIAGED
-ARMPLL                   PLL_STATUS                 UNTRIAGED
-AUDIOPLL                 DENOMINATOR                UNTRIAGED
 AUDIOPLL                 DENOMINATOR_CLR            UNTRIAGED
 AUDIOPLL                 DENOMINATOR_SET            UNTRIAGED
 AUDIOPLL                 DENOMINATOR_TOG            UNTRIAGED
-AUDIOPLL                 DIV                        UNTRIAGED
 AUDIOPLL                 DIV_CLR                    UNTRIAGED
 AUDIOPLL                 DIV_SET                    UNTRIAGED
 AUDIOPLL                 DIV_TOG                    UNTRIAGED
-AUDIOPLL                 PLL_STATUS                 UNTRIAGED
 BBNSM                    BBNSM_CTRL                 UNTRIAGED
 BBNSM                    BBNSM_EVENTS               UNTRIAGED
 BBNSM                    BBNSM_FEATURES             UNTRIAGED
@@ -704,15 +699,12 @@ CCM_CTRL                 OSCPLL6_AUTHEN             DECISION: TZ_NS set. -kernel
 CCM_CTRL                 OSCPLL7_AUTHEN             DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 OSCPLL8_AUTHEN             DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 OSCPLL9_AUTHEN             DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
-DRAMPLL                  DENOMINATOR                UNTRIAGED
 DRAMPLL                  DENOMINATOR_CLR            UNTRIAGED
 DRAMPLL                  DENOMINATOR_SET            UNTRIAGED
 DRAMPLL                  DENOMINATOR_TOG            UNTRIAGED
-DRAMPLL                  DIV                        UNTRIAGED
 DRAMPLL                  DIV_CLR                    UNTRIAGED
 DRAMPLL                  DIV_SET                    UNTRIAGED
 DRAMPLL                  DIV_TOG                    UNTRIAGED
-DRAMPLL                  PLL_STATUS                 UNTRIAGED
 EDMA3_1.MP               MP_CSR                     UNTRIAGED
 EDMA3_1.TCD              CH0_SBR                    UNTRIAGED
 EDMA3_1.TCD              CH10_SBR                   UNTRIAGED
@@ -1565,15 +1557,12 @@ SRC.src_wkup_slice       PSW_ACK_CTRL_0             UNTRIAGED
 SRC.src_wkup_slice       PSW_ACK_CTRL_1             UNTRIAGED
 SRC.src_wkup_slice       SINGLE_RESET_SW_CTRL       UNTRIAGED
 SRC.src_wkup_slice       SSAR_ACK_CTRL              UNTRIAGED
-SYSPLL                   DENOMINATOR                UNTRIAGED
 SYSPLL                   DENOMINATOR_CLR            UNTRIAGED
 SYSPLL                   DENOMINATOR_SET            UNTRIAGED
 SYSPLL                   DENOMINATOR_TOG            UNTRIAGED
-SYSPLL                   DIV                        UNTRIAGED
 SYSPLL                   DIV_CLR                    UNTRIAGED
 SYSPLL                   DIV_SET                    UNTRIAGED
 SYSPLL                   DIV_TOG                    UNTRIAGED
-SYSPLL                   PLL_STATUS                 UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID0                    UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID1                    UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTSR                      UNTRIAGED
@@ -1693,15 +1682,12 @@ USB.USB_OTG2             ID                         UNTRIAGED
 USB.USB_OTG2             PORTSC1                    UNTRIAGED
 USB.USB_OTG2             SBUSCFG                    UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING               UNTRIAGED
-VIDEOPLL                 DENOMINATOR                UNTRIAGED
 VIDEOPLL                 DENOMINATOR_CLR            UNTRIAGED
 VIDEOPLL                 DENOMINATOR_SET            UNTRIAGED
 VIDEOPLL                 DENOMINATOR_TOG            UNTRIAGED
-VIDEOPLL                 DIV                        UNTRIAGED
 VIDEOPLL                 DIV_CLR                    UNTRIAGED
 VIDEOPLL                 DIV_SET                    UNTRIAGED
 VIDEOPLL                 DIV_TOG                    UNTRIAGED
-VIDEOPLL                 PLL_STATUS                 UNTRIAGED
 ddr_ctrl.DDRC            DDRDSR_2                   UNTRIAGED
 ddr_ctrl.DDRC            DDR_IP_REV1                UNTRIAGED
 ddr_ctrl.DDRC            DDR_SDRAM_CFG              UNTRIAGED

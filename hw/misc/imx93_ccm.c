@@ -32,18 +32,57 @@
  * zero, so it booted, and every test stayed green.  The reset-value gate found
  * it; no test we author against our own model ever could have.
  *
- * ⚠ Still not modelled: this CCM produces NO FREQUENCIES.  It is a register
- * surface, so a guest computing a rate from MUX/DIV gets an answer this model
- * never checks.  That is a KNOWN, NAMED hole -- see the timer clocks, which
- * hardcode 24 MHz and cannot follow the tree -- and an honestly-documented
- * hole is still a hole.
+ * AND IT IS NOW A REAL CLOCK TREE, NOT A REGISTER FILE WEARING ITS NAME.
+ *
+ *     root_hz = source(sel[slice], CONTROL.MUX) / (CONTROL.DIV + 1)
+ *
+ * with the PLL rates COMPUTED by the ANATOP from the registers the guest wrote.
+ * It used to produce no frequencies at all -- while the TPM hardcoded 24 MHz and
+ * had no clock input, so it could not have followed the tree even in principle.
+ *
+ *     THE TIMER'S CONSTANT AND THE CLOCK TREE AGREED -- AND THEY AGREED BECAUSE
+ *     BOTH WERE FABRICATED, NOT BECAUSE EITHER WAS RIGHT.
+ *
+ * The errors cancelled, so every timer test was green, and the cancellation held
+ * only because nothing on the -kernel path reprograms the roots.  The day
+ * anything did -- U-Boot, a clk_set_rate, a bare-metal guest -- the timer would
+ * silently not have followed.
+ *
+ * ⚠ Still not modelled: LPCG GATING does not reach consumers.  Roots feed their
+ * consumers directly, so a peripheral whose LPCG the guest disabled keeps
+ * ticking.  That is a NAMED hole, not a papered-over one, and it is benign only
+ * because Linux enables the gate for every block it uses.
  */
 
 #include "qemu/osdep.h"
 #include "hw/misc/imx93_ccm.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 #include "qemu/log.h"
+
+/*
+ * CLOCK_ROOT_CONTROL fields (RM §7; clk-composite-93.c agrees).
+ * OFF is set-to-DISABLE: the driver registers the gate with CLK_GATE_SET_TO_DISABLE.
+ */
+#define ROOT_CTRL_DIV_MASK  0xffu           /* actual divider = DIV + 1 */
+#define ROOT_CTRL_MUX_SHIFT 8
+#define ROOT_CTRL_MUX_MASK  0x3u
+#define ROOT_CTRL_OFF       (1u << 24)
+
+/*
+ * The fixed sources.  sys_pll_pfd0/1/2 are CONSTANTS on this SoC -- clk-imx93.c
+ * registers them with imx_clk_hw_fixed(), so no register anywhere derives them --
+ * and clk_ext1 is an off-board input this machine does not drive.
+ *
+ * clk_ext1 resolves to ZERO, deliberately.  A root muxed to a source nobody drives
+ * has no frequency, and its consumer must STOP, loudly, rather than tick at
+ * something invented.  That is the whole lesson of this file.
+ */
+#define OSC_24M_HZ          24000000ULL
+#define SYS_PLL_PFD0_HZ     1000000000ULL
+#define SYS_PLL_PFD1_HZ     800000000ULL
+#define SYS_PLL_PFD2_HZ     625000000ULL
 
 /* Root region: below GATE_BASE, blocks are ROOT_STRIDE apart. */
 #define CCM_GATE_BASE       0x8000
@@ -150,6 +189,63 @@ static void ccm_alias_write(IMX93CCMState *s, hwaddr base, hwaddr reg,
     }
 }
 
+/* Hz of a clock source, or 0 if nothing drives it. */
+static uint64_t imx93_ccm_src_hz(IMX93CCMState *s, IMX93ClkSrc src)
+{
+    switch (src) {
+    case IMX93_CLK_SRC_OSC_24M:            return clock_get_hz(s->osc_in);
+    case IMX93_CLK_SRC_SYS_PLL_PFD0:       return SYS_PLL_PFD0_HZ;
+    case IMX93_CLK_SRC_SYS_PLL_PFD0_DIV2:  return SYS_PLL_PFD0_HZ / 2;
+    case IMX93_CLK_SRC_SYS_PLL_PFD1:       return SYS_PLL_PFD1_HZ;
+    case IMX93_CLK_SRC_SYS_PLL_PFD1_DIV2:  return SYS_PLL_PFD1_HZ / 2;
+    case IMX93_CLK_SRC_SYS_PLL_PFD2:       return SYS_PLL_PFD2_HZ;
+    case IMX93_CLK_SRC_SYS_PLL_PFD2_DIV2:  return SYS_PLL_PFD2_HZ / 2;
+    case IMX93_CLK_SRC_ARM_PLL:            return clock_get_hz(s->pll_in[IMX93_PLL_ARM]);
+    case IMX93_CLK_SRC_AUDIO_PLL:          return clock_get_hz(s->pll_in[IMX93_PLL_AUDIO]);
+    case IMX93_CLK_SRC_VIDEO_PLL:          return clock_get_hz(s->pll_in[IMX93_PLL_VIDEO]);
+    case IMX93_CLK_SRC_DRAM_PLL:           return clock_get_hz(s->pll_in[IMX93_PLL_DRAM]);
+    case IMX93_CLK_SRC_CLK_EXT1:           return 0;   /* nobody drives it here */
+    default:                               return 0;
+    }
+}
+
+/*
+ * The tree.  root_hz = source(sel[slice], CONTROL.MUX) / (CONTROL.DIV + 1).
+ *
+ * Every path that cannot produce a real frequency returns ZERO, and means it:
+ * an unregistered slice, a gated-off root, an undriven source, a PLL that has not
+ * been powered up.  None of them fall back to a default.
+ *
+ *     A `?:` IS NOT A SAFETY NET.  IT IS A PLACE FOR A BUG TO LIVE WHERE NO TEST
+ *     WILL EVER LOOK.                                          -- mcxn947qemu
+ */
+static uint64_t imx93_ccm_root_hz(IMX93CCMState *s, unsigned slice)
+{
+    uint32_t ctrl = s->regs[(slice * CCM_ROOT_STRIDE + CCM_ROOT_CONTROL) / 4];
+    uint8_t sel = imx93_ccm_root_sel[slice];
+    uint64_t src_hz;
+    unsigned mux, div;
+
+    if (sel == IMX93_CCM_NO_SEL || (ctrl & ROOT_CTRL_OFF)) {
+        return 0;
+    }
+
+    mux = (ctrl >> ROOT_CTRL_MUX_SHIFT) & ROOT_CTRL_MUX_MASK;
+    div = (ctrl & ROOT_CTRL_DIV_MASK) + 1;
+
+    src_hz = imx93_ccm_src_hz(s, imx93_ccm_sel[sel][mux]);
+    return src_hz / div;
+}
+
+static void imx93_ccm_update(IMX93CCMState *s)
+{
+    unsigned i;
+
+    for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
+        clock_update_hz(s->root_out[i], imx93_ccm_root_hz(s, i));
+    }
+}
+
 static uint64_t imx93_ccm_read(void *opaque, hwaddr offset, unsigned size)
 {
     IMX93CCMState *s = opaque;
@@ -209,6 +305,7 @@ static void imx93_ccm_write(void *opaque, hwaddr offset, uint64_t value,
     case CCM_BLK_ROOT:
         if (reg <= 0x0c) {
             ccm_alias_write(s, blk + CCM_ROOT_CONTROL, reg, value);
+            imx93_ccm_update(s);
             return;
         }
         if (reg == CCM_ROOT_STATUS0) {
@@ -235,6 +332,7 @@ static void imx93_ccm_write(void *opaque, hwaddr offset, uint64_t value,
     }
 
     s->regs[offset / 4] = value;
+    imx93_ccm_update(s);
 }
 
 static const MemoryRegionOps imx93_ccm_ops = {
@@ -275,23 +373,49 @@ static void imx93_ccm_reset(DeviceState *dev)
             s->regs[(off + CCM_GATE_DIRECT) / 4] = CCM_GATE_ON;
         }
     }
+
+    imx93_ccm_update(s);
+}
+
+static void imx93_ccm_clk_update(void *opaque, ClockEvent event)
+{
+    imx93_ccm_update(IMX93_CCM(opaque));
 }
 
 static void imx93_ccm_init(Object *obj)
 {
     IMX93CCMState *s = IMX93_CCM(obj);
+    static const char *pll_in_name[IMX93_PLL__COUNT] = {
+        [IMX93_PLL_ARM]   = "arm_pll_in",
+        [IMX93_PLL_AUDIO] = "audio_pll_in",
+        [IMX93_PLL_VIDEO] = "video_pll_in",
+        [IMX93_PLL_DRAM]  = "dram_pll_in",
+    };
+    unsigned i;
 
     memory_region_init_io(&s->iomem, obj, &imx93_ccm_ops, s,
                           TYPE_IMX93_CCM, IMX93_CCM_REG_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->iomem);
+
+    s->osc_in = qdev_init_clock_in(DEVICE(obj), "osc_in",
+                                   imx93_ccm_clk_update, s, ClockUpdate);
+    for (i = 0; i < IMX93_PLL__COUNT; i++) {
+        s->pll_in[i] = qdev_init_clock_in(DEVICE(obj), pll_in_name[i],
+                                          imx93_ccm_clk_update, s, ClockUpdate);
+    }
+    for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
+        g_autofree char *name = g_strdup_printf("root%u", i);
+        s->root_out[i] = qdev_init_clock_out(DEVICE(obj), name);
+    }
 }
 
 static const VMStateDescription vmstate_imx93_ccm = {
     .name = TYPE_IMX93_CCM,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, IMX93CCMState, IMX93_CCM_NUM_REGS),
+        VMSTATE_CLOCK(osc_in, IMX93CCMState),
         VMSTATE_END_OF_LIST()
     },
 };

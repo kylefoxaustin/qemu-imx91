@@ -20,6 +20,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "hw/core/qdev-clock.h"
 #include "system/address-spaces.h"
 #include "system/system.h"
 #include "hw/arm/bsa.h"
@@ -259,6 +260,25 @@ static bool fsl_imx91_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
     return false;
 }
 
+/*
+ * Resolve a CCM clock root BY NAME against the generated table.
+ *
+ * ⭐ A SLICE NUMBER COPIED BY HAND AND QUIETLY WRONG HANDS A CONSUMER SOME OTHER
+ *    ROOT'S FREQUENCY -- a plausible number, which is the exact failure this whole
+ *    clock-tree exercise exists to kill.  Callers treat -1 as a hard error.
+ */
+static int fsl_imx91_root_slice(const char *name)
+{
+    unsigned i;
+
+    for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
+        if (imx93_ccm_root_name[i] && !strcmp(imx93_ccm_root_name[i], name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static void fsl_imx91_realize(DeviceState *dev, Error **errp)
 {
     MachineState *ms = MACHINE(qdev_get_machine());
@@ -436,17 +456,39 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
      * Clock infrastructure. The i.MX 91 has no System Manager, so these are
      * functionally modeled (not SCMI-stubbed): Linux programs them directly.
      */
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ccm), errp)) {
-        return;
-    }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ccm), 0,
-                    fsl_imx91_memmap[FSL_IMX91_CCM].addr);
+    /*
+     * The clock tree, wired for real:
+     *
+     *     osc_24m --> ANATOP --(arm/audio/video/dram PLL)--> CCM --> consumers
+     *
+     * The ANATOP COMPUTES each PLL from the registers the guest wrote; the CCM
+     * COMPUTES each root as source(MUX) / (DIV + 1).  Nothing here asserts a
+     * frequency and nothing falls back to one: a root with no source produces no
+     * clock, and a consumer with no clock DOES NOT TICK.
+     */
+    clock_set_hz(s->osc_24m, 24000000);
 
+    qdev_connect_clock_in(DEVICE(&s->anatop), "osc_in", s->osc_24m);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->anatop), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->anatop), 0,
                     fsl_imx91_memmap[FSL_IMX91_ANATOP].addr);
+
+    qdev_connect_clock_in(DEVICE(&s->ccm), "osc_in", s->osc_24m);
+    qdev_connect_clock_in(DEVICE(&s->ccm), "arm_pll_in",
+                          qdev_get_clock_out(DEVICE(&s->anatop), "arm_pll"));
+    qdev_connect_clock_in(DEVICE(&s->ccm), "audio_pll_in",
+                          qdev_get_clock_out(DEVICE(&s->anatop), "audio_pll"));
+    qdev_connect_clock_in(DEVICE(&s->ccm), "video_pll_in",
+                          qdev_get_clock_out(DEVICE(&s->anatop), "video_pll"));
+    qdev_connect_clock_in(DEVICE(&s->ccm), "dram_pll_in",
+                          qdev_get_clock_out(DEVICE(&s->anatop), "dram_pll"));
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ccm), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ccm), 0,
+                    fsl_imx91_memmap[FSL_IMX91_CCM].addr);
 
     /*
      * ELE (EdgeLock Enclave) s4muap MU + success responder. Lets the fsl-se
@@ -1031,8 +1073,30 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->sysctr), 0,
                        qdev_get_gpio_in(gicdev, FSL_IMX91_SYSCTR_IRQ));
 
-    /* TPM1-6: timer / PWM modules. */
+    /*
+     * TPM1-6, each fed by the CCM root its LPCG hangs off (clk-imx93.c ccgr_array).
+     * Note TPM1 and TPM3 are clocked from the BUS roots, NOT from a TPM root --
+     * exactly the sort of fact a hardcoded 24 MHz constant made invisible.
+     */
     for (i = 0; i < 6; i++) {
+        static const char *const tpm_root[6] = {
+            "bus_aon_root",     /* TPM1 */
+            "tpm2_root",        /* TPM2 */
+            "bus_wakeup_root",  /* TPM3 */
+            "tpm4_root",        /* TPM4 */
+            "tpm5_root",        /* TPM5 */
+            "tpm6_root",        /* TPM6 */
+        };
+        int slice = fsl_imx91_root_slice(tpm_root[i]);
+
+        if (slice < 0) {
+            error_setg(errp, "imx91: no CCM clock root named '%s' for TPM%d",
+                       tpm_root[i], i + 1);
+            return;
+        }
+        qdev_connect_clock_in(DEVICE(&s->tpm[i]), "clk",
+                              s->ccm.root_out[slice]);
+
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->tpm[i]), errp)) {
             return;
         }
@@ -1168,6 +1232,9 @@ static void fsl_imx91_init(Object *obj)
         object_initialize_child(obj, tn, &s->tstmr[i], TYPE_IMX93_TSTMR);
         object_initialize_child(obj, sn, &s->sema42[i], TYPE_IMX93_SEMA42);
     }
+    /* The board's 24 MHz crystal: the one frequency this SoC is entitled to assert. */
+    s->osc_24m = qdev_init_clock_out(DEVICE(obj), "osc_24m");
+
     object_initialize_child(obj, "ccm", &s->ccm, TYPE_IMX93_CCM);
     object_initialize_child(obj, "anatop", &s->anatop, TYPE_IMX93_ANATOP);
     object_initialize_child(obj, "ele", &s->ele, TYPE_IMX93_ELE);

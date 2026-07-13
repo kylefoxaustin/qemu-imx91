@@ -10,6 +10,7 @@
 #define HW_TIMER_IMX93_TPM_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 
 #define TYPE_IMX93_TPM "imx93.tpm"
@@ -22,6 +23,7 @@ struct IMX93TpmState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
+    Clock *clk;             /* module clock from the CCM.  NO DEFAULT. */
     int64_t base_ns;        /* virtual time at which the counter last started */
     uint32_t sc;            /* status/control (clock mode + prescaler) */
     uint32_t mod;           /* modulo (period) */

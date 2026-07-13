@@ -59,6 +59,7 @@
 #include "hw/misc/imx9_ddrc.h"
 #include "hw/sd/sdhci.h"
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 #include "qemu/units.h"
 
@@ -111,6 +112,7 @@ enum FslImx91Configuration {
 struct FslImx91State {
     SysBusDevice    parent_obj;
 
+    Clock           *osc_24m;             /* the board's 24 MHz crystal      */
     ARMCPU          cpu[FSL_IMX91_NUM_A55_CPUS];
     GICv3State      gic;
 
