@@ -1378,27 +1378,19 @@ USB.USBNC_OTG2           UTMIPHY_CFG2                                   UNMODELL
 USB.USB_OTG1             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG1             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             ENDPTCTRL0                                     UNTRIAGED
-USB.USB_OTG1             ENDPTFLUSH                                     UNTRIAGED
-USB.USB_OTG1             ENDPTSETUPSTAT                                 UNTRIAGED
-USB.USB_OTG1             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG1             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HCSPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.
 USB.USB_OTG1             PORTSC1                                        UNTRIAGED
 USB.USB_OTG1             TXFILLTUNING                                   UNTRIAGED
-USB.USB_OTG1             USBMODE                                        UNTRIAGED
 USB.USB_OTG2             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG2             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             ENDPTCTRL0                                     UNTRIAGED
-USB.USB_OTG2             ENDPTFLUSH                                     UNTRIAGED
-USB.USB_OTG2             ENDPTSETUPSTAT                                 UNTRIAGED
-USB.USB_OTG2             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG2             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HCSPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.
 USB.USB_OTG2             PORTSC1                                        UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING                                   UNTRIAGED
-USB.USB_OTG2             USBMODE                                        UNTRIAGED
 ddr_ctrl.DDRC            DDRDSR_2                                       UNTRIAGED
 ddr_ctrl.DDRC            DDR_IP_REV1                                    UNTRIAGED
 ddr_ctrl.DDRC            DDR_SDRAM_CFG                                  UNTRIAGED

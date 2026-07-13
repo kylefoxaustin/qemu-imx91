@@ -85,6 +85,40 @@ static void chipidea_write(void *opaque, hwaddr offset,
 {
 }
 
+/*
+ * ⚠ THE ENDPOINT WINDOW SHARES chipidea_ops WITH THE ID BLOCK, AND OFFSETS ARE
+ *   REGION-RELATIVE.
+ *
+ * chipidea_init() maps this same ops struct over TWO regions: ".misc" at 0x000 and
+ * ".endpoints" at 0x1A4.  Adding an offset switch to chipidea_read() therefore
+ * served the ID registers out of the ENDPOINT registers too -- USBMODE answered
+ * HWGENERAL, ENDPTSETUPSTAT answered HWHOST, ENDPTFLUSH answered HWTXBUF.
+ *
+ * The USB tests did not care (host mode never reads those), and the reset-value gate
+ * did: it is the only check here that is not written against this model.
+ *
+ *     THE ORACLE I DID NOT AUTHOR CAUGHT THE BUG I INTRODUCED WHILE FIXING THE BUG
+ *     IT FOUND.                                                    -- mcxn947qemu
+ *
+ * So the endpoint window keeps its own (empty) ops, and the ID switch cannot leak
+ * into it -- by construction, not by remembering.
+ */
+static uint64_t chipidea_ep_read(void *opaque, hwaddr offset, unsigned size)
+{
+    return 0;
+}
+
+static const struct MemoryRegionOps chipidea_ep_ops = {
+    .read = chipidea_ep_read,
+    .write = chipidea_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+        .unaligned = false,
+    },
+};
+
 static const struct MemoryRegionOps chipidea_ops = {
     .read = chipidea_read,
     .write = chipidea_write,
@@ -179,7 +213,7 @@ static void chipidea_init(Object *obj)
                 .name   = TYPE_CHIPIDEA ".endpoints",
                 .offset = 0x1A4,
                 .size   = 0x1DC - 0x1A4 + 4,
-                .ops    = &chipidea_ops,
+                .ops    = &chipidea_ep_ops,
             },
             /*
              * USB_x_DCIVERSION and USB_x_DCCPARAMS
