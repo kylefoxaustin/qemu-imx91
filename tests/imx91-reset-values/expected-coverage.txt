@@ -1,11 +1,10 @@
 # EXPECTED COVERAGE -- held OUTSIDE the golden, because the suite and the
 # artifact must not share a source, AND THE COUNT IS PART OF THE ARTIFACT.
 #
-# Ratchets BOTH ways: shrink = the gate went blind (every register it can no
-# longer see is unchecked); growth = good news that must be DECLARED, not
-# absorbed, so the next regression has something to fail against.
+# Ratchets BOTH ways, and PER INSTANCE: a total cannot see a missing block,
+# and a presence check cannot see a half-empty one.
 #
-TOTAL 9282
+TOTAL 9308
 
 ADC1                         57
 ANA_OSC                      1
@@ -24,7 +23,7 @@ CCM_CTRL                     2306
 DRAMPLL                      21
 EDMA3_1.MP                   4
 EDMA3_1.TCD                  155
-EDMA4_2.MP                   2
+EDMA4_2.MP                   6
 EDMA4_2.TCD                  192
 ENET                         110
 ENET_QOS_TSN                 566
@@ -35,7 +34,7 @@ GPC.gpc_ctrl_ca55_cluster    44
 GPC.gpc_global               10
 I3C1                         44
 I3C2                         44
-IOMUXC1                      256
+IOMUXC1                      278
 IOMUXC_GPR.IOMUXC_GPR        1
 ISI                          40
 LCDIF                        26

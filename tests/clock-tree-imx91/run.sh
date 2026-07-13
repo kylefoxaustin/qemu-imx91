@@ -85,7 +85,7 @@ done
 #    the answer-count assertion below turns a kill into a FAILED VERDICT rather
 #    than a silent short read.  (ollama_95_neutron)
 mapfile -t answers < <( { printf '%b' "$q" \
-    | timeout -s KILL 60 "$QEMU" -M imx91-11x11-evk -display none \
+    | timeout -s KILL 20 "$QEMU" -M imx91-11x11-evk -display none \
         -accel qtest -qtest stdio -monitor none -serial none 2>/dev/null \
     | grep '^OK 0x' | awk '{print strtonum($2)}'; } 2>/dev/null )
 
@@ -142,10 +142,60 @@ if [ "$distinct" -lt 2 ]; then
     fail=1
 fi
 
+# ⭐ IS THE ROOT ASSIGNMENT ITSELF FALSIFIABLE?
+#
+# TPM1 hangs off bus_aon_root and TPM3 off bus_wakeup_root (clk-imx93.c ccgr_array).
+# Those two roots share the SAME parent-select and BOTH reset to 24 MHz -- so if the
+# two were SWAPPED, every check above would still pass and nothing in this tree would
+# ever notice.
+#
+#     "A WRONG ASSIGNMENT YIELDS THE RIGHT NUMBER ON THIS BOARD, AND ONLY DIVERGES ON
+#      HARDWARE THAT CONFIGURES THE TWO ROOTS DIFFERENTLY."        -- rt1180emulator
+#
+# So drive them APART and require each timer to follow ITS OWN root. A swap now fails.
+# LOW_SPEED_IO_SEL: mux 1 = sys_pll_pfd0_div2 (500 MHz), mux 2 = sys_pll_pfd1_div2 (400 MHz)
+BUS_AON=0x44450300          # CLOCK_ROOT6_CONTROL
+BUS_WAKEUP=0x44450280       # CLOCK_ROOT5_CONTROL
+TPM1=0x44310000
+TPM3=0x424e0000
+
+q2=$(printf 'writel %s 0x00000104\nwritel %s 0x00000207\n' "$BUS_AON" "$BUS_WAKEUP")$'\n' 
+for base in $TPM1 $TPM3; do
+    q2="$q2$(printf 'writel 0x%x 0x0000ffff\nwritel 0x%x 0x00000000\nwritel 0x%x 0x00000008\n' \
+             $((base + 0x18)) $((base + 0x10)) $((base + 0x10)))"$'\n'
+done
+q2="$q2$(printf 'clock_step %d\nreadl 0x%x\nreadl 0x%x\n' "$STEP_NS" $((TPM1 + 0x14)) $((TPM3 + 0x14)))"$'\n'
+
+mapfile -t sw < <( { printf '%b' "$q2" \
+    | timeout -s KILL 20 "$QEMU" -M imx91-11x11-evk -display none \
+        -accel qtest -qtest stdio -monitor none -serial none 2>/dev/null \
+    | grep '^OK 0x' | awk '{print strtonum($2)}'; } 2>/dev/null )
+
+# bus_aon    = 500 MHz / 5 = 100 MHz -> 100000 % 65536 = 34464
+# bus_wakeup = 400 MHz / 8 =  50 MHz ->  50000 % 65536 = 50000
+want1=$(( 100000000 / (1000000000 / STEP_NS) % MODULO ))
+want3=$((  50000000 / (1000000000 / STEP_NS) % MODULO ))
+echo
+if [ "${#sw[@]}" -ne 2 ]; then
+    echo "  FAIL  root-assignment check: asked 2 questions, got ${#sw[@]} answers"
+    fail=1
+elif [ "${sw[0]}" -eq "$want1" ] && [ "${sw[1]}" -eq "$want3" ]; then
+    printf "  ok    TPM1 follows bus_aon_root    100 MHz  CNT=%6d\n" "${sw[0]}"
+    printf "  ok    TPM3 follows bus_wakeup_root  50 MHz  CNT=%6d\n" "${sw[1]}"
+    echo   "        (driven APART, so a swapped root assignment now FAILS -- they are"
+    echo   "         the same select and both reset to 24 MHz, which hides a swap)"
+else
+    printf "  FAIL  TPM1 CNT=%6d (want %6d)  TPM3 CNT=%6d (want %6d)\n" \
+           "${sw[0]}" "$want1" "${sw[1]}" "$want3"
+    echo   "        The two bus roots are SWAPPED, or a timer is not on the root it claims."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo
     echo "PASS: the TPM counter follows the CCM clock tree across mux, divider and"
-    echo "      gate -- and STOPS when the tree gives it no clock."
+    echo "      gate -- STOPS when the tree gives it no clock -- and each timer is on"
+    echo "      the root it claims, proven by driving the two bus roots APART."
 else
     echo
     echo "FAIL: the timer does not follow the clock tree."

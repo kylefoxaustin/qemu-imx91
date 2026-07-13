@@ -113,7 +113,19 @@ ROW_RE = re.compile(
 )
 NAME_IN_DESC = re.compile(r'\(([^()]+)\)\s*$')
 CONT_OFF_RE  = re.compile(r'^\s{0,3}(' + HEXNUM + r')\s*$')
-CONT_NAME_RE = re.compile(r'^\s+\(([^()]+)\)\s*$')
+# The DESCRIPTION can wrap too, so the continuation line is not always a bare
+# "(NAME)" -- it can be "Register (SW_PAD_CTL_PAD_DAP_TDO_TRACESWO)". Requiring a
+# bare name silently refused every pad whose description ran long, including the
+# TRACE/debug pad and the PDM mic pads, which reset NON-ZERO.
+CONT_NAME_RE = re.compile(r'^\s+[^()]*\(([^()]+)\)\s*$')
+
+# ⭐ A ROW MUST LOOK LIKE PROSE, NOT LIKE A BIT DIAGRAM.
+#
+# ROW_RE also matched the RM's BITFIELD DIAGRAMS -- rows of "0   0   1   —" whose
+# "offset" is a bit number.  They were refused only because they carry no (NAME) in
+# parentheses, i.e. CORRECT BY LUCK.  A register we invent from a bit diagram would
+# be a FALSE WITNESS, and a wrong golden makes the CHECKER lie.
+DESC_IS_PROSE = re.compile(r'[A-Za-z]{3}')
 
 NOISE = ("NXP Semiconductors", "Reference Manual", "Table continues",
          "i.MX 91 Applications Processor")
@@ -154,7 +166,7 @@ def main(rm_txt, out_json):
     rows = []            # (inst_list, name, off, off_end, reset)
     dropped_ambig = 0    # array rows we refused (rule 4)
     dropped_2d = 0
-    unnamed = [0]        # rows whose NAME cell we could not find -- dropped
+    unnamed = []         # rows whose NAME cell we could not find -- dropped
     rows_since_base = False
     declared = []        # every instance the RM declares a base address for
     insts, i = [], 0
@@ -193,6 +205,10 @@ def main(rm_txt, out_json):
             off_end = None
             name = None
 
+            if not DESC_IS_PROSE.search(desc):
+                i += 1
+                continue        # a bitfield-diagram row, not a register
+
             nm = NAME_IN_DESC.search(desc)
             if nm:
                 name = nm.group(1)
@@ -223,7 +239,7 @@ def main(rm_txt, out_json):
             # DROP, DO NOT GUESS: a row whose name we never found is not a
             # register we may invent a name for.  It is counted, below.
             if name is None:
-                unnamed[0] += 1
+                unnamed.append((insts[-1][0], off, h(reset_s)))
             else:
                 rows_since_base = True
                 rows.append(([b for b, _, _ in insts],
@@ -333,8 +349,23 @@ def main(rm_txt, out_json):
     print("  anchors asserted   : %d   (hand-read from the PDF; all matched)" % len(ANCHORS))
     print("  array rows refused : %d   (index ambiguous / 2-D -- DROPPED, not guessed)"
           % dropped_ambig)
+    #
+    # ⭐ A REFUSAL IS NOT A CHECK.  (mcxn947qemu, whose extractor correctly refused
+    #    every PORT PCR row -- and the refused rows turned out to be the SWD DEBUG
+    #    PINS, reset non-zero, read-modify-written by firmware.  The refusal was
+    #    right.  Never looking at the refusals was not.)
+    #
+    # A refused row you never revisit is an allowlist that never shrinks.  So the
+    # refusals are PRINTED, not merely counted -- and the ones with a NON-ZERO reset
+    # are the ones that can hurt.
+    #
+    hot = [u for u in unnamed if u[2] != 0]
     print("  unnamed rows       : %d   (NAME cell not found -- DROPPED, not invented)"
-          % unnamed[0])
+          % len(unnamed))
+    if hot:
+        print("      of which %d have a NON-ZERO reset and are therefore UNCHECKED:" % len(hot))
+        for inst, off, reset in hot[:12]:
+            print("        %-16s +0x%04x  reset=0x%08x" % (inst, off, reset))
     print("  RM self-conflicts  : %d rows across %d addresses -- DROPPED"
           % (conflict_rows, len(conflicts)))
 

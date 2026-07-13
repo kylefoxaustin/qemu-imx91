@@ -966,6 +966,30 @@
   "reset": 0
  },
  {
+  "inst": "EDMA4_2.MP",
+  "reg": "INT_LOW",
+  "addr": 1107296264,
+  "reset": 0
+ },
+ {
+  "inst": "EDMA4_2.MP",
+  "reg": "INT_HIGH",
+  "addr": 1107296268,
+  "reset": 0
+ },
+ {
+  "inst": "EDMA4_2.MP",
+  "reg": "HRS_LOW",
+  "addr": 1107296272,
+  "reset": 0
+ },
+ {
+  "inst": "EDMA4_2.MP",
+  "reg": "HRS_HIGH",
+  "addr": 1107296276,
+  "reset": 0
+ },
+ {
   "inst": "EDMA4_2.TCD",
   "reg": "CH0_SBR",
   "addr": 1107361804,
@@ -21787,6 +21811,18 @@
  },
  {
   "inst": "IOMUXC1",
+  "reg": "SW_MUX_CTL_PAD_DAP_TCLK_SWCLK",
+  "addr": 1144782856,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "SW_MUX_CTL_PAD_DAP_TDO_TRACESWO",
+  "addr": 1144782860,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
   "reg": "SW_MUX_CTL_PAD_GPIO_IO00",
   "addr": 1144782864,
   "reset": 0
@@ -22369,6 +22405,18 @@
  },
  {
   "inst": "IOMUXC1",
+  "reg": "SW_MUX_CTL_PAD_PDM_BIT_STREAM0",
+  "addr": 1144783252,
+  "reset": 5
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "SW_MUX_CTL_PAD_PDM_BIT_STREAM1",
+  "addr": 1144783256,
+  "reset": 5
+ },
+ {
+  "inst": "IOMUXC1",
   "reg": "SW_MUX_CTL_PAD_SAI1_TXFS",
   "addr": 1144783260,
   "reset": 5
@@ -22414,6 +22462,12 @@
   "reg": "SW_PAD_CTL_PAD_DAP_TCLK_SWCLK",
   "addr": 1144783288,
   "reset": 1310
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "SW_PAD_CTL_PAD_DAP_TDO_TRACESWO",
+  "addr": 1144783292,
+  "reset": 286
  },
  {
   "inst": "IOMUXC1",
@@ -22999,6 +23053,18 @@
  },
  {
   "inst": "IOMUXC1",
+  "reg": "SW_PAD_CTL_PAD_PDM_BIT_STREAM0",
+  "addr": 1144783684,
+  "reset": 1310
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "SW_PAD_CTL_PAD_PDM_BIT_STREAM1",
+  "addr": 1144783688,
+  "reset": 1310
+ },
+ {
+  "inst": "IOMUXC1",
   "reg": "SW_PAD_CTL_PAD_SAI1_TXFS",
   "addr": 1144783692,
   "reset": 1310
@@ -23241,6 +23307,96 @@
   "inst": "IOMUXC1",
   "reg": "LPTMR2_IPP_IND_LPTIMER_SELECT_INPUT_2",
   "addr": 1144783952,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART1_IPP_IND_LPUART_CTS_N_SELECT_INPUT",
+  "addr": 1144783956,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART1_IPP_IND_LPUART_RXD_SELECT_INPUT",
+  "addr": 1144783960,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART1_IPP_IND_LPUART_TXD_SELECT_INPUT",
+  "addr": 1144783964,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART2_IPP_IND_LPUART_CTS_N_SELECT_INPUT",
+  "addr": 1144783968,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART2_IPP_IND_LPUART_RXD_SELECT_INPUT",
+  "addr": 1144783972,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART2_IPP_IND_LPUART_TXD_SELECT_INPUT",
+  "addr": 1144783976,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART3_IPP_IND_LPUART_CTS_N_SELECT_INPUT",
+  "addr": 1144783980,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART3_IPP_IND_LPUART_RXD_SELECT_INPUT",
+  "addr": 1144783984,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART3_IPP_IND_LPUART_TXD_SELECT_INPUT",
+  "addr": 1144783988,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART4_IPP_IND_LPUART_CTS_N_SELECT_INPUT",
+  "addr": 1144783992,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART4_IPP_IND_LPUART_RXD_SELECT_INPUT",
+  "addr": 1144783996,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART4_IPP_IND_LPUART_TXD_SELECT_INPUT",
+  "addr": 1144784000,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART5_IPP_IND_LPUART_CTS_N_SELECT_INPUT",
+  "addr": 1144784004,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART5_IPP_IND_LPUART_RXD_SELECT_INPUT",
+  "addr": 1144784008,
+  "reset": 0
+ },
+ {
+  "inst": "IOMUXC1",
+  "reg": "LPUART5_IPP_IND_LPUART_TXD_SELECT_INPUT",
+  "addr": 1144784012,
   "reset": 0
  },
  {
