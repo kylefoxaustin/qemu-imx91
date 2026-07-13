@@ -1,8 +1,5 @@
-# EXPECTED COVERAGE -- held OUTSIDE the golden, because the suite and the
-# artifact must not share a source, AND THE COUNT IS PART OF THE ARTIFACT.
-#
-# Ratchets BOTH ways, and PER INSTANCE: a total cannot see a missing block,
-# and a presence check cannot see a half-empty one.
+# EXPECTED COVERAGE -- per-instance census, held OUTSIDE the golden.
+# A total cannot see a missing block; a presence check cannot see a half-empty one.
 #
 TOTAL 9308
 

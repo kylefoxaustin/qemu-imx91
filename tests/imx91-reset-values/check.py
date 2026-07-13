@@ -184,9 +184,22 @@ def probe(regs):
     #   * the failure was LATENT IN COVERAGE -- the gate got better at seeing the
     #     chip and that is what broke it.  A harness must scale with its own floor.
     #
+    #
+    # ⭐ READ EACH REGISTER AT ITS OWN WIDTH.
+    #
+    # This used to readl() everything.  An 8-bit register read 32 bits wide pulls in
+    # its three neighbours; a 16-bit register on an odd halfword is a MISALIGNED
+    # read.  That does not lose a register -- IT INVENTS A COMPARISON, and a false
+    # MATCH is a lie you will never see.  (rt1180emulator kept only the 32-bit rows
+    # and went blind to their entire motor drive; I kept them all and read them
+    # wrong, which is the same hole with better manners.)
+    #
+    OP = {8: "readb", 16: "readw", 32: "readl", 64: "readq"}
+
     def ask():
         try:
-            p.stdin.write("".join("readl 0x%x\n" % r["addr"] for r in regs))
+            p.stdin.write("".join("%s 0x%x\n" % (OP[r.get("width", 32)], r["addr"])
+                                  for r in regs))
             p.stdin.flush()
             p.stdin.close()
         except (BrokenPipeError, ValueError):
@@ -201,7 +214,7 @@ def probe(regs):
             if not line:
                 break                 # subject died or was killed: SHORT READ
             if line.startswith("OK 0x"):
-                vals.append(int(line.split()[1], 16) & 0xffffffff)
+                vals.append(int(line.split()[1], 16))
         return vals
     finally:
         p.kill()
@@ -216,8 +229,12 @@ if len(vals) != len(golden):
           % (len(golden), len(vals)))
     sys.exit(1)
 
+def mask(r):
+    return (1 << r.get("width", 32)) - 1
+
 mismatched = {(r["inst"], r["reg"]): (r, v)
-              for r, v in zip(golden, vals) if v != r["reset"]}
+              for r, v in zip(golden, vals)
+              if (v & mask(r)) != (r["reset"] & mask(r))}
 
 new = [k for k in mismatched if k not in allow]
 # An allowlisted register that now agrees with the RM has been FIXED.  Say so, and

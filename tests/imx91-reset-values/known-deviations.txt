@@ -69,8 +69,8 @@ BBNSM                    BBNSM_CTRL                                     UNTRIAGE
 BBNSM                    BBNSM_EVENTS                                   UNTRIAGED
 BBNSM                    BBNSM_FEATURES                                 UNTRIAGED
 BBNSM                    BBNSM_INT_EN                                   UNTRIAGED
-BBNSM                    BBNSM_RTC_LS                                   DECISION: the RTC counter tracks host wall-clock, so it is non-zero from the first instant. A RUNNING COUNTER HAS NO RESET VALUE.
-BBNSM                    BBNSM_RTC_MS                                   DECISION: the RTC counter tracks host wall-clock, so it is non-zero from the first instant. A RUNNING COUNTER HAS NO RESET VALUE.
+BBNSM                    BBNSM_RTC_LS                                   DECISION: the RTC counter tracks host wall-clock. A RUNNING COUNTER HAS NO RESET VALUE.
+BBNSM                    BBNSM_RTC_MS                                   DECISION: the RTC counter tracks host wall-clock. A RUNNING COUNTER HAS NO RESET VALUE.
 BBNSM                    BBNSM_VID                                      UNTRIAGED
 BLK_CTRL_DDRMIX1         SSI_LP_CTRL                                    UNMODELLED: block 'ddrmix-blk-ctrl' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 BLK_CTRL_MEDIAMIX1       INTERFACE_CTRL_REG                             UNTRIAGED
@@ -774,8 +774,8 @@ EDMA4_2.TCD              CH6_SBR                                        UNTRIAGE
 EDMA4_2.TCD              CH7_SBR                                        UNTRIAGED
 EDMA4_2.TCD              CH9_SBR                                        UNTRIAGED
 ENET                     ECR                                            UNTRIAGED
-ENET                     PALR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that, so zeroing them would leave the guest with no MAC.
-ENET                     PAUR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that, so zeroing them would leave the guest with no MAC.
+ENET                     PALR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that.
+ENET                     PAUR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that.
 ENET_QOS_TSN             DMA_CH0_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH1_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH2_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
@@ -927,10 +927,10 @@ FLEXSPI1                 AHBRXBUF4CR0                                   UNTRIAGE
 FLEXSPI1                 AHBRXBUF5CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF6CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF7CR0                                   UNTRIAGED
-FLEXSPI1                 INTR                                           DECISION: commands complete inline, so the IP FIFOs are never the bottleneck: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
+FLEXSPI1                 INTR                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
 FLEXSPI1                 MCR1                                           UNTRIAGED
 FLEXSPI1                 MCR2                                           UNTRIAGED
-FLEXSPI1                 STS0                                           DECISION: commands complete inline, so the IP FIFOs are never the bottleneck: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
+FLEXSPI1                 STS0                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
 FLEXSPI1                 STS2                                           UNTRIAGED
 FSB1                     VERID                                          UNTRIAGED
 GPC.gpc_ctrl_ca55_0      CM_AUTHEN_CTRL                                 UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1545,7 +1545,6 @@ USB.USBNC_OTG2           CTRL2                                          UNMODELL
 USB.USBNC_OTG2           HSIC_DLL_CFG4                                  UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 USB.USBNC_OTG2           UTMIPHY_CFG1                                   UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 USB.USBNC_OTG2           UTMIPHY_CFG2                                   UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-USB.USB_OTG1             CAPLENGTH                                      UNTRIAGED
 USB.USB_OTG1             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG1             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             ENDPTCTRL0                                     UNTRIAGED
@@ -1553,13 +1552,11 @@ USB.USB_OTG1             ENDPTFLUSH                                     UNTRIAGE
 USB.USB_OTG1             ENDPTSETUPSTAT                                 UNTRIAGED
 USB.USB_OTG1             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG1             HCCPARAMS                                      UNTRIAGED
-USB.USB_OTG1             HCIVERSION                                     UNTRIAGED
 USB.USB_OTG1             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact -- the exact tell of a fabricated capability. We under-report, CONSISTENTLY.
+USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact.
 USB.USB_OTG1             PORTSC1                                        UNTRIAGED
 USB.USB_OTG1             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG1             USBMODE                                        UNTRIAGED
-USB.USB_OTG2             CAPLENGTH                                      UNTRIAGED
 USB.USB_OTG2             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG2             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             ENDPTCTRL0                                     UNTRIAGED
@@ -1567,9 +1564,8 @@ USB.USB_OTG2             ENDPTFLUSH                                     UNTRIAGE
 USB.USB_OTG2             ENDPTSETUPSTAT                                 UNTRIAGED
 USB.USB_OTG2             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG2             HCCPARAMS                                      UNTRIAGED
-USB.USB_OTG2             HCIVERSION                                     UNTRIAGED
 USB.USB_OTG2             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact -- the exact tell of a fabricated capability. We under-report, CONSISTENTLY.
+USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact.
 USB.USB_OTG2             PORTSC1                                        UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG2             USBMODE                                        UNTRIAGED

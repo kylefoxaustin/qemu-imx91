@@ -70,7 +70,7 @@ THE RULES, INHERITED, AND NOT NEGOTIABLE (each was paid for by somebody):
      A deviation with a reason is a decision; a deviation without one is a bug
      you have agreed not to look at.
 """
-import json, re, sys
+import collections, json, re, sys
 
 # ---------------------------------------------------------------------------
 # ANCHORS -- hand-read out of IMX91RM.pdf rev 5 by eye.  Rule 1.
@@ -130,6 +130,20 @@ DESC_IS_PROSE = re.compile(r'[A-Za-z]{3}')
 NOISE = ("NXP Semiconductors", "Reference Manual", "Table continues",
          "i.MX 91 Applications Processor")
 
+# ⭐ A REFUSAL YOU DO NOT COUNT IS NOT EVEN A REFUSAL.
+#
+# ROW_RE demands a HEX reset value, so a row whose reset column reads "See section"
+# does not match it AT ALL -- it is not dropped, it is INVISIBLE.  mcxn947qemu's PORT
+# block refused exactly this shape (the RM declines to answer because the value is
+# PER-INSTANCE) and the refused rows were the SWD DEBUG PINS.
+#
+#     A REFUSAL IS NOT A CHECK -- AND AN UNCOUNTED REFUSAL IS NOT EVEN A REFUSAL.
+#
+# So they are matched separately, COUNTED, and PRINTED.
+DEFERRED_RE = re.compile(
+    r'^\s{1,12}(' + HEXNUM + r')\s{2,}(.+?)\s{2,}(\d{1,3})\s{2,}'
+    r'([A-Za-z/ ]{1,12}?)\s{2,}(See section|Refer.*)\s*$')
+
 
 def h(s):
     return int(s.replace("_", ""), 16)
@@ -167,6 +181,7 @@ def main(rm_txt, out_json):
     dropped_ambig = 0    # array rows we refused (rule 4)
     dropped_2d = 0
     unnamed = []         # rows whose NAME cell we could not find -- dropped
+    deferred = []        # rows where the RM DECLINES to give a reset value
     rows_since_base = False
     declared = []        # every instance the RM declares a base address for
     insts, i = [], 0
@@ -198,9 +213,17 @@ def main(rm_txt, out_json):
             i += 1
             continue
 
+        m = DEFERRED_RE.match(line)
+        if m and insts:
+            nm = NAME_IN_DESC.search(m.group(2))
+            deferred.append((insts[-1][0], h(m.group(1)),
+                             nm.group(1) if nm else m.group(2).strip()[:34]))
+            i += 1
+            continue
+
         m = ROW_RE.match(line)
         if m and insts:
-            off_s, open_range, desc, _w, _acc, reset_s = m.groups()
+            off_s, open_range, desc, width_s, _acc, reset_s = m.groups()
             off = h(off_s)
             off_end = None
             name = None
@@ -244,12 +267,13 @@ def main(rm_txt, out_json):
                 rows_since_base = True
                 rows.append(([b for b, _, _ in insts],
                              [a for _, a, _ in insts],
-                             name.strip(), off, off_end, h(reset_s)))
+                             name.strip(), off, off_end, h(reset_s),
+                             int(width_s)))
         i += 1
 
     # ---- expand arrays (rule 4) + emit one row per instance -----------------
     golden = []
-    for inst_names, bases, name, off, off_end, reset in rows:
+    for inst_names, bases, name, off, off_end, reset, width in rows:
         if "-" in name:
             lo, hi = [p.strip() for p in name.split("-", 1)]
             r = array_index(lo, hi)
@@ -268,11 +292,12 @@ def main(rm_txt, out_json):
                 for inm, base in zip(inst_names, bases):
                     golden.append({"inst": inm, "reg": nm,
                                    "addr": base + off + k * stride,
-                                   "reset": reset})
+                                   "reset": reset, "width": width})
         else:
             for inm, base in zip(inst_names, bases):
                 golden.append({"inst": inm, "reg": name,
-                               "addr": base + off, "reset": reset})
+                               "addr": base + off, "reset": reset,
+                               "width": width})
 
     # ---- rule 2: the MANUAL CONTRADICTS ITSELF.  DROP, and COUNT. ----------
     # rt1180emulator: "you drop a row only when CMSIS attributes it to >1
@@ -359,6 +384,16 @@ def main(rm_txt, out_json):
     # refusals are PRINTED, not merely counted -- and the ones with a NON-ZERO reset
     # are the ones that can hurt.
     #
+    if deferred:
+        print("  RM DECLINES to give a reset for %d row(s) -- UNCHECKED, and the RM"
+              % len(deferred))
+        print("      says so on purpose (the value is per-instance, or documented"
+              " elsewhere):")
+        for inst, off, nm in deferred[:10]:
+            print("        %-16s +0x%04x  %s" % (inst, off, nm))
+        if len(deferred) > 10:
+            print("        ... and %d more" % (len(deferred) - 10))
+
     hot = [u for u in unnamed if u[2] != 0]
     print("  unnamed rows       : %d   (NAME cell not found -- DROPPED, not invented)"
           % len(unnamed))
@@ -368,6 +403,27 @@ def main(rm_txt, out_json):
             print("        %-16s +0x%04x  reset=0x%08x" % (inst, off, reset))
     print("  RM self-conflicts  : %d rows across %d addresses -- DROPPED"
           % (conflict_rows, len(conflicts)))
+
+    #
+    # ⭐ WIDTH.  DO NOT KEEP ONLY THE 32-BIT REGISTERS -- AND DO NOT READ THE
+    #    OTHERS AS IF THEY WERE.
+    #
+    # rt1180emulator's gate kept only 32-bit registers and dropped 410 others, and
+    # the blind set was THE ENTIRE MOTOR DRIVE: eFlexPWM's DTCNT (dead-time count)
+    # resets to 07FFh on silicon and their memset made it ZERO.
+    #
+    #     ZERO DEAD TIME IS A DIRECT SHORT ACROSS THE DC BUS, THROUGH BOTH
+    #     TRANSISTORS OF AN INVERTER LEG.  Every PWM test was green.
+    #
+    # Mine did something subtly worse: it KEPT them and read them all with readl.
+    # An 8-bit register read 32 bits wide pulls in its three neighbours, and a
+    # 16-bit register at an odd halfword is a MISALIGNED read.  That does not
+    # merely lose a register -- IT INVENTS A COMPARISON.  A false match is a lie
+    # you will never see.
+    #
+    by_w = collections.Counter(g["width"] for g in golden)
+    print("  widths             : %s   (probed with readb/readw/readl/readq)"
+          % ", ".join("%d-bit x%d" % (w, n) for w, n in sorted(by_w.items())))
 
 
 if __name__ == "__main__":
