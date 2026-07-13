@@ -176,4 +176,5 @@ system_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 # HPPA devices
 system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
 system_ss.add(when: 'CONFIG_IMX93_TMU', if_true: files('imx93_tmu.c'))
+system_ss.add(when: 'CONFIG_IMX93_TMU', if_true: files('imx91_tmu.c'))
 system_ss.add(when: 'CONFIG_IMX93_SEMA42', if_true: files('imx93_sema42.c'))

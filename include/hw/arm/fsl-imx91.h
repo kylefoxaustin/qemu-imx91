@@ -41,7 +41,7 @@
 #include "hw/misc/imx_mu.h"
 #include "hw/rtc/imx93_bbnsm.h"
 #include "hw/watchdog/imx93_wdog.h"
-#include "hw/misc/imx93_tmu.h"
+#include "hw/misc/imx91_tmu.h"
 #include "hw/adc/imx93_adc.h"
 #include "hw/ssi/imx93_lpspi.h"
 #include "hw/nvram/imx93_ocotp.h"
@@ -119,7 +119,7 @@ struct FslImx91State {
     IMXMUState      mu1;                  /* MU1 @ 0x44230000 (A55-side MU)   */
     IMX93BbnsmState bbnsm;               /* BBNSM RTC @ 0x44440000          */
     IMX93WdogState wdog[5];              /* WDOG1-5                         */
-    IMX93TmuState tmu;                   /* thermal monitor @ 0x44482000    */
+    IMX91TmuState tmu;                   /* thermal monitor @ 0x44482000    */
     IMX93AdcState adc1;                  /* SAR-ADC @ 0x44530000            */
     IMX93LpspiState lpspi[8];            /* LPSPI1-8                        */
     IMX93OcotpState ocotp;               /* OCOTP fuses @ 0x47510000        */

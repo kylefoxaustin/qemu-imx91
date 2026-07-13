@@ -773,7 +773,7 @@ ENET_QOS_TSN             MAC_HW_FEATURE2                                DECISION
 ENET_QOS_TSN             MAC_HW_FEATURE3                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_LPI_TIMERS_CONTROL                         UNTRIAGED
 ENET_QOS_TSN             MAC_TIMESTAMP_CONTROL                          UNTRIAGED
-ENET_QOS_TSN             MAC_VERSION                                    DECISION: we report snps 5.10a; silicon is 5.20. stmmac BRANCHES on SNPSVER to pick its register ops -- under-reporting the core version takes the older, simpler path, all of which we implement. Reporting 5.20 would enable dwmac5 features (safety/ECC, TSN) we do not model.
+ENET_QOS_TSN             MAC_VERSION                                    DECISION: we report snps 5.10a; silicon is 5.20. stmmac BRANCHES on SNPSVER to pick its register ops -- under-reporting takes the older path, all of which we implement.
 ENET_QOS_TSN             MTL_DBG_STS                                    UNTRIAGED
 ENET_QOS_TSN             MTL_RXP_CONTROL_STATUS                         UNTRIAGED
 FLEXSPI1                 AHBRXBUF1CR0                                   UNTRIAGED
@@ -783,10 +783,10 @@ FLEXSPI1                 AHBRXBUF4CR0                                   UNTRIAGE
 FLEXSPI1                 AHBRXBUF5CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF6CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF7CR0                                   UNTRIAGED
-FLEXSPI1                 INTR                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
+FLEXSPI1                 INTR                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them makes the driver's per-chunk poll TIME OUT.
 FLEXSPI1                 MCR1                                           UNTRIAGED
 FLEXSPI1                 MCR2                                           UNTRIAGED
-FLEXSPI1                 STS0                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
+FLEXSPI1                 STS0                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them makes the driver's per-chunk poll TIME OUT.
 FLEXSPI1                 STS2                                           UNTRIAGED
 FSB1                     VERID                                          UNTRIAGED
 GPC.gpc_ctrl_ca55_0      CM_AUTHEN_CTRL                                 UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1070,35 +1070,35 @@ LPIT2                    CVAL3                                          UNMODELL
 LPIT2                    PARAM                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT2                    VERID                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPUART1                  DATARO                                         UNTRIAGED
-LPUART1                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART1                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART1                  PARAM                                          UNTRIAGED
 LPUART1                  TOSR                                           UNTRIAGED
 LPUART2                  DATARO                                         UNTRIAGED
-LPUART2                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART2                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART2                  PARAM                                          UNTRIAGED
 LPUART2                  TOSR                                           UNTRIAGED
 LPUART3                  DATARO                                         UNTRIAGED
-LPUART3                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART3                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART3                  PARAM                                          UNTRIAGED
 LPUART3                  TOSR                                           UNTRIAGED
 LPUART4                  DATARO                                         UNTRIAGED
-LPUART4                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART4                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART4                  PARAM                                          UNTRIAGED
 LPUART4                  TOSR                                           UNTRIAGED
 LPUART5                  DATARO                                         UNTRIAGED
-LPUART5                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART5                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART5                  PARAM                                          UNTRIAGED
 LPUART5                  TOSR                                           UNTRIAGED
 LPUART6                  DATARO                                         UNTRIAGED
-LPUART6                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART6                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART6                  PARAM                                          UNTRIAGED
 LPUART6                  TOSR                                           UNTRIAGED
 LPUART7                  DATARO                                         UNTRIAGED
-LPUART7                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART7                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART7                  PARAM                                          UNTRIAGED
 LPUART7                  TOSR                                           UNTRIAGED
 LPUART8                  DATARO                                         UNTRIAGED
-LPUART8                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
+LPUART8                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
 LPUART8                  PARAM                                          UNTRIAGED
 LPUART8                  TOSR                                           UNTRIAGED
 MICFIL                   FIFO_CTRL                                      UNTRIAGED
@@ -1383,7 +1383,7 @@ USB.USB_OTG1             ENDPTSETUPSTAT                                 UNTRIAGE
 USB.USB_OTG1             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG1             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact.
+USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.
 USB.USB_OTG1             PORTSC1                                        UNTRIAGED
 USB.USB_OTG1             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG1             USBMODE                                        UNTRIAGED
@@ -1395,7 +1395,7 @@ USB.USB_OTG2             ENDPTSETUPSTAT                                 UNTRIAGE
 USB.USB_OTG2             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG2             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact.
+USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.
 USB.USB_OTG2             PORTSC1                                        UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG2             USBMODE                                        UNTRIAGED
@@ -1454,10 +1454,6 @@ uSDHC3                   TUNING_CTRL                                    UNTRIAGE
 uSDHC3                   VEND_SPEC                                      UNTRIAGED
 uSDHC3                   VEND_SPEC2                                     UNTRIAGED
 uSDHC3                   WTMK_LVL                                       UNTRIAGED
-u_temp_anamix            CTRL0                                          UNTRIAGED
-u_temp_anamix            CTRL0_CLR                                      UNTRIAGED
-u_temp_anamix            CTRL0_SET                                      UNTRIAGED
-u_temp_anamix            CTRL0_TOG                                      UNTRIAGED
 u_temp_anamix            CTRL1                                          UNTRIAGED
 u_temp_anamix            CTRL1_CLR                                      UNTRIAGED
 u_temp_anamix            CTRL1_SET                                      UNTRIAGED
@@ -1466,11 +1462,6 @@ u_temp_anamix            PUD_ST_CTRL                                    UNTRIAGE
 u_temp_anamix            PUD_ST_CTRL_CLR                                UNTRIAGED
 u_temp_anamix            PUD_ST_CTRL_SET                                UNTRIAGED
 u_temp_anamix            PUD_ST_CTRL_TOG                                UNTRIAGED
-u_temp_anamix            REF_DIV                                        UNTRIAGED
-u_temp_anamix            STAT0                                          UNTRIAGED
-u_temp_anamix            STAT0_CLR                                      UNTRIAGED
-u_temp_anamix            STAT0_SET                                      UNTRIAGED
-u_temp_anamix            STAT0_TOG                                      UNTRIAGED
 u_temp_anamix            STAT1                                          UNTRIAGED
 u_temp_anamix            STAT1_CLR                                      UNTRIAGED
 u_temp_anamix            STAT1_SET                                      UNTRIAGED

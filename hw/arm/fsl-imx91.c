@@ -1233,7 +1233,15 @@ static void fsl_imx91_init(Object *obj)
         g_autofree char *name = g_strdup_printf("wdog%d", i + 1);
         object_initialize_child(obj, name, &s->wdog[i], TYPE_IMX93_WDOG);
     }
-    object_initialize_child(obj, "tmu", &s->tmu, TYPE_IMX93_TMU);
+    /*
+     * The i.MX 91's thermal sensor is NOT the i.MX 93's TMU.  Its device tree says
+     * "fsl,imx91-tmu" (drivers/thermal/imx91_thermal.c), which speaks the
+     * u_temp_anamix block: CTRL0/STAT0/DATA0/CTRL1 with SET/CLR/TOG aliases.  This
+     * machine used to map the 93's TMR/TMSR/TIER register file here, so every
+     * enable the driver issued through CTRL1_SET vanished and the guest could not
+     * read a temperature at all.
+     */
+    object_initialize_child(obj, "tmu", &s->tmu, TYPE_IMX91_TMU);
     object_initialize_child(obj, "adc1", &s->adc1, TYPE_IMX93_ADC);
     for (i = 0; i < 8; i++) {
         g_autofree char *name = g_strdup_printf("lpspi%d", i + 1);
