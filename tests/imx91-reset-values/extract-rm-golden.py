@@ -88,17 +88,32 @@ ANCHORS = [
 BASE_RE  = re.compile(r'^([A-Za-z0-9_.]+)\s+base address:\s*([0-9A-Fa-f_]+)h\s*$')
 HEXNUM   = r'[0-9A-Fa-f][0-9A-Fa-f_]*'
 
-# A table row in -layout mode.  The offset cell may be "0", or "0-" when the
-# range end is wrapped onto the following line.  Protection column is optional.
+# A table row in -layout mode.  TWO cells can wrap onto a continuation line, and
+# each one, left unhandled, silently deletes a whole class of registers:
+#
+#   * the OFFSET cell, when it is a range:      "0-"  /  " 1E_0000"
+#     -> without this, every ARRAY register on the chip vanishes (eDMA channels).
+#
+#   * the NAME cell, when the description is long:
+#         "0   SW_MUX_CTL_PAD_DAP_TDI SW MUX Control Register   32  RW  0000_0000"
+#         "    (SW_MUX_CTL_PAD_DAP_TDI)"
+#     -> without this, THE ENTIRE PINMUX (IOMUXC1) vanishes.  It did.  The total
+#        coverage count did not move, because a total cannot see a missing block.
+#
+# So the name is OPTIONAL here and recovered from the continuation line below.
+# (This is rt1180emulator's original bug report to mcxn -- "the RM prints rows on
+# FIVE lines, not four" -- arriving in a third manual, on a different cell.)
 ROW_RE = re.compile(
     r'^\s{1,12}(' + HEXNUM + r')\s*(-)?\s{2,}'     # offset [range-open]
-    r'(.+?)\s*\(([^()]+)\)\s{2,}'                  # description (NAME[ - NAME])
+    r'(.+?)\s{2,}'                                 # description [ (NAME) ]
     r'(\d{1,3})\s{2,}'                             # width
     r'([A-Za-z/ ]{1,12}?)\s{2,}'                   # access
     r'(' + HEXNUM + r')'                           # RESET VALUE
     r'(?:\s{2,}(?:Yes|No))?\s*$'                   # optional Protection
 )
-CONT_RE = re.compile(r'^\s{0,3}(' + HEXNUM + r')\s*$')
+NAME_IN_DESC = re.compile(r'\(([^()]+)\)\s*$')
+CONT_OFF_RE  = re.compile(r'^\s{0,3}(' + HEXNUM + r')\s*$')
+CONT_NAME_RE = re.compile(r'^\s+\(([^()]+)\)\s*$')
 
 NOISE = ("NXP Semiconductors", "Reference Manual", "Table continues",
          "i.MX 91 Applications Processor")
@@ -106,6 +121,7 @@ NOISE = ("NXP Semiconductors", "Reference Manual", "Table continues",
 
 def h(s):
     return int(s.replace("_", ""), 16)
+
 
 
 def runs(name):
@@ -138,6 +154,9 @@ def main(rm_txt, out_json):
     rows = []            # (inst_list, name, off, off_end, reset)
     dropped_ambig = 0    # array rows we refused (rule 4)
     dropped_2d = 0
+    unnamed = [0]        # rows whose NAME cell we could not find -- dropped
+    rows_since_base = False
+    declared = []        # every instance the RM declares a base address for
     insts, i = [], 0
 
     while i < len(lines):
@@ -145,32 +164,71 @@ def main(rm_txt, out_json):
 
         m = BASE_RE.match(line)
         if m:
-            # A run of consecutive base-address lines = the instances sharing
-            # the table that follows (LPI2C1..LPI2C8, then ONE register table).
-            if not insts or insts[-1][2] != i - 1:
+            # A run of base-address lines = the instances sharing the ONE register
+            # table that follows (LPI2C1..LPI2C8, then a single table).
+            #
+            # DO NOT define the run by line adjacency.  A base-address line can be
+            # the last thing on a page, with the footer, the running chapter title
+            # and the table all landing overleaf -- so "the previous line" breaks
+            # the run and SILENTLY DISCARDS the instance.  That is exactly how
+            # USB.USBNC_OTG1 and the three SRC slices went blind while USBNC_OTG2
+            # (whose base sits *after* the page break) came through fine.  Trying to
+            # enumerate the furniture is a losing game: the running header carries
+            # the CHAPTER TITLE, so the noise list would have to know every chapter.
+            #
+            # Use the document's structure instead: bases ACCUMULATE, and the group
+            # closes when its table's first row arrives.
+            if rows_since_base:
                 insts = []
+                rows_since_base = False
             insts.append((m.group(1), h(m.group(2)), i))
+            declared.append(m.group(1))
             i += 1
             continue
 
         m = ROW_RE.match(line)
         if m and insts:
-            off_s, open_range, _desc, name, _w, _acc, reset_s = m.groups()
+            off_s, open_range, desc, _w, _acc, reset_s = m.groups()
             off = h(off_s)
             off_end = None
-            if open_range:
-                # the range end is wrapped onto the next non-blank line
-                j = i + 1
-                while j < len(lines) and not lines[j].strip():
+            name = None
+
+            nm = NAME_IN_DESC.search(desc)
+            if nm:
+                name = nm.group(1)
+
+            # Look ahead for wrapped cells: the offset-range end and/or the name.
+            j = i + 1
+            while j < len(lines) and (off_end is None or name is None):
+                nxt = lines[j]
+                if not nxt.strip():
                     j += 1
-                if j < len(lines):
-                    c = CONT_RE.match(lines[j])
+                    continue
+                if open_range and off_end is None:
+                    c = CONT_OFF_RE.match(nxt)
                     if c:
                         off_end = h(c.group(1))
                         i = j
-            rows.append(([b for b, _, _ in insts],
-                         [a for _, a, _ in insts],
-                         name.strip(), off, off_end, h(reset_s)))
+                        j += 1
+                        continue
+                if name is None:
+                    c = CONT_NAME_RE.match(nxt)
+                    if c:
+                        name = c.group(1)
+                        i = j
+                        j += 1
+                        continue
+                break
+
+            # DROP, DO NOT GUESS: a row whose name we never found is not a
+            # register we may invent a name for.  It is counted, below.
+            if name is None:
+                unnamed[0] += 1
+            else:
+                rows_since_base = True
+                rows.append(([b for b, _, _ in insts],
+                             [a for _, a, _ in insts],
+                             name.strip(), off, off_end, h(reset_s)))
         i += 1
 
     # ---- expand arrays (rule 4) + emit one row per instance -----------------
@@ -239,13 +297,44 @@ def main(rm_txt, out_json):
             print("    " + b)
         sys.exit(2)
 
+    #
+    # ⭐ THE BLIND-BLOCK GATE.  A TOTAL CANNOT SEE A MISSING PERIPHERAL.
+    #
+    # The first version of this extractor printed "6388 registers" and passed --
+    # while the ENTIRE PINMUX (IOMUXC1, every SW_MUX_CTL_PAD_* on the chip) was
+    # invisible, because those rows wrap their NAME onto a continuation line.  The
+    # total never moved, so nothing complained.
+    #
+    #     A NUMBER WITH NO EXPECTED VALUE IS A FACT, NOT A CONTROL.  -- rt1180emulator
+    #
+    # and the corollary that cost me: an ASSERTED TOTAL is still only a control on
+    # the TOTAL.  A whole block can vanish inside a coverage number that is itself
+    # correctly asserted.  So: the RM declares a base address for every instance it
+    # documents.  THAT is the expected set, it lives OUTSIDE the parser, and an
+    # instance that yields ZERO registers is a PARSER FAILURE -- not an empty
+    # peripheral -- and it REFUSES TO EMIT.
+    #
+    covered = {g["inst"] for g in golden}
+    blind = [d for d in sorted(set(declared)) if d not in covered]
+    if blind:
+        print("BLIND BLOCK GATE FAILED -- the extractor will NOT emit.")
+        print("The RM declares a base address for these instances and the parser")
+        print("produced ZERO registers for them.  A total cannot see a missing block:")
+        for b in blind:
+            print("    %s" % b)
+        sys.exit(2)
+
     json.dump(golden, open(out_json, "w"), indent=1)
 
     print("golden written: %s" % out_json)
     print("  registers          : %d   <-- COVERAGE IS A FLOOR, NOT A CEILING" % len(golden))
+    print("  instances          : %d / %d declared by the RM  [none blind]"
+          % (len(covered), len(set(declared))))
     print("  anchors asserted   : %d   (hand-read from the PDF; all matched)" % len(ANCHORS))
     print("  array rows refused : %d   (index ambiguous / 2-D -- DROPPED, not guessed)"
           % dropped_ambig)
+    print("  unnamed rows       : %d   (NAME cell not found -- DROPPED, not invented)"
+          % unnamed[0])
     print("  RM self-conflicts  : %d rows across %d addresses -- DROPPED"
           % (conflict_rows, len(conflicts)))
 

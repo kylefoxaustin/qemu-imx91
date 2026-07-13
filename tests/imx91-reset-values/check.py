@@ -47,7 +47,7 @@ So it is built to SHRINK, and it fights back in BOTH directions:
   decision; a deviation without one is a bug you have agreed not to look at.
                                                        -- rt1180emulator
 """
-import json, os, subprocess, sys
+import collections, json, os, subprocess, sys, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QEMU = os.environ.get("QEMU", os.path.join(HERE, "..", "..", "build",
@@ -77,19 +77,56 @@ golden = json.load(open(os.path.join(HERE, "rm-golden.json")))
 # ARTIFACT.  It ratchets in BOTH directions: coverage DOWN means the gate went
 # partially blind; coverage UP is good news that must be DECLARED, not absorbed.
 #
-EXPECTED = int(open(os.path.join(HERE, "expected-coverage.txt")).read().strip())
-
-if len(golden) != EXPECTED:
-    direction = "SHRANK" if len(golden) < EXPECTED else "GREW"
-    print("FAIL: COVERAGE %s -- the golden holds %d registers, expected-coverage.txt "
-          "says %d." % (direction, len(golden), EXPECTED))
-    if len(golden) < EXPECTED:
-        print("      THE GATE HAS GONE PARTIALLY BLIND.  Every register it can no")
-        print("      longer see is UNCHECKED, and this run would otherwise say PASS.")
+# ...AND IT IS ASSERTED PER PERIPHERAL, NOT JUST IN TOTAL.
+#
+# A TOTAL CANNOT SEE A MISSING BLOCK, AND A PRESENCE CHECK CANNOT SEE A HALF-EMPTY
+# ONE.  Both of those were live in this gate within an hour of each other:
+#
+#   * The entire PINMUX (IOMUXC1, 256 registers) was invisible -- their NAME cell
+#     wraps to a continuation line -- and the total said 6388 and PASSED.  When it
+#     was recovered it turned out to be hiding 174 real lies.
+#   * Then the fix was negative-tested by reverting it, and the block-PRESENCE gate
+#     still said "127/127, none blind" -- because IOMUXC1 keeps the few rows whose
+#     names happen to fit on one line.  A block with 5 registers and a block with
+#     256 are indistinguishable to "is it there?".
+#
+#     ⭐ EVERY COVERAGE CONTROL IS ITSELF A NUMBER THAT NEEDS AN EXPECTED VALUE.
+#        Assert the SHAPE of the coverage, not just its size.
+#
+# So expected-coverage.txt holds a per-instance manifest, OUTSIDE the golden, and
+# it ratchets in both directions -- shrink means we went blind, growth is good news
+# that must be DECLARED so the next regression has something to fail against.
+EXPECTED = {}
+TOTAL = None
+for line in open(os.path.join(HERE, "expected-coverage.txt")):
+    line = line.split("#", 1)[0].strip()
+    if not line:
+        continue
+    k, v = line.rsplit(None, 1)
+    if k == "TOTAL":
+        TOTAL = int(v)
     else:
-        print("      The gate can see MORE than it was told to.  Good news -- but it")
-        print("      must be DECLARED, not absorbed: update expected-coverage.txt so")
-        print("      the next regression has something to fail against.")
+        EXPECTED[k] = int(v)
+
+actual = collections.Counter(g["inst"] for g in golden)
+drift = []
+for inst in sorted(set(EXPECTED) | set(actual)):
+    want, have = EXPECTED.get(inst, 0), actual.get(inst, 0)
+    if want != have:
+        drift.append((inst, want, have))
+
+if len(golden) != TOTAL or drift:
+    print("FAIL: COVERAGE DRIFT -- the golden holds %d registers, expected-coverage.txt "
+          "says %d." % (len(golden), TOTAL))
+    print("      A total cannot see a missing block, and a presence check cannot see")
+    print("      a half-empty one.  Every register the gate can no longer see is")
+    print("      UNCHECKED, and this run would otherwise have said PASS.")
+    for inst, want, have in drift[:20]:
+        verdict = "WENT BLIND" if have < want else "sees more -- DECLARE it"
+        print("        %-26s expected %5d  got %5d   <-- %s"
+              % (inst, want, have, verdict))
+    if len(drift) > 20:
+        print("        ... and %d more instances" % (len(drift) - 20))
     sys.exit(2)
 
 allow = {}
@@ -130,20 +167,46 @@ def probe(regs):
          "-qtest", "stdio", "-monitor", "none", "-serial", "none"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, text=True)
+
+    #
+    # ⭐ ASK AND LISTEN AT THE SAME TIME.  A HARNESS THAT WRITES EVERY QUESTION
+    #    BEFORE READING ANY ANSWER DEADLOCKS ON ITS OWN PIPE -- AND ONLY ONCE
+    #    COVERAGE GROWS PAST THE BUFFER.
+    #
+    # This used to write all the questions, then read all the answers.  It worked
+    # at 6388 registers and DEADLOCKED at 9282: ~190 KB of questions overflows the
+    # 64 KB pipe, so we block writing while QEMU blocks writing answers nobody is
+    # draining.  The kill-timeout then fired and the write died with EPIPE -- which
+    # surfaced as a TRACEBACK, not a verdict.
+    #
+    # Two lessons, both the fleet's, both earned here:
+    #   * the harness assumed every measurement returns (ollama_95_neutron); and
+    #   * the failure was LATENT IN COVERAGE -- the gate got better at seeing the
+    #     chip and that is what broke it.  A harness must scale with its own floor.
+    #
+    def ask():
+        try:
+            p.stdin.write("".join("readl 0x%x\n" % r["addr"] for r in regs))
+            p.stdin.flush()
+            p.stdin.close()
+        except (BrokenPipeError, ValueError):
+            pass                      # subject died; the answer count will say so
+
+    writer = threading.Thread(target=ask, daemon=True)
+    writer.start()
     try:
-        p.stdin.write("".join("readl 0x%x\n" % r["addr"] for r in regs))
-        p.stdin.flush()
         vals = []
         while len(vals) < len(regs):
             line = p.stdout.readline()
             if not line:
-                break
+                break                 # subject died or was killed: SHORT READ
             if line.startswith("OK 0x"):
                 vals.append(int(line.split()[1], 16) & 0xffffffff)
         return vals
     finally:
         p.kill()
         p.wait()
+        writer.join(timeout=5)
 
 
 vals = probe(golden)
