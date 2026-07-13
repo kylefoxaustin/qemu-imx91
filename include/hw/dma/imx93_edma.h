@@ -38,6 +38,7 @@ struct IMX93EdmaState {
 
     MemoryRegion iomem;
     uint32_t     num_channels;
+    uint32_t     mp_csr_reset;  /* MP_CSR/CSR reset: differs per IP version */
     uint32_t     chan_stride;   /* page size: edma3 0x10000, edma4 0x8000 */
 
     uint32_t     mgmt[IMX93_EDMA_MGMT_REGS];

@@ -699,6 +699,9 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
 
         object_property_set_uint(OBJECT(&s->edma2), "num-channels",
                                  FSL_IMX91_EDMA2_CHANNELS, &error_abort);
+        /* EDMA4_2 is a different IP version: the RM gives its CSR a different reset. */
+        object_property_set_uint(OBJECT(&s->edma2), "mp-csr-reset",
+                                 0x00400000, &error_abort);
         object_property_set_uint(OBJECT(&s->edma2), "chan-stride",
                                  FSL_IMX91_EDMA2_CHAN_STRIDE, &error_abort);
         if (!sysbus_realize(sbd, errp)) {

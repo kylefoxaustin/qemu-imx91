@@ -41,6 +41,7 @@
 #include "qemu/timer.h"
 #include "qemu/host-utils.h"
 
+#define TPM_VERID   0x00
 #define TPM_PARAM   0x04
 #define TPM_GLOBAL  0x08
 #define TPM_SC      0x10
@@ -51,6 +52,25 @@
 #define SC_CMOD     (3u << 3)   /* clock mode: 0 = disabled */
 #define SC_PS       (7u << 0)   /* prescaler = 1 << PS */
 #define GLOBAL_RST  (1u << 1)
+
+/*
+ * Reset values, from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ *
+ * PARAM is a CAPABILITY register -- the guest reads it to find out what this chip
+ * HAS -- so a value we invent is a promise we make on the silicon's behalf.  We
+ * used to return a bare "6" (channels), which was wrong AND disagreed with itself:
+ * the real PARAM also carries TRIG and WIDTH, which we simply dropped.
+ *
+ *     WIDTH = 32  -> the counter and modulo are 32-BIT, not 16.
+ *     TRIG  = 4
+ *     CHAN  = 4   -> FOUR pwm channels
+ *
+ * MOD resets to FFFFh, not zero. With MOD = 0 the period is 1 and CNT reads 0
+ * forever -- so this model's counter was DEAD at reset until the guest wrote MOD.
+ */
+#define TPM_VERID_RESET 0x06000007
+#define TPM_PARAM_RESET 0x00200404
+#define TPM_MOD_RESET   0x0000ffff
 
 static uint32_t tpm_count(IMX93TpmState *s)
 {
@@ -79,7 +99,7 @@ static uint32_t tpm_count(IMX93TpmState *s)
     ps = s->sc & SC_PS;
     ticks = muldiv64(qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) - s->base_ns,
                      hz, NANOSECONDS_PER_SECOND) >> ps;
-    period = (s->mod & 0xffff) + 1;
+    period = (uint64_t)s->mod + 1;    /* MOD is 32-bit: PARAM.WIDTH = 32 */
     return ticks % period;
 }
 
@@ -88,8 +108,10 @@ static uint64_t tpm_read(void *opaque, hwaddr offset, unsigned size)
     IMX93TpmState *s = opaque;
 
     switch (offset) {
+    case TPM_VERID:
+        return TPM_VERID_RESET;
     case TPM_PARAM:
-        return IMX93_TPM_CHANNELS;          /* CHAN in [7:0] */
+        return TPM_PARAM_RESET;             /* WIDTH=32, TRIG=4, CHAN=4 */
     case TPM_SC:
         return s->sc;
     case TPM_CNT:
@@ -116,7 +138,7 @@ static void tpm_write(void *opaque, hwaddr offset, uint64_t value,
     case TPM_GLOBAL:
         if (value & GLOBAL_RST) {
             s->sc = 0;
-            s->mod = 0;
+            s->mod = TPM_MOD_RESET;
             memset(s->cnsc, 0, sizeof(s->cnsc));
             memset(s->cnv, 0, sizeof(s->cnv));
             s->base_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -162,7 +184,7 @@ static void tpm_reset(DeviceState *dev)
     IMX93TpmState *s = IMX93_TPM(dev);
 
     s->sc = 0;
-    s->mod = 0;
+    s->mod = TPM_MOD_RESET;     /* FFFFh on silicon.  Zero here meant period = 1. */
     memset(s->cnsc, 0, sizeof(s->cnsc));
     memset(s->cnv, 0, sizeof(s->cnv));
     s->base_ns = 0;

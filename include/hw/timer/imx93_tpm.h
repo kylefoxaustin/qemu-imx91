@@ -17,7 +17,19 @@
 OBJECT_DECLARE_SIMPLE_TYPE(IMX93TpmState, IMX93_TPM)
 
 #define IMX93_TPM_SIZE      0x10000
-#define IMX93_TPM_CHANNELS  6
+/*
+ * ⭐ FOUR channels, not six.  PARAM.CHAN = 4 in IMX91RM.pdf rev 5 (§52.7.1.3), and
+ *    pwm-imx-tpm reads that field and registers EXACTLY THAT MANY PWM channels:
+ *
+ *        val  = readl(base + PWM_IMX_TPM_PARAM);
+ *        npwm = FIELD_GET(PWM_IMX_TPM_PARAM_CHAN, val);
+ *
+ * This model returned 6 -- a number somebody typed -- so Linux exposed pwm4 and
+ * pwm5, which DO NOT EXIST ON THE SILICON.  They work here and fail on hardware,
+ * which is the worst direction for a model to be wrong in.  An invented capability
+ * is a promise the emulator makes on the chip's behalf.
+ */
+#define IMX93_TPM_CHANNELS  4
 
 struct IMX93TpmState {
     SysBusDevice parent_obj;

@@ -1,6 +1,6 @@
 # KNOWN RESET-VALUE DEVIATIONS -- i.MX 91
 #
-# ⭐ THIS NUMBER MUST GO DOWN.  It is a TO-DO LIST, not a certificate.
+# THIS NUMBER MUST GO DOWN.  It is a TO-DO LIST, not a certificate.
 #
 #     "An independent whitelist doesn't merely MISS the bug -- IT CERTIFIES IT."
 #                                                        -- ollama_95_neutron
@@ -10,16 +10,28 @@
 # fixed -- delete the line").  An allowlist that never shrinks stops being a
 # to-do list and becomes a CERTIFICATE.
 #
-#   DECISION  -- a deliberate deviation WITH ITS REASON.  The RM's reset column is
-#                the COLD-POR value; we boot -kernel and skip the ROM and TF-A, so
-#                some registers must be synthesised or the guest breaks.
-#                "A deviation with a reason is a decision; a deviation without one
-#                 is a bug you have agreed not to look at." -- rt1180emulator
+# THREE KINDS OF ENTRY, and the distinction is the whole point:
 #
-#   UNTRIAGED -- a lie we have not looked at yet.  Every one is a value the guest
-#                can read that the silicon would never produce.
+#   DECISION   -- a deliberate deviation WITH ITS REASON.  The RM's reset column is
+#                 the COLD-POR value; we boot -kernel and skip the ROM and TF-A, so
+#                 some registers must be synthesised or the guest breaks.
+#                 "A deviation with a reason is a decision; a deviation without one
+#                  is a bug you have agreed not to look at."   -- rt1180emulator
 #
-# format: <instance> <register> <reason>
+#   UNMODELLED -- the BLOCK is a stub or the catch-all.  It reads 0 and swallows
+#                 writes.  This is an ABSENT model, not a lying one -- a different
+#                 fact, and conflating the two buries the real bugs.
+#
+#   UNTRIAGED  -- a REAL DEVICE MODEL returning a value the silicon would never
+#                 produce.  THIS is the bug list.
+#
+# ON CAPABILITY REGISTERS (PARAM, HW_FEATURE, FIFO depth, channel counts):
+#     UNDER-reporting is the SAFE error direction -- the guest uses fewer features,
+#     all of which we implement.  OVER-reporting is the dangerous one: it is a
+#     promise the emulator makes on the chip's behalf, it WORKS HERE, and it FAILS
+#     ON HARDWARE.  The TPM advertised 6 PWM channels where silicon has 4.
+#
+# format: <instance> <register> <kind>[: reason]
 #
 ADC1                     CALCFG0                    UNTRIAGED
 ADC1                     CTR0                       UNTRIAGED
@@ -57,47 +69,47 @@ BBNSM                    BBNSM_CTRL                 UNTRIAGED
 BBNSM                    BBNSM_EVENTS               UNTRIAGED
 BBNSM                    BBNSM_FEATURES             UNTRIAGED
 BBNSM                    BBNSM_INT_EN               UNTRIAGED
-BBNSM                    BBNSM_RTC_LS               UNTRIAGED
-BBNSM                    BBNSM_RTC_MS               UNTRIAGED
+BBNSM                    BBNSM_RTC_LS               DECISION: the RTC counter tracks host wall-clock, so it is non-zero from the first instant. A RUNNING COUNTER HAS NO RESET VALUE.
+BBNSM                    BBNSM_RTC_MS               DECISION: the RTC counter tracks host wall-clock, so it is non-zero from the first instant. A RUNNING COUNTER HAS NO RESET VALUE.
 BBNSM                    BBNSM_VID                  UNTRIAGED
-BLK_CTRL_DDRMIX1         SSI_LP_CTRL                UNTRIAGED
+BLK_CTRL_DDRMIX1         SSI_LP_CTRL                UNMODELLED: block 'ddrmix-blk-ctrl' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 BLK_CTRL_MEDIAMIX1       INTERFACE_CTRL_REG         UNTRIAGED
 BLK_CTRL_MEDIAMIX1       ISI0                       UNTRIAGED
 BLK_CTRL_MEDIAMIX1       LCDIF                      UNTRIAGED
 BLK_CTRL_MEDIAMIX1       PIXEL_CTRL                 UNTRIAGED
 BLK_CTRL_MEDIAMIX1       RESET                      UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    CACHE_ATTR                 UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_MST_DDRMIX             UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_MST_GIC600             UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_MST_WAKEUPMIX          UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_SLV_CACHE              UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_SLV_GIC600             UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_SLV_HSIOMIX            UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_SLV_MEDIAMIX           UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    SSI_SLV_WAKEUPMIX          UNTRIAGED
-BLK_CTRL_NIC_WRAPPER1    TIE_VALUE                  UNTRIAGED
-BLK_CTRL_NS_AONMIX1      FASTBOOT_ENABLE            UNTRIAGED
-BLK_CTRL_NS_AONMIX1      SSI_MASTER_AON2WKUP        UNTRIAGED
-BLK_CTRL_NS_AONMIX1      SSI_SLV_WKUP2AON           UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_CPUWAIT               UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK0             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK1             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK2             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK3             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK4             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK5             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK6             UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_MODE                  UNTRIAGED
-BLK_CTRL_S_AONMIX2       CA55_RVBARADDR0_L          UNTRIAGED
-BLK_CTRL_S_AONMIX2       ELE_IRQ_MASK               UNTRIAGED
-BLK_CTRL_S_AONMIX2       ELE_RESET_REQ_MASK         UNTRIAGED
-BLK_CTRL_S_AONMIX2       L2_OCRAM_STICKY            UNTRIAGED
-BLK_CTRL_S_AONMIX2       WDOG_ANY_MASK              UNTRIAGED
-BLK_CTRL_WAKEUPMIX1      ENET_CLK_SEL               UNTRIAGED
-BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2AON           UNTRIAGED
-BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2NIC           UNTRIAGED
-BLK_CTRL_WAKEUPMIX1      SSI_SLV_AON2WKUP           UNTRIAGED
-BLK_CTRL_WAKEUPMIX1      SSI_SLV_NIC2WKUP           UNTRIAGED
+BLK_CTRL_NIC_WRAPPER1    CACHE_ATTR                 UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_MST_DDRMIX             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_MST_GIC600             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_MST_WAKEUPMIX          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_SLV_CACHE              UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_SLV_GIC600             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_SLV_HSIOMIX            UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_SLV_MEDIAMIX           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    SSI_SLV_WAKEUPMIX          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NIC_WRAPPER1    TIE_VALUE                  UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NS_AONMIX1      FASTBOOT_ENABLE            UNMODELLED: block 'aonmix-blk-ctrl' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NS_AONMIX1      SSI_MASTER_AON2WKUP        UNMODELLED: block 'aonmix-blk-ctrl' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_NS_AONMIX1      SSI_SLV_WKUP2AON           UNMODELLED: block 'aonmix-blk-ctrl' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_CPUWAIT               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK0             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK2             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK3             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK4             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK5             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_IRQ_MASK6             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_MODE                  UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       CA55_RVBARADDR0_L          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       ELE_IRQ_MASK               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       ELE_RESET_REQ_MASK         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       L2_OCRAM_STICKY            UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_S_AONMIX2       WDOG_ANY_MASK              UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_WAKEUPMIX1      ENET_CLK_SEL               UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2AON           UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2NIC           UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_WAKEUPMIX1      SSI_SLV_AON2WKUP           UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+BLK_CTRL_WAKEUPMIX1      SSI_SLV_NIC2WKUP           UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 CAN_FD1                  CTRL2                      UNTRIAGED
 CAN_FD1                  ESR2                       UNTRIAGED
 CAN_FD1                  FDCTRL                     UNTRIAGED
@@ -705,47 +717,12 @@ DRAMPLL                  DENOMINATOR_TOG            UNTRIAGED
 DRAMPLL                  DIV_CLR                    UNTRIAGED
 DRAMPLL                  DIV_SET                    UNTRIAGED
 DRAMPLL                  DIV_TOG                    UNTRIAGED
-EDMA3_1.MP               MP_CSR                     UNTRIAGED
-EDMA3_1.TCD              CH0_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH10_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH11_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH12_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH13_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH14_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH15_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH16_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH17_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH18_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH19_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH1_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH20_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH21_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH22_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH23_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH24_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH25_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH26_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH27_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH28_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH29_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH2_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH30_SBR                   UNTRIAGED
-EDMA3_1.TCD              CH3_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH4_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH5_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH6_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH7_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH8_SBR                    UNTRIAGED
-EDMA3_1.TCD              CH9_SBR                    UNTRIAGED
-EDMA4_2.MP               CSR                        UNTRIAGED
-EDMA4_2.TCD              CH0_SBR                    UNTRIAGED
 EDMA4_2.TCD              CH10_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH11_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH12_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH13_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH14_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH15_SBR                   UNTRIAGED
-EDMA4_2.TCD              CH16_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH17_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH18_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH19_SBR                   UNTRIAGED
@@ -754,7 +731,6 @@ EDMA4_2.TCD              CH20_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH21_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH22_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH23_SBR                   UNTRIAGED
-EDMA4_2.TCD              CH24_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH25_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH26_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH27_SBR                   UNTRIAGED
@@ -763,7 +739,6 @@ EDMA4_2.TCD              CH29_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH2_SBR                    UNTRIAGED
 EDMA4_2.TCD              CH30_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH31_SBR                   UNTRIAGED
-EDMA4_2.TCD              CH32_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH33_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH34_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH35_SBR                   UNTRIAGED
@@ -772,7 +747,6 @@ EDMA4_2.TCD              CH37_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH38_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH39_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH3_SBR                    UNTRIAGED
-EDMA4_2.TCD              CH40_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH41_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH42_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH43_SBR                   UNTRIAGED
@@ -780,7 +754,6 @@ EDMA4_2.TCD              CH44_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH45_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH46_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH47_SBR                   UNTRIAGED
-EDMA4_2.TCD              CH48_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH49_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH4_SBR                    UNTRIAGED
 EDMA4_2.TCD              CH50_SBR                   UNTRIAGED
@@ -789,7 +762,6 @@ EDMA4_2.TCD              CH52_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH53_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH54_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH55_SBR                   UNTRIAGED
-EDMA4_2.TCD              CH56_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH57_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH58_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH59_SBR                   UNTRIAGED
@@ -800,11 +772,10 @@ EDMA4_2.TCD              CH62_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH63_SBR                   UNTRIAGED
 EDMA4_2.TCD              CH6_SBR                    UNTRIAGED
 EDMA4_2.TCD              CH7_SBR                    UNTRIAGED
-EDMA4_2.TCD              CH8_SBR                    UNTRIAGED
 EDMA4_2.TCD              CH9_SBR                    UNTRIAGED
 ENET                     ECR                        UNTRIAGED
-ENET                     PALR                       UNTRIAGED
-ENET                     PAUR                       UNTRIAGED
+ENET                     PALR                       DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that, so zeroing them would leave the guest with no MAC.
+ENET                     PAUR                       DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that, so zeroing them would leave the guest with no MAC.
 ENET_QOS_TSN             DMA_CH0_SLOT_FUNCTION_CONTROL_STATUS UNTRIAGED
 ENET_QOS_TSN             DMA_CH1_SLOT_FUNCTION_CONTROL_STATUS UNTRIAGED
 ENET_QOS_TSN             DMA_CH2_SLOT_FUNCTION_CONTROL_STATUS UNTRIAGED
@@ -939,10 +910,10 @@ ENET_QOS_TSN             MAC_ADDRESS8_HIGH          UNTRIAGED
 ENET_QOS_TSN             MAC_ADDRESS8_LOW           UNTRIAGED
 ENET_QOS_TSN             MAC_ADDRESS9_HIGH          UNTRIAGED
 ENET_QOS_TSN             MAC_ADDRESS9_LOW           UNTRIAGED
-ENET_QOS_TSN             MAC_HW_FEATURE0            UNTRIAGED
-ENET_QOS_TSN             MAC_HW_FEATURE1            UNTRIAGED
-ENET_QOS_TSN             MAC_HW_FEATURE2            UNTRIAGED
-ENET_QOS_TSN             MAC_HW_FEATURE3            UNTRIAGED
+ENET_QOS_TSN             MAC_HW_FEATURE0            DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
+ENET_QOS_TSN             MAC_HW_FEATURE1            DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
+ENET_QOS_TSN             MAC_HW_FEATURE2            DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
+ENET_QOS_TSN             MAC_HW_FEATURE3            DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
 ENET_QOS_TSN             MAC_LPI_TIMERS_CONTROL     UNTRIAGED
 ENET_QOS_TSN             MAC_ONEUS_TIC_COUNTER      UNTRIAGED
 ENET_QOS_TSN             MAC_TIMESTAMP_CONTROL      UNTRIAGED
@@ -974,54 +945,54 @@ FLEXSPI1                 MCR2                       UNTRIAGED
 FLEXSPI1                 STS0                       UNTRIAGED
 FLEXSPI1                 STS2                       UNTRIAGED
 FSB1                     VERID                      UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_AUTHEN_CTRL             UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_MISC                    UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_NON_IRQ_WAKEUP_MASK     UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_A55_HDSK_CTRL     UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_ISO_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_LPCG_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_MEM_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_PLL_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_POWER_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_RESET_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_RSV2_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SLEEP_SSAR_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_SYS_SLEEP_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_A55_HDSK_CTRL    UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_ISO_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_LPCG_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_MEM_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_MTR_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_PLL_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_POWER_CTRL       UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_RESET_CTRL       UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_RSV2_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_0      CM_WAKEUP_SSAR_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_AUTHEN_CTRL             UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_MISC                    UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_NON_IRQ_WAKEUP_MASK     UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_A55_HDSK_CTRL     UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_ISO_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_LPCG_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_MEM_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_PLL_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_POWER_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_RESET_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_RSV2_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SLEEP_SSAR_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_SYS_SLEEP_CTRL          UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_A55_HDSK_CTRL    UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_ISO_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_LPCG_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_MEM_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_MTR_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_PLL_CTRL         UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_POWER_CTRL       UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_RESET_CTRL       UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_RSV2_CTRL        UNTRIAGED
-GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_SSAR_CTRL        UNTRIAGED
-GPC.gpc_global           AUTHEN_CTRL                UNTRIAGED
-GPC.gpc_global           PMIC_STBY_ACK_CTRL         UNTRIAGED
+GPC.gpc_ctrl_ca55_0      CM_AUTHEN_CTRL             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_MISC                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_NON_IRQ_WAKEUP_MASK     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_A55_HDSK_CTRL     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_ISO_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_LPCG_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_MEM_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_PLL_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_POWER_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_RESET_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_RSV2_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SLEEP_SSAR_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_SYS_SLEEP_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_A55_HDSK_CTRL    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_ISO_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_LPCG_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_MEM_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_MTR_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_PLL_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_POWER_CTRL       UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_RESET_CTRL       UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_RSV2_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_0      CM_WAKEUP_SSAR_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_AUTHEN_CTRL             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_MISC                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_NON_IRQ_WAKEUP_MASK     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_A55_HDSK_CTRL     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_ISO_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_LPCG_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_MEM_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_PLL_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_POWER_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_RESET_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_RSV2_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SLEEP_SSAR_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_SYS_SLEEP_CTRL          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_A55_HDSK_CTRL    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_ISO_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_LPCG_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_MEM_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_MTR_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_PLL_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_POWER_CTRL       UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_RESET_CTRL       UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_RSV2_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_ctrl_ca55_cluster CM_WAKEUP_SSAR_CTRL        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_global           AUTHEN_CTRL                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+GPC.gpc_global           PMIC_STBY_ACK_CTRL         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C1                     IBIEXT1                    UNTRIAGED
 I3C1                     MDATACTRL                  UNTRIAGED
 I3C1                     MDMACTRL                   UNTRIAGED
@@ -1038,198 +1009,198 @@ I3C1                     SINTSET                    UNTRIAGED
 I3C1                     SSTATUS                    UNTRIAGED
 I3C1                     STCCLOCK                   UNTRIAGED
 I3C1                     SVENDORID                  UNTRIAGED
-I3C2                     IBIEXT1                    UNTRIAGED
-I3C2                     MDATACTRL                  UNTRIAGED
-I3C2                     MDMACTRL                   UNTRIAGED
-I3C2                     MSTATUS                    UNTRIAGED
-I3C2                     SCAPABILITIES              UNTRIAGED
-I3C2                     SCAPABILITIES2             UNTRIAGED
-I3C2                     SCCCMASK                   UNTRIAGED
-I3C2                     SCONFIG                    UNTRIAGED
-I3C2                     SDATACTRL                  UNTRIAGED
-I3C2                     SDMACTRL                   UNTRIAGED
-I3C2                     SERRWARNMASK               UNTRIAGED
-I3C2                     SIDEXT                     UNTRIAGED
-I3C2                     SIDPARTNO                  UNTRIAGED
-I3C2                     SINTSET                    UNTRIAGED
-I3C2                     SSTATUS                    UNTRIAGED
-I3C2                     STCCLOCK                   UNTRIAGED
-I3C2                     SVENDORID                  UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_CCM_CLKO3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_CCM_CLKO4   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_MDC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_MDIO  UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RXC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RX_CTL UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TXC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TX_CTL UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_MDC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_MDIO  UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RXC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RX_CTL UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TXC   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TX_CTL UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_I2C1_SCL    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_I2C1_SDA    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_I2C2_SCL    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_I2C2_SDA    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_PDM_CLK     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SAI1_RXD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXC    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXD0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXFS   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_CLK     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_CMD     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA4   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA5   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA6   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA7   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD1_STROBE  UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_CD_B    UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_CLK     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_CMD     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_RESET_B UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD2_VSELECT UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_CLK     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_CMD     UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA0   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA1   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA2   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA3   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_UART1_RXD   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_UART1_TXD   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_UART2_RXD   UNTRIAGED
-IOMUXC1                  SW_MUX_CTL_PAD_UART2_TXD   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO4   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_DAP_TCLK_SWCLK UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_DAP_TDI     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_DAP_TMS_SWDIO UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_MDC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_MDIO  UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RXC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RX_CTL UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TXC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TX_CTL UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_MDC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_MDIO  UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RXC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RX_CTL UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TXC   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TX_CTL UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO00   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO01   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO02   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO03   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO04   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO05   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO06   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO07   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO08   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO09   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO10   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO11   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO12   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO13   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO14   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO15   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO16   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO17   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO18   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO19   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO20   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO21   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO22   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO23   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO24   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO25   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO26   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO27   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO28   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO29   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_I2C1_SCL    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_I2C1_SDA    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_I2C2_SCL    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_I2C2_SDA    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_PDM_CLK     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SAI1_RXD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXC    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXD0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXFS   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_CLK     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_CMD     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA4   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA5   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA6   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA7   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD1_STROBE  UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_CD_B    UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_CLK     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_CMD     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_RESET_B UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD2_VSELECT UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_CLK     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_CMD     UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA0   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA1   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA2   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA3   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_UART1_RXD   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_UART1_TXD   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_UART2_RXD   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_UART2_TXD   UNTRIAGED
-IOMUXC1                  SW_PAD_CTL_PAD_WDOG_ANY    UNTRIAGED
-IOMUXC_GPR.IOMUXC_GPR    CONFIG                     UNTRIAGED
+I3C2                     IBIEXT1                    UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     MDATACTRL                  UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     MDMACTRL                   UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     MSTATUS                    UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SCAPABILITIES              UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SCAPABILITIES2             UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SCCCMASK                   UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SCONFIG                    UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SDATACTRL                  UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SDMACTRL                   UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SERRWARNMASK               UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SIDEXT                     UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SIDPARTNO                  UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SINTSET                    UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SSTATUS                    UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     STCCLOCK                   UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SVENDORID                  UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_CCM_CLKO3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_CCM_CLKO4   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_MDC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_MDIO  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_RX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET1_TX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_MDC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_MDIO  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_RX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_ENET2_TX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_I2C1_SCL    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_I2C1_SDA    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_I2C2_SCL    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_I2C2_SDA    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_PDM_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SAI1_RXD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXC    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SAI1_TXFS   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA4   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA5   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA6   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_DATA7   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD1_STROBE  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_CD_B    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_RESET_B UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD2_VSELECT UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_SD3_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_UART1_RXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_UART1_TXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_UART2_RXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_MUX_CTL_PAD_UART2_TXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_CCM_CLKO4   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_DAP_TCLK_SWCLK UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_DAP_TDI     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_DAP_TMS_SWDIO UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_MDC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_MDIO  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_RX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET1_TX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_MDC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_MDIO  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_RX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TD3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TXC   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_ENET2_TX_CTL UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO00   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO01   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO02   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO03   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO04   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO05   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO06   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO07   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO08   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO09   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO10   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO11   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO12   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO13   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO14   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO15   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO16   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO17   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO18   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO19   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO20   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO21   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO22   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO23   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO24   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO25   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO26   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO27   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO28   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_GPIO_IO29   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_I2C1_SCL    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_I2C1_SDA    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_I2C2_SCL    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_I2C2_SDA    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_PDM_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SAI1_RXD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXC    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXD0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SAI1_TXFS   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA4   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA5   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA6   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_DATA7   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD1_STROBE  UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_CD_B    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_RESET_B UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD2_VSELECT UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_CLK     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_CMD     UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA0   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA1   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA2   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_SD3_DATA3   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_UART1_RXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_UART1_TXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_UART2_RXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_UART2_TXD   UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC1                  SW_PAD_CTL_PAD_WDOG_ANY    UNMODELLED: block 'iomuxc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+IOMUXC_GPR.IOMUXC_GPR    CONFIG                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 ISI                      CHNL_IMG_CFG               UNTRIAGED
 ISI                      CHNL_SCALE_FACTOR          UNTRIAGED
 ISI                      CHNL_SCL_IMG_CFG           UNTRIAGED
@@ -1242,66 +1213,18 @@ LCDIF                    HSYN_PARA                  UNTRIAGED
 LCDIF                    PANIC0_THRES               UNTRIAGED
 LCDIF                    VSYN_HSYN_WIDTH            UNTRIAGED
 LCDIF                    VSYN_PARA                  UNTRIAGED
-LPI2C1                   MRDROR                     UNTRIAGED
-LPI2C1                   PARAM                      UNTRIAGED
-LPI2C1                   SASR                       UNTRIAGED
-LPI2C1                   SRDR                       UNTRIAGED
-LPI2C1                   SRDROR                     UNTRIAGED
-LPI2C1                   VERID                      UNTRIAGED
-LPI2C2                   MRDROR                     UNTRIAGED
-LPI2C2                   PARAM                      UNTRIAGED
-LPI2C2                   SASR                       UNTRIAGED
-LPI2C2                   SRDR                       UNTRIAGED
-LPI2C2                   SRDROR                     UNTRIAGED
-LPI2C2                   VERID                      UNTRIAGED
-LPI2C3                   MRDROR                     UNTRIAGED
-LPI2C3                   PARAM                      UNTRIAGED
-LPI2C3                   SASR                       UNTRIAGED
-LPI2C3                   SRDR                       UNTRIAGED
-LPI2C3                   SRDROR                     UNTRIAGED
-LPI2C3                   VERID                      UNTRIAGED
-LPI2C4                   MRDROR                     UNTRIAGED
-LPI2C4                   PARAM                      UNTRIAGED
-LPI2C4                   SASR                       UNTRIAGED
-LPI2C4                   SRDR                       UNTRIAGED
-LPI2C4                   SRDROR                     UNTRIAGED
-LPI2C4                   VERID                      UNTRIAGED
-LPI2C5                   MRDROR                     UNTRIAGED
-LPI2C5                   PARAM                      UNTRIAGED
-LPI2C5                   SASR                       UNTRIAGED
-LPI2C5                   SRDR                       UNTRIAGED
-LPI2C5                   SRDROR                     UNTRIAGED
-LPI2C5                   VERID                      UNTRIAGED
-LPI2C6                   MRDROR                     UNTRIAGED
-LPI2C6                   PARAM                      UNTRIAGED
-LPI2C6                   SASR                       UNTRIAGED
-LPI2C6                   SRDR                       UNTRIAGED
-LPI2C6                   SRDROR                     UNTRIAGED
-LPI2C6                   VERID                      UNTRIAGED
-LPI2C7                   MRDROR                     UNTRIAGED
-LPI2C7                   PARAM                      UNTRIAGED
-LPI2C7                   SASR                       UNTRIAGED
-LPI2C7                   SRDR                       UNTRIAGED
-LPI2C7                   SRDROR                     UNTRIAGED
-LPI2C7                   VERID                      UNTRIAGED
-LPI2C8                   MRDROR                     UNTRIAGED
-LPI2C8                   PARAM                      UNTRIAGED
-LPI2C8                   SASR                       UNTRIAGED
-LPI2C8                   SRDR                       UNTRIAGED
-LPI2C8                   SRDROR                     UNTRIAGED
-LPI2C8                   VERID                      UNTRIAGED
-LPIT1                    CVAL0                      UNTRIAGED
-LPIT1                    CVAL1                      UNTRIAGED
-LPIT1                    CVAL2                      UNTRIAGED
-LPIT1                    CVAL3                      UNTRIAGED
-LPIT1                    PARAM                      UNTRIAGED
-LPIT1                    VERID                      UNTRIAGED
-LPIT2                    CVAL0                      UNTRIAGED
-LPIT2                    CVAL1                      UNTRIAGED
-LPIT2                    CVAL2                      UNTRIAGED
-LPIT2                    CVAL3                      UNTRIAGED
-LPIT2                    PARAM                      UNTRIAGED
-LPIT2                    VERID                      UNTRIAGED
+LPIT1                    CVAL0                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT1                    CVAL1                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT1                    CVAL2                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT1                    CVAL3                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT1                    PARAM                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT1                    VERID                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    CVAL0                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    CVAL1                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    CVAL2                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    CVAL3                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    PARAM                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+LPIT2                    VERID                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPSPI1                   TCR                        UNTRIAGED
 LPSPI2                   TCR                        UNTRIAGED
 LPSPI3                   TCR                        UNTRIAGED
@@ -1310,54 +1233,36 @@ LPSPI5                   TCR                        UNTRIAGED
 LPSPI6                   TCR                        UNTRIAGED
 LPSPI7                   TCR                        UNTRIAGED
 LPSPI8                   TCR                        UNTRIAGED
-LPTPM1                   MOD                        UNTRIAGED
-LPTPM1                   PARAM                      UNTRIAGED
-LPTPM1                   VERID                      UNTRIAGED
-LPTPM2                   MOD                        UNTRIAGED
-LPTPM2                   PARAM                      UNTRIAGED
-LPTPM2                   VERID                      UNTRIAGED
-LPTPM3                   MOD                        UNTRIAGED
-LPTPM3                   PARAM                      UNTRIAGED
-LPTPM3                   VERID                      UNTRIAGED
-LPTPM4                   MOD                        UNTRIAGED
-LPTPM4                   PARAM                      UNTRIAGED
-LPTPM4                   VERID                      UNTRIAGED
-LPTPM5                   MOD                        UNTRIAGED
-LPTPM5                   PARAM                      UNTRIAGED
-LPTPM5                   VERID                      UNTRIAGED
-LPTPM6                   MOD                        UNTRIAGED
-LPTPM6                   PARAM                      UNTRIAGED
-LPTPM6                   VERID                      UNTRIAGED
 LPUART1                  DATARO                     UNTRIAGED
-LPUART1                  FIFO                       UNTRIAGED
+LPUART1                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART1                  PARAM                      UNTRIAGED
 LPUART1                  TOSR                       UNTRIAGED
 LPUART2                  DATARO                     UNTRIAGED
-LPUART2                  FIFO                       UNTRIAGED
+LPUART2                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART2                  PARAM                      UNTRIAGED
 LPUART2                  TOSR                       UNTRIAGED
 LPUART3                  DATARO                     UNTRIAGED
-LPUART3                  FIFO                       UNTRIAGED
+LPUART3                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART3                  PARAM                      UNTRIAGED
 LPUART3                  TOSR                       UNTRIAGED
 LPUART4                  DATARO                     UNTRIAGED
-LPUART4                  FIFO                       UNTRIAGED
+LPUART4                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART4                  PARAM                      UNTRIAGED
 LPUART4                  TOSR                       UNTRIAGED
 LPUART5                  DATARO                     UNTRIAGED
-LPUART5                  FIFO                       UNTRIAGED
+LPUART5                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART5                  PARAM                      UNTRIAGED
 LPUART5                  TOSR                       UNTRIAGED
 LPUART6                  DATARO                     UNTRIAGED
-LPUART6                  FIFO                       UNTRIAGED
+LPUART6                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART6                  PARAM                      UNTRIAGED
 LPUART6                  TOSR                       UNTRIAGED
 LPUART7                  DATARO                     UNTRIAGED
-LPUART7                  FIFO                       UNTRIAGED
+LPUART7                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART7                  PARAM                      UNTRIAGED
 LPUART7                  TOSR                       UNTRIAGED
 LPUART8                  DATARO                     UNTRIAGED
-LPUART8                  FIFO                       UNTRIAGED
+LPUART8                  FIFO                       DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
 LPUART8                  PARAM                      UNTRIAGED
 LPUART8                  TOSR                       UNTRIAGED
 LPWDOG1                  CS                         UNTRIAGED
@@ -1377,7 +1282,7 @@ MICFIL                   VAD0_NCONFIG               UNTRIAGED
 MICFIL                   VAD0_STAT                  UNTRIAGED
 MICFIL                   VAD0_ZCD                   UNTRIAGED
 MICFIL                   VERID                      UNTRIAGED
-OCRAM_CTRL1              RAMMAXA                    UNTRIAGED
+OCRAM_CTRL1              RAMMAXA                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SAI1                     TCSR                       UNTRIAGED
 SAI1                     VERID                      UNTRIAGED
 SAI2                     TCSR                       UNTRIAGED
@@ -1401,116 +1306,116 @@ SPDIF                    RX_DATAPATH_CTRL           UNTRIAGED
 SPDIF                    RX_DATAPATH_CTRL_CLR       UNTRIAGED
 SPDIF                    RX_DATAPATH_CTRL_SET       UNTRIAGED
 SPDIF                    RX_DATAPATH_CTRL_TOG       UNTRIAGED
-SRC.src_a55_scu_mem      MEMLP_CTRL_0               UNTRIAGED
-SRC.src_a55_scu_mem      MEMLP_CTRL_1               UNTRIAGED
-SRC.src_a55_scu_mem      MEMLP_CTRL_2               UNTRIAGED
-SRC.src_a55_scu_mem      MEM_CTRL                   UNTRIAGED
-SRC.src_a55_scu_mem      MEM_STAT                   UNTRIAGED
-SRC.src_a55c0_mem        MEMLP_CTRL_0               UNTRIAGED
-SRC.src_a55c0_mem        MEMLP_CTRL_1               UNTRIAGED
-SRC.src_a55c0_mem        MEMLP_CTRL_2               UNTRIAGED
-SRC.src_a55c0_mem        MEM_CTRL                   UNTRIAGED
-SRC.src_a55c0_mem        MEM_STAT                   UNTRIAGED
-SRC.src_a55c0_slice      AUTHEN_CTRL                UNTRIAGED
-SRC.src_a55c0_slice      ISO_OFF_DLY                UNTRIAGED
-SRC.src_a55c0_slice      ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_a55c0_slice      LPM_SETTING_0              UNTRIAGED
-SRC.src_a55c0_slice      LPM_SETTING_1              UNTRIAGED
-SRC.src_a55c0_slice      LPM_SETTING_2              UNTRIAGED
-SRC.src_a55c0_slice      PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_a55c0_slice      PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_a55c0_slice      SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_a55c0_slice      SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_a55p_slice       AUTHEN_CTRL                UNTRIAGED
-SRC.src_a55p_slice       ISO_OFF_DLY                UNTRIAGED
-SRC.src_a55p_slice       ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_a55p_slice       LPM_SETTING_0              UNTRIAGED
-SRC.src_a55p_slice       LPM_SETTING_1              UNTRIAGED
-SRC.src_a55p_slice       LPM_SETTING_2              UNTRIAGED
-SRC.src_a55p_slice       PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_a55p_slice       PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_a55p_slice       SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_a55p_slice       SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_aon_mem          MEMLP_CTRL_0               UNTRIAGED
-SRC.src_aon_mem          MEMLP_CTRL_1               UNTRIAGED
-SRC.src_aon_mem          MEMLP_CTRL_2               UNTRIAGED
-SRC.src_aon_mem          MEM_CTRL                   UNTRIAGED
-SRC.src_aon_mem          MEM_STAT                   UNTRIAGED
-SRC.src_aon_slice        AUTHEN_CTRL                UNTRIAGED
-SRC.src_aon_slice        ISO_OFF_DLY                UNTRIAGED
-SRC.src_aon_slice        ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_aon_slice        LPM_SETTING_0              UNTRIAGED
-SRC.src_aon_slice        LPM_SETTING_1              UNTRIAGED
-SRC.src_aon_slice        LPM_SETTING_2              UNTRIAGED
-SRC.src_aon_slice        PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_aon_slice        PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_aon_slice        SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_aon_slice        SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_ddr_mem          MEMLP_CTRL_0               UNTRIAGED
-SRC.src_ddr_mem          MEMLP_CTRL_1               UNTRIAGED
-SRC.src_ddr_mem          MEMLP_CTRL_2               UNTRIAGED
-SRC.src_ddr_mem          MEM_CTRL                   UNTRIAGED
-SRC.src_ddr_mem          MEM_STAT                   UNTRIAGED
-SRC.src_ddr_slice        AUTHEN_CTRL                UNTRIAGED
-SRC.src_ddr_slice        ISO_OFF_DLY                UNTRIAGED
-SRC.src_ddr_slice        ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_ddr_slice        LPM_SETTING_0              UNTRIAGED
-SRC.src_ddr_slice        LPM_SETTING_1              UNTRIAGED
-SRC.src_ddr_slice        LPM_SETTING_2              UNTRIAGED
-SRC.src_ddr_slice        PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_ddr_slice        PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_ddr_slice        SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_ddr_slice        SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_dphy_mem         MEMLP_CTRL_0               UNTRIAGED
-SRC.src_dphy_mem         MEMLP_CTRL_1               UNTRIAGED
-SRC.src_dphy_mem         MEMLP_CTRL_2               UNTRIAGED
-SRC.src_dphy_mem         MEM_CTRL                   UNTRIAGED
-SRC.src_dphy_mem         MEM_STAT                   UNTRIAGED
-SRC.src_dphy_slice       AUTHEN_CTRL                UNTRIAGED
-SRC.src_dphy_slice       ISO_OFF_DLY                UNTRIAGED
-SRC.src_dphy_slice       ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_dphy_slice       LPM_SETTING_0              UNTRIAGED
-SRC.src_dphy_slice       LPM_SETTING_1              UNTRIAGED
-SRC.src_dphy_slice       LPM_SETTING_2              UNTRIAGED
-SRC.src_dphy_slice       PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_dphy_slice       PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_dphy_slice       SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_dphy_slice       SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_edgelock_slice   AUTHEN_CTRL                UNTRIAGED
-SRC.src_edgelock_slice   ISO_OFF_DLY                UNTRIAGED
-SRC.src_edgelock_slice   ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_edgelock_slice   LPM_SETTING_0              UNTRIAGED
-SRC.src_edgelock_slice   LPM_SETTING_1              UNTRIAGED
-SRC.src_edgelock_slice   LPM_SETTING_2              UNTRIAGED
-SRC.src_edgelock_slice   PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_edgelock_slice   PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_edgelock_slice   SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_edgelock_slice   SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_general_reg      AUTHEN_CTRL                UNTRIAGED
-SRC.src_general_reg      COLD_RESET_SSAR_ACK_CTRL   UNTRIAGED
-SRC.src_general_reg      GPR20                      UNTRIAGED
-SRC.src_general_reg      SP_ISO_CTRL                UNTRIAGED
-SRC.src_general_reg      SRMASK                     UNTRIAGED
-SRC.src_hsio_mem         MEMLP_CTRL_0               UNTRIAGED
-SRC.src_hsio_mem         MEMLP_CTRL_1               UNTRIAGED
-SRC.src_hsio_mem         MEMLP_CTRL_2               UNTRIAGED
-SRC.src_hsio_mem         MEM_CTRL                   UNTRIAGED
-SRC.src_hsio_mem         MEM_STAT                   UNTRIAGED
-SRC.src_hsio_slice       AUTHEN_CTRL                UNTRIAGED
-SRC.src_hsio_slice       ISO_OFF_DLY                UNTRIAGED
-SRC.src_hsio_slice       ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_hsio_slice       LPM_SETTING_0              UNTRIAGED
-SRC.src_hsio_slice       LPM_SETTING_1              UNTRIAGED
-SRC.src_hsio_slice       LPM_SETTING_2              UNTRIAGED
-SRC.src_hsio_slice       PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_hsio_slice       PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_hsio_slice       SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_hsio_slice       SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_media_mem        MEMLP_CTRL_0               UNTRIAGED
-SRC.src_media_mem        MEMLP_CTRL_1               UNTRIAGED
-SRC.src_media_mem        MEMLP_CTRL_2               UNTRIAGED
-SRC.src_media_mem        MEM_CTRL                   UNTRIAGED
-SRC.src_media_mem        MEM_STAT                   UNTRIAGED
+SRC.src_a55_scu_mem      MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55_scu_mem      MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55_scu_mem      MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55_scu_mem      MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55_scu_mem      MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_mem        MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_mem        MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_mem        MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_mem        MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_mem        MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55c0_slice      SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_a55p_slice       SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_mem          MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_mem          MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_mem          MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_mem          MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_mem          MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_aon_slice        SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_mem          MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_mem          MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_mem          MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_mem          MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_mem          MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_ddr_slice        SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_mem         MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_mem         MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_mem         MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_mem         MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_mem         MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_dphy_slice       SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_edgelock_slice   SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_general_reg      AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_general_reg      COLD_RESET_SSAR_ACK_CTRL   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_general_reg      GPR20                      UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_general_reg      SP_ISO_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_general_reg      SRMASK                     UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_mem         MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_mem         MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_mem         MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_mem         MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_mem         MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_hsio_slice       SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_media_mem        MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_media_mem        MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_media_mem        MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_media_mem        MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_media_mem        MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_media_slice      AUTHEN_CTRL                UNTRIAGED
 SRC.src_media_slice      FUNC_STAT                  UNTRIAGED
 SRC.src_media_slice      ISO_OFF_DLY                UNTRIAGED
@@ -1522,41 +1427,41 @@ SRC.src_media_slice      PSW_ACK_CTRL_0             UNTRIAGED
 SRC.src_media_slice      PSW_ACK_CTRL_1             UNTRIAGED
 SRC.src_media_slice      SINGLE_RESET_SW_CTRL       UNTRIAGED
 SRC.src_media_slice      SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_nic_mem          MEMLP_CTRL_0               UNTRIAGED
-SRC.src_nic_mem          MEMLP_CTRL_1               UNTRIAGED
-SRC.src_nic_mem          MEMLP_CTRL_2               UNTRIAGED
-SRC.src_nic_mem          MEM_CTRL                   UNTRIAGED
-SRC.src_nic_mem          MEM_STAT                   UNTRIAGED
-SRC.src_nic_ocram        MEMLP_CTRL_0               UNTRIAGED
-SRC.src_nic_ocram        MEMLP_CTRL_1               UNTRIAGED
-SRC.src_nic_ocram        MEMLP_CTRL_2               UNTRIAGED
-SRC.src_nic_ocram        MEM_CTRL                   UNTRIAGED
-SRC.src_nic_ocram        MEM_STAT                   UNTRIAGED
-SRC.src_nic_slice        AUTHEN_CTRL                UNTRIAGED
-SRC.src_nic_slice        ISO_OFF_DLY                UNTRIAGED
-SRC.src_nic_slice        ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_nic_slice        LPM_SETTING_0              UNTRIAGED
-SRC.src_nic_slice        LPM_SETTING_1              UNTRIAGED
-SRC.src_nic_slice        LPM_SETTING_2              UNTRIAGED
-SRC.src_nic_slice        PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_nic_slice        PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_nic_slice        SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_nic_slice        SSAR_ACK_CTRL              UNTRIAGED
-SRC.src_wkup_mem         MEMLP_CTRL_0               UNTRIAGED
-SRC.src_wkup_mem         MEMLP_CTRL_1               UNTRIAGED
-SRC.src_wkup_mem         MEMLP_CTRL_2               UNTRIAGED
-SRC.src_wkup_mem         MEM_CTRL                   UNTRIAGED
-SRC.src_wkup_mem         MEM_STAT                   UNTRIAGED
-SRC.src_wkup_slice       AUTHEN_CTRL                UNTRIAGED
-SRC.src_wkup_slice       ISO_OFF_DLY                UNTRIAGED
-SRC.src_wkup_slice       ISO_OFF_DLY_POR            UNTRIAGED
-SRC.src_wkup_slice       LPM_SETTING_0              UNTRIAGED
-SRC.src_wkup_slice       LPM_SETTING_1              UNTRIAGED
-SRC.src_wkup_slice       LPM_SETTING_2              UNTRIAGED
-SRC.src_wkup_slice       PSW_ACK_CTRL_0             UNTRIAGED
-SRC.src_wkup_slice       PSW_ACK_CTRL_1             UNTRIAGED
-SRC.src_wkup_slice       SINGLE_RESET_SW_CTRL       UNTRIAGED
-SRC.src_wkup_slice       SSAR_ACK_CTRL              UNTRIAGED
+SRC.src_nic_mem          MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_mem          MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_mem          MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_mem          MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_mem          MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_ocram        MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_ocram        MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_ocram        MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_ocram        MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_ocram        MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_nic_slice        SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_mem         MEMLP_CTRL_0               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_mem         MEMLP_CTRL_1               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_mem         MEMLP_CTRL_2               UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_mem         MEM_CTRL                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_mem         MEM_STAT                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       AUTHEN_CTRL                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       ISO_OFF_DLY                UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       ISO_OFF_DLY_POR            UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       LPM_SETTING_0              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       LPM_SETTING_1              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       LPM_SETTING_2              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       PSW_ACK_CTRL_0             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       PSW_ACK_CTRL_1             UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       SINGLE_RESET_SW_CTRL       UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+SRC.src_wkup_slice       SSAR_ACK_CTRL              UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SYSPLL                   DENOMINATOR_CLR            UNTRIAGED
 SYSPLL                   DENOMINATOR_SET            UNTRIAGED
 SYSPLL                   DENOMINATOR_TOG            UNTRIAGED
@@ -1566,90 +1471,90 @@ SYSPLL                   DIV_TOG                    UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID0                    UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID1                    UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTSR                      UNTRIAGED
-TRDC_AONMIX              MBC0_MEM0_GLBCFG           UNTRIAGED
-TRDC_AONMIX              MBC0_MEM1_GLBCFG           UNTRIAGED
-TRDC_AONMIX              MBC0_MEM2_GLBCFG           UNTRIAGED
-TRDC_AONMIX              MBC0_MEM3_GLBCFG           UNTRIAGED
-TRDC_AONMIX              MDA_W0_2_DFMT1             UNTRIAGED
-TRDC_AONMIX              MDA_W0_3_DFMT1             UNTRIAGED
-TRDC_AONMIX              MDA_W0_4_DFMT1             UNTRIAGED
-TRDC_AONMIX              TRDC_CR                    UNTRIAGED
-TRDC_AONMIX              TRDC_FLW_PBASE             UNTRIAGED
-TRDC_AONMIX              TRDC_HWCFG0                UNTRIAGED
-TRDC_AONMIX              TRDC_IDAU_CR               UNTRIAGED
-TRDC_HSIOMIX             MDA_W0_0_DFMT1             UNTRIAGED
-TRDC_HSIOMIX             MDA_W0_1_DFMT1             UNTRIAGED
-TRDC_HSIOMIX             TRDC_CR                    UNTRIAGED
-TRDC_HSIOMIX             TRDC_FLW_PBASE             UNTRIAGED
-TRDC_HSIOMIX             TRDC_HWCFG0                UNTRIAGED
-TRDC_HSIOMIX             TRDC_IDAU_CR               UNTRIAGED
-TRDC_MEDIAMIX            MDA_W0_0_DFMT1             UNTRIAGED
-TRDC_MEDIAMIX            MDA_W0_1_DFMT1             UNTRIAGED
-TRDC_MEDIAMIX            MDA_W0_3_DFMT1             UNTRIAGED
-TRDC_MEDIAMIX            TRDC_CR                    UNTRIAGED
-TRDC_MEDIAMIX            TRDC_FLW_PBASE             UNTRIAGED
-TRDC_MEDIAMIX            TRDC_HWCFG0                UNTRIAGED
-TRDC_MEDIAMIX            TRDC_IDAU_CR               UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_0_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_1_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_2_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_3_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_4_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_5_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             MDA_W0_6_DFMT1             UNTRIAGED
-TRDC_MEGAMIX             TRDC_CR                    UNTRIAGED
-TRDC_MEGAMIX             TRDC_FLW_PBASE             UNTRIAGED
-TRDC_MEGAMIX             TRDC_HWCFG0                UNTRIAGED
-TRDC_MEGAMIX             TRDC_IDAU_CR               UNTRIAGED
-TRDC_NICMIX              MBC0_MEM0_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC0_MEM1_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC0_MEM2_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC0_MEM3_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC1_MEM0_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC1_MEM1_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC1_MEM2_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC1_MEM3_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC2_MEM0_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC2_MEM1_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC2_MEM2_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC2_MEM3_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC3_MEM0_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC3_MEM1_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC3_MEM2_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MBC3_MEM3_GLBCFG           UNTRIAGED
-TRDC_NICMIX              MRC0_GLBCFG                UNTRIAGED
-TRDC_NICMIX              TRDC_CR                    UNTRIAGED
-TRDC_NICMIX              TRDC_FLW_PBASE             UNTRIAGED
-TRDC_NICMIX              TRDC_HWCFG0                UNTRIAGED
-TRDC_NICMIX              TRDC_HWCFG2                UNTRIAGED
-TRDC_NICMIX              TRDC_IDAU_CR               UNTRIAGED
-TRDC_WAKEUPMIX           MBC0_MEM0_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC0_MEM1_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC0_MEM2_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC0_MEM3_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC1_MEM0_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC1_MEM1_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC1_MEM2_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MBC1_MEM3_GLBCFG           UNTRIAGED
-TRDC_WAKEUPMIX           MDA_W0_2_DFMT1             UNTRIAGED
-TRDC_WAKEUPMIX           MDA_W0_3_DFMT1             UNTRIAGED
-TRDC_WAKEUPMIX           MDA_W0_4_DFMT1             UNTRIAGED
-TRDC_WAKEUPMIX           MRC0_GLBCFG                UNTRIAGED
-TRDC_WAKEUPMIX           MRC1_GLBCFG                UNTRIAGED
-TRDC_WAKEUPMIX           TRDC_CR                    UNTRIAGED
-TRDC_WAKEUPMIX           TRDC_FLW_PBASE             UNTRIAGED
-TRDC_WAKEUPMIX           TRDC_HWCFG0                UNTRIAGED
-TRDC_WAKEUPMIX           TRDC_IDAU_CR               UNTRIAGED
-USB.USBNC_OTG1           CTRL1                      UNTRIAGED
-USB.USBNC_OTG1           CTRL2                      UNTRIAGED
-USB.USBNC_OTG1           HSIC_DLL_CFG4              UNTRIAGED
-USB.USBNC_OTG1           UTMIPHY_CFG1               UNTRIAGED
-USB.USBNC_OTG1           UTMIPHY_CFG2               UNTRIAGED
-USB.USBNC_OTG2           CTRL1                      UNTRIAGED
-USB.USBNC_OTG2           CTRL2                      UNTRIAGED
-USB.USBNC_OTG2           HSIC_DLL_CFG4              UNTRIAGED
-USB.USBNC_OTG2           UTMIPHY_CFG1               UNTRIAGED
-USB.USBNC_OTG2           UTMIPHY_CFG2               UNTRIAGED
+TRDC_AONMIX              MBC0_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MBC0_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MBC0_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MBC0_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MDA_W0_2_DFMT1             UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MDA_W0_3_DFMT1             UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              MDA_W0_4_DFMT1             UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              TRDC_CR                    UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              TRDC_FLW_PBASE             UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              TRDC_HWCFG0                UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_AONMIX              TRDC_IDAU_CR               UNMODELLED: block 'trdc' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             MDA_W0_0_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             MDA_W0_1_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             TRDC_CR                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             TRDC_FLW_PBASE             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             TRDC_HWCFG0                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_HSIOMIX             TRDC_IDAU_CR               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            MDA_W0_0_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            MDA_W0_1_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            MDA_W0_3_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            TRDC_CR                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            TRDC_FLW_PBASE             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            TRDC_HWCFG0                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEDIAMIX            TRDC_IDAU_CR               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_0_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_1_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_2_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_3_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_4_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_5_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             MDA_W0_6_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             TRDC_CR                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             TRDC_FLW_PBASE             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             TRDC_HWCFG0                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_MEGAMIX             TRDC_IDAU_CR               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC0_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC0_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC0_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC0_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC1_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC1_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC1_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC1_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC2_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC2_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC2_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC2_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC3_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC3_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC3_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MBC3_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              MRC0_GLBCFG                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              TRDC_CR                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              TRDC_FLW_PBASE             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              TRDC_HWCFG0                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              TRDC_HWCFG2                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_NICMIX              TRDC_IDAU_CR               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC0_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC0_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC0_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC0_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC1_MEM0_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC1_MEM1_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC1_MEM2_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MBC1_MEM3_GLBCFG           UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MDA_W0_2_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MDA_W0_3_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MDA_W0_4_DFMT1             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MRC0_GLBCFG                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           MRC1_GLBCFG                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           TRDC_CR                    UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           TRDC_FLW_PBASE             UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           TRDC_HWCFG0                UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+TRDC_WAKEUPMIX           TRDC_IDAU_CR               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG1           CTRL1                      UNMODELLED: block 'usbmisc1' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG1           CTRL2                      UNMODELLED: block 'usbmisc1' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG1           HSIC_DLL_CFG4              UNMODELLED: block 'usbmisc1' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG1           UTMIPHY_CFG1               UNMODELLED: block 'usbmisc1' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG1           UTMIPHY_CFG2               UNMODELLED: block 'usbmisc1' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG2           CTRL1                      UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG2           CTRL2                      UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG2           HSIC_DLL_CFG4              UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG2           UTMIPHY_CFG1               UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+USB.USBNC_OTG2           UTMIPHY_CFG2               UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 USB.USB_OTG1             CAPLENGTH                  UNTRIAGED
 USB.USB_OTG1             CONFIGFLAG                 UNTRIAGED
 USB.USB_OTG1             DCCPARAMS                  UNTRIAGED
@@ -1703,10 +1608,10 @@ gpio3                    VERID                      UNTRIAGED
 gpio4                    PARAM                      UNTRIAGED
 gpio4                    VERID                      UNTRIAGED
 uSDHC1                   BLK_ATT                    UNTRIAGED
-uSDHC1                   CQCAP                      UNTRIAGED
-uSDHC1                   CQRMEM                     UNTRIAGED
-uSDHC1                   CQSSC1                     UNTRIAGED
-uSDHC1                   CQVER                      UNTRIAGED
+uSDHC1                   CQCAP                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC1                   CQRMEM                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC1                   CQSSC1                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC1                   CQVER                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC1                   DLL_STATUS                 UNTRIAGED
 uSDHC1                   HOST_CTRL_CAP              UNTRIAGED
 uSDHC1                   MIX_CTRL                   UNTRIAGED
@@ -1718,10 +1623,10 @@ uSDHC1                   VEND_SPEC                  UNTRIAGED
 uSDHC1                   VEND_SPEC2                 UNTRIAGED
 uSDHC1                   WTMK_LVL                   UNTRIAGED
 uSDHC2                   BLK_ATT                    UNTRIAGED
-uSDHC2                   CQCAP                      UNTRIAGED
-uSDHC2                   CQRMEM                     UNTRIAGED
-uSDHC2                   CQSSC1                     UNTRIAGED
-uSDHC2                   CQVER                      UNTRIAGED
+uSDHC2                   CQCAP                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC2                   CQRMEM                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC2                   CQSSC1                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC2                   CQVER                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC2                   DLL_STATUS                 UNTRIAGED
 uSDHC2                   HOST_CTRL_CAP              UNTRIAGED
 uSDHC2                   MIX_CTRL                   UNTRIAGED
@@ -1733,10 +1638,10 @@ uSDHC2                   VEND_SPEC                  UNTRIAGED
 uSDHC2                   VEND_SPEC2                 UNTRIAGED
 uSDHC2                   WTMK_LVL                   UNTRIAGED
 uSDHC3                   BLK_ATT                    UNTRIAGED
-uSDHC3                   CQCAP                      UNTRIAGED
-uSDHC3                   CQRMEM                     UNTRIAGED
-uSDHC3                   CQSSC1                     UNTRIAGED
-uSDHC3                   CQVER                      UNTRIAGED
+uSDHC3                   CQCAP                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC3                   CQRMEM                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC3                   CQSSC1                     UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+uSDHC3                   CQVER                      UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC3                   DLL_STATUS                 UNTRIAGED
 uSDHC3                   HOST_CTRL_CAP              UNTRIAGED
 uSDHC3                   MIX_CTRL                   UNTRIAGED

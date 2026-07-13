@@ -71,6 +71,28 @@
 #define CH_SBR_WR       (1u << 21)      /* tx: memory -> device */
 #define CH_SBR_RD       (1u << 22)      /* rx: device -> memory */
 
+/*
+ * ⭐ CH_SBR RESETS TO 8007h, AND THE DRIVER READ-MODIFY-WRITES IT.
+ *
+ * fsl-edma-common.c does, for every channel it configures:
+ *
+ *     val  = edma_readl_chreg(fsl_chan, ch_sbr);
+ *     val |= EDMA_V3_CH_SBR_RD;   /-* or _WR *-/
+ *     edma_writel_chreg(fsl_chan, val, ch_sbr);
+ *
+ * This model reset the whole channel page to zero, so the guest read 0, ORed its
+ * direction bit in, and wrote back -- SILENTLY DESTROYING the bus attributes the
+ * silicon comes up with. Nothing failed here, because nothing in this model reads
+ * those bits. It would fail on hardware.
+ *
+ *     A ZERO RESET VALUE IS NOT THE ABSENCE OF A CLAIM.  IT IS A CLAIM -- and a
+ *     register the guest READ-MODIFY-WRITES is the one place that claim survives
+ *     into the guest's own state.
+ *
+ * Found by tests/imx91-reset-values (the golden is the reference manual).
+ */
+#define CH_SBR_RESET    0x00008007
+
 #define TCD_CSR_START   (1u << 0)
 #define TCD_CSR_INTMAJ  (1u << 1)
 #define TCD_CSR_INTHALF (1u << 2)
@@ -499,8 +521,18 @@ static void imx93_edma_reset(DeviceState *dev)
     IMX93EdmaState *s = IMX93_EDMA(dev);
 
     memset(s->mgmt, 0, sizeof(s->mgmt));
+
+    /*
+     * MP_CSR reset differs between the two instances -- they are different IP
+     * versions (the RM calls them EDMA3_1 and EDMA4_2, and names the register
+     * MP_CSR on one and CSR on the other). Carried as a property rather than
+     * assumed, because a value shared by accident is a value nobody checked.
+     */
+    s->mgmt[0] = s->mp_csr_reset;   /* MP_CSR / CSR at mgmt offset 0 */
+
     for (int i = 0; i < IMX93_EDMA_MAX_CHANNELS; i++) {
         memset(s->chan[i].regs, 0, sizeof(s->chan[i].regs));
+        st32(s->chan[i].regs + CH_SBR, CH_SBR_RESET);
         s->chan[i].armed = false;
         s->chan[i].cyclic = false;
         if (i < s->num_channels) {
@@ -546,6 +578,7 @@ static void imx93_edma_realize(DeviceState *dev, Error **errp)
 
 static const Property imx93_edma_properties[] = {
     DEFINE_PROP_UINT32("num-channels", IMX93EdmaState, num_channels, 31),
+    DEFINE_PROP_UINT32("mp-csr-reset", IMX93EdmaState, mp_csr_reset, 0x00310000),
     DEFINE_PROP_UINT32("chan-stride", IMX93EdmaState, chan_stride,
                        IMX93_EDMA_CHAN_STRIDE),
 };

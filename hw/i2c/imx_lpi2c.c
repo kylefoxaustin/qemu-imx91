@@ -21,6 +21,7 @@
 #include "migration/vmstate.h"
 #include "qemu/log.h"
 
+#define LPI2C_VERID     0x00
 #define LPI2C_PARAM     0x04
 #define LPI2C_MCR       0x10
 #define LPI2C_MSR       0x14
@@ -35,6 +36,29 @@
 #define LPI2C_MFSR      0x5C
 #define LPI2C_MTDR      0x60
 #define LPI2C_MRDR      0x70
+#define LPI2C_MRDROR    0x78    /* non-destructive alias of MRDR */
+#define LPI2C_SASR      0x150   /* slave regs: not modelled, but they RESET EMPTY */
+#define LPI2C_SRDR      0x170
+#define LPI2C_SRDROR    0x178
+
+/*
+ * Reset values from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ *
+ * ⭐ PARAM IS A CAPABILITY REGISTER AND WE WERE INVENTING IT.  It read 0404h --
+ *    "16-deep tx and rx FIFOs" -- a number somebody typed. Silicon says 0303h: EIGHT
+ *    each. i2c-imx-lpi2c derives its watermark and its read chunking from that field
+ *    (`writel(txfifosize >> 1, MFCR)`, `if (remaining > (rxfifosize >> 1))`), so we
+ *    were telling the driver to use a FIFO twice the size of the real one.
+ *
+ * ⭐ AND THE RX REGISTERS RESET WITH RXEMPTY (bit 14) SET.  Reading them as ZERO says
+ *    "the receive FIFO HAS DATA" -- to a guest that has not received anything. MRDR
+ *    itself was right; its non-destructive alias MRDROR, and every slave register,
+ *    returned a fabricated not-empty. An unmodelled register is not a free register:
+ *    it still answers, and zero is an answer.
+ */
+#define LPI2C_VERID_RESET   0x01030003
+#define LPI2C_PARAM_RESET   0x00000303      /* tx/rx FIFO = 2^3 = 8 each */
+#define LPI2C_RX_RESET      0x00004000      /* RXEMPTY */
 
 #define MCR_MEN         BIT(0)
 #define MCR_RST         BIT(1)
@@ -148,8 +172,16 @@ static uint64_t imx_lpi2c_read(void *opaque, hwaddr offset, unsigned size)
     IMXLPI2CState *s = opaque;
 
     switch (offset) {
+    case LPI2C_VERID:
+        return LPI2C_VERID_RESET;
     case LPI2C_PARAM:
-        return 0x0404;                 /* tx/rx FIFO size = 2^4 each */
+        return LPI2C_PARAM_RESET;      /* 8-deep, per the RM.  Not a guess. */
+    case LPI2C_MRDROR:
+    case LPI2C_SASR:
+    case LPI2C_SRDR:
+    case LPI2C_SRDROR:
+        /* Not modelled -- but they reset EMPTY, and zero would claim otherwise. */
+        return LPI2C_RX_RESET;
     case LPI2C_MCR:
         return s->mcr;
     case LPI2C_MSR:
