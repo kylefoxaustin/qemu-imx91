@@ -39,6 +39,8 @@ struct IMX93DwmacState {
     uint32_t mdio_addr;
     uint32_t mdio_data;
     uint32_t addr_hi, addr_lo;
+    uint32_t onus_tic;              /* MAC_ONEUS_TIC_COUNTER: a DIVIDER */
+    uint32_t maddr[64][2];          /* MAC_ADDRESSn_{HIGH,LOW} perfect filter */
 
     /* DMA (one channel) */
     uint32_t dma_bus_mode;

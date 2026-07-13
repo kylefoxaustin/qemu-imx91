@@ -31,6 +31,32 @@
 #define GMAC_MDIO_DATA      0x0204
 #define GMAC_ADDR_HIGH      0x0300
 #define GMAC_ADDR_LOW       0x0304
+#define GMAC_ADDR_N         64          /* MAC_ADDRESSn_{HIGH,LOW}, 8 bytes apart */
+#define GMAC_ADDR_END       (GMAC_ADDR_HIGH + GMAC_ADDR_N * 8)
+
+#define GMAC_1US_TIC        0x00dc      /* MAC_ONEUS_TIC_COUNTER */
+
+/*
+ * Reset values from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ *
+ * ⭐ MAC_ADDRESS0 IS NOT THE SAME AS MAC_ADDRESS1..63, AND THAT DISTINCTION IS THE
+ *    WHOLE POINT.  The RM enumerates each entry, and only entry 0 comes up with
+ *    AE (Address Enable, bit 31) SET -- it is the primary address.  Entries 1..63
+ *    reset to FFFF with AE CLEAR: an EMPTY filter slot.
+ *
+ * We returned ZERO for all 128, which says "slot present, address 00:00:00:00:00:00,
+ * not enabled".  Not catastrophic here (this model does not filter) -- but it is a
+ * value the silicon never produces, and the perfect-filter entries are exactly the
+ * thing a driver walks looking for a free slot.
+ *
+ * ⭐ MAC_ONEUS_TIC_COUNTER is a DIVIDER: dwmac4_core.c writes (clk_rate/1e6)-1 into
+ *    it and the LPI/EEE timers count off it.  A zero there is not "unset", it is a
+ *    tick of zero microseconds.
+ */
+#define GMAC_ADDR0_HI_RESET 0x8000ffff  /* AE set: the primary address slot */
+#define GMAC_ADDRN_HI_RESET 0x0000ffff  /* AE clear: an EMPTY slot          */
+#define GMAC_ADDR_LO_RESET  0xffffffff
+#define GMAC_1US_TIC_RESET  0x00000063
 
 /* DMA registers (one channel at 0x1100). */
 #define DMA_BUS_MODE        0x1000
@@ -232,6 +258,7 @@ static uint64_t imx93_dwmac_read(void *opaque, hwaddr offset, unsigned size)
     case GMAC_MDIO_DATA:    return s->mdio_data;
     case GMAC_ADDR_HIGH:    return s->addr_hi;
     case GMAC_ADDR_LOW:     return s->addr_lo;
+    case GMAC_1US_TIC:      return s->onus_tic;
     case DMA_BUS_MODE:      return s->dma_bus_mode;
     case DMA_SYS_BUS_MODE:  return s->dma_sysbus_mode;
     case DMA_CH0_CONTROL:   return s->ch_control;
@@ -247,7 +274,18 @@ static uint64_t imx93_dwmac_read(void *opaque, hwaddr offset, unsigned size)
     case DMA_CH0_CUR_TX_DESC: return s->cur_tx_desc;
     case DMA_CH0_CUR_RX_DESC: return s->cur_rx_desc;
     case DMA_CH0_STATUS:    return s->ch_status;
-    default:                return 0;
+    default:
+        /* MAC_ADDRESSn_{HIGH,LOW}: the perfect-filter slots.  Entry 0 comes up
+         * with AE set (the primary address); 1..63 are EMPTY slots (FFFF, AE
+         * clear).  We used to answer zero for all 128 -- a value the silicon
+         * never produces, in exactly the registers a driver walks looking for a
+         * free slot. */
+        if (offset >= GMAC_ADDR_HIGH && offset < GMAC_ADDR_END) {
+            unsigned n = (offset - GMAC_ADDR_HIGH) / 8;
+
+            return s->maddr[n][(offset >> 2) & 1];
+        }
+        return 0;
     }
 }
 
@@ -262,6 +300,16 @@ static void imx93_dwmac_write(void *opaque, hwaddr offset, uint64_t value,
         break;
     case GMAC_INT_EN:
         s->mac_int_en = value;
+        break;
+    case GMAC_1US_TIC:
+        s->onus_tic = value;
+        break;
+    case GMAC_ADDR_HIGH + 8 ... GMAC_ADDR_END - 1:
+        {
+            unsigned n = (offset - GMAC_ADDR_HIGH) / 8;
+
+            s->maddr[n][(offset >> 2) & 1] = value;
+        }
         break;
     case GMAC_ADDR_HIGH:
         s->addr_hi = value;
@@ -358,9 +406,19 @@ static void imx93_dwmac_reset(DeviceState *dev)
 {
     IMX93DwmacState *s = IMX93_DWMAC(dev);
 
+    int n;
+
     s->mac_config = s->mac_int_en = 0;
     s->mdio_addr = s->mdio_data = 0;
     s->dma_bus_mode = s->dma_sysbus_mode = 0;
+
+    s->onus_tic = GMAC_1US_TIC_RESET;
+    for (n = 0; n < GMAC_ADDR_N; n++) {
+        s->maddr[n][0] = n ? GMAC_ADDRN_HI_RESET : GMAC_ADDR0_HI_RESET;
+        s->maddr[n][1] = GMAC_ADDR_LO_RESET;
+    }
+    s->addr_hi = GMAC_ADDR0_HI_RESET;
+    s->addr_lo = GMAC_ADDR_LO_RESET;
     s->ch_control = s->tx_control = s->rx_control = 0;
     s->tx_base = s->tx_base_hi = s->rx_base = s->rx_base_hi = 0;
     s->tx_tail = s->rx_tail = s->tx_ring_len = s->rx_ring_len = 0;

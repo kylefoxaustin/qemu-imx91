@@ -210,6 +210,24 @@ static void svc_i3c_write(void *opaque, hwaddr offset, uint64_t value,
 #define I3C_SIDEXT      0x00000070
 #define I3C_SVENDORID   0x00000074
 
+/*
+ * ⭐ THE SLAVE-SIDE MASK REGISTERS, AND ZERO IS THE WRONG WAY ROUND.
+ *
+ * SCCCMASK and SERRWARNMASK reset with bits SET -- those events are MASKED out of
+ * reset. We answered ZERO, which does not mean "unset": on a mask register ZERO
+ * MEANS NOTHING IS MASKED, i.e. EVERY source ARMED. rt1180emulator found the same
+ * inversion in their BLK_CTRL (RM resets the IRQ masks to FFFF_FFFFh -- everything
+ * masked -- and their memset claimed the exact inverse: 512 interrupt sources armed
+ * out of reset).
+ *
+ *     ON A MASK REGISTER, ZERO IS NOT THE ABSENCE OF A CLAIM.  IT IS THE LOUDEST
+ *     POSSIBLE ONE.
+ */
+#define I3C_SCCCMASK        0x0000010c
+#define I3C_SERRWARNMASK    0x00000110
+#define I3C_SCCCMASK_RESET      0x0000007f
+#define I3C_SERRWARNMASK_RESET  0x00000f1f
+
 #define I3C_SIDPARTNO_RESET  0x4d583933      /* ASCII "MX93" */
 #define I3C_SIDEXT_RESET     0x00660000
 #define I3C_SVENDORID_RESET  0x00000124
@@ -226,6 +244,10 @@ static uint64_t svc_i3c_read(void *opaque, hwaddr offset, unsigned size)
         return I3C_SIDEXT_RESET;
     case I3C_SVENDORID:
         return I3C_SVENDORID_RESET;
+    case I3C_SCCCMASK:
+        return I3C_SCCCMASK_RESET;
+    case I3C_SERRWARNMASK:
+        return I3C_SERRWARNMASK_RESET;
     case MSTATUS:
         /* STATE is always IDLE here; surface the sticky bits + live FIFO. */
         r = s->mstatus | MINT_TXNOTFULL |

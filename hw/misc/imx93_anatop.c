@@ -48,6 +48,7 @@
 
 /* Per-PLL register offsets. */
 #define PLL_CTRL_OFFSET     0x00
+#define PLL_SPREAD_OFFSET   0x30
 #define PLL_NUM_OFFSET      0x40
 #define PLL_DENOM_OFFSET    0x50
 #define PLL_DIV_OFFSET      0x60
@@ -88,6 +89,47 @@ static bool anatop_is_pll_status(hwaddr offset)
 {
     return offset >= ANATOP_PLL_BASE &&
            (offset & (ANATOP_PLL_STRIDE - 1)) == PLL_STATUS_OFFSET;
+}
+
+/*
+ * ⭐ EVERY PLL REGISTER HAS SET / CLR / TOG ALIASES, AND WE WERE SWALLOWING THEM.
+ *
+ * Within a PLL block the RM puts a base register at +0x00 (CTRL), +0x30 (SPREAD),
+ * +0x40 (NUMERATOR), +0x50 (DENOMINATOR) and +0x60 (DIV), each with SET/CLR/TOG at
+ * +4/+8/+C.  This model had no alias handling at all: a write to DIV_SET landed in
+ * the alias's OWN backing store and THE DIVIDER NEVER MOVED.  Measured:
+ *
+ *     writel DIV_SET 0x00640000   ->  DIV      reads 0x00c80000   (UNCHANGED)
+ *                                     DIV_SET  reads 0x00640000   (a DEAD register)
+ *
+ * This is the CCM CONTROL_SET bug, verbatim, one block over -- and it was INERT
+ * until the ANATOP started COMPUTING the PLL rate from DIV this morning.  The
+ * moment the register meant something, the dropped write did too: a guest
+ * programming its PLL through the SET alias now gets NO FREQUENCY CHANGE, silently.
+ *
+ *     FIXING ONE REGISTER MAKES ITS ALIASES LOAD-BEARING.  A dead write is only
+ *     harmless while nothing reads what it should have written.
+ */
+static bool anatop_is_alias(hwaddr offset, hwaddr *base)
+{
+    hwaddr reg;
+
+    if (offset < ANATOP_PLL_BASE) {
+        return false;
+    }
+    reg = offset & (ANATOP_PLL_STRIDE - 1);
+
+    switch (reg & ~0xfull) {
+    case PLL_CTRL_OFFSET:
+    case PLL_SPREAD_OFFSET:
+    case PLL_NUM_OFFSET:
+    case PLL_DENOM_OFFSET:
+    case PLL_DIV_OFFSET:
+        *base = offset & ~0xfull;
+        return true;
+    default:
+        return false;
+    }
 }
 
 /*
@@ -154,6 +196,8 @@ static uint64_t imx93_anatop_read(void *opaque, hwaddr offset, unsigned size)
 {
     IMX93AnatopState *s = opaque;
 
+    hwaddr base;
+
     if (anatop_is_pll_status(offset)) {
         /*
          * LOCK follows POWERUP.  It used to be pinned high unconditionally --
@@ -165,6 +209,10 @@ static uint64_t imx93_anatop_read(void *opaque, hwaddr offset, unsigned size)
         uint32_t ctrl = s->regs[(offset & ~0xffull) / 4];
         return (ctrl & PLL_CTRL_POWERUP) ? PLL_LOCK_STATUS : 0;
     }
+    if (anatop_is_alias(offset, &base)) {
+        /* CTRL/SPREAD/NUM/DENOM/DIV and their SET/CLR/TOG all read the register. */
+        return s->regs[base / 4];
+    }
     return s->regs[offset / 4];
 }
 
@@ -172,9 +220,22 @@ static void imx93_anatop_write(void *opaque, hwaddr offset, uint64_t value,
                                unsigned size)
 {
     IMX93AnatopState *s = opaque;
+    hwaddr base;
 
     /* PLL_STATUS is read-only. */
     if (anatop_is_pll_status(offset)) {
+        return;
+    }
+    if (anatop_is_alias(offset, &base)) {
+        uint32_t *p = &s->regs[base / 4];
+
+        switch (offset & 0xc) {
+        case 0x0: *p  = value; break;
+        case 0x4: *p |= value; break;      /* SET */
+        case 0x8: *p &= ~value; break;     /* CLR */
+        case 0xc: *p ^= value; break;      /* TOG */
+        }
+        imx93_anatop_update(s);
         return;
     }
     s->regs[offset / 4] = value;

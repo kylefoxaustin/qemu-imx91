@@ -56,15 +56,6 @@ ADC1                     THRHLR5                                        UNTRIAGE
 ADC1                     THRHLR6                                        UNTRIAGED
 ADC1                     THRHLR7                                        UNTRIAGED
 ANA_OSC                  DIGPROG_DEVICE_ID                              UNTRIAGED
-ARMPLL                   DIV_CLR                                        UNTRIAGED
-ARMPLL                   DIV_SET                                        UNTRIAGED
-ARMPLL                   DIV_TOG                                        UNTRIAGED
-AUDIOPLL                 DENOMINATOR_CLR                                UNTRIAGED
-AUDIOPLL                 DENOMINATOR_SET                                UNTRIAGED
-AUDIOPLL                 DENOMINATOR_TOG                                UNTRIAGED
-AUDIOPLL                 DIV_CLR                                        UNTRIAGED
-AUDIOPLL                 DIV_SET                                        UNTRIAGED
-AUDIOPLL                 DIV_TOG                                        UNTRIAGED
 BBNSM                    BBNSM_CTRL                                     UNTRIAGED
 BBNSM                    BBNSM_EVENTS                                   UNTRIAGED
 BBNSM                    BBNSM_FEATURES                                 UNTRIAGED
@@ -711,12 +702,6 @@ CCM_CTRL                 OSCPLL6_AUTHEN                                 DECISION
 CCM_CTRL                 OSCPLL7_AUTHEN                                 DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 OSCPLL8_AUTHEN                                 DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 OSCPLL9_AUTHEN                                 DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
-DRAMPLL                  DENOMINATOR_CLR                                UNTRIAGED
-DRAMPLL                  DENOMINATOR_SET                                UNTRIAGED
-DRAMPLL                  DENOMINATOR_TOG                                UNTRIAGED
-DRAMPLL                  DIV_CLR                                        UNTRIAGED
-DRAMPLL                  DIV_SET                                        UNTRIAGED
-DRAMPLL                  DIV_TOG                                        UNTRIAGED
 EDMA4_2.TCD              CH10_SBR                                       UNTRIAGED
 EDMA4_2.TCD              CH11_SBR                                       UNTRIAGED
 EDMA4_2.TCD              CH12_SBR                                       UNTRIAGED
@@ -774,150 +759,21 @@ EDMA4_2.TCD              CH6_SBR                                        UNTRIAGE
 EDMA4_2.TCD              CH7_SBR                                        UNTRIAGED
 EDMA4_2.TCD              CH9_SBR                                        UNTRIAGED
 ENET                     ECR                                            UNTRIAGED
-ENET                     PALR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that.
-ENET                     PAUR                                           DECISION: QEMU's NIC layer assigns the MAC. Silicon resets these to 0 and U-Boot/fuses program them; we skip that.
+ENET                     PALR                                           DECISION: QEMU's NIC layer assigns the MAC; silicon resets these to 0 and U-Boot/fuses program them.
+ENET                     PAUR                                           DECISION: QEMU's NIC layer assigns the MAC; silicon resets these to 0 and U-Boot/fuses program them.
 ENET_QOS_TSN             DMA_CH0_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH1_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH2_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH3_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_CH4_SLOT_FUNCTION_CONTROL_STATUS           UNTRIAGED
 ENET_QOS_TSN             DMA_SYSBUS_MODE                                UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS0_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS0_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS10_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS10_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS11_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS11_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS12_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS12_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS13_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS13_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS14_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS14_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS15_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS15_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS16_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS16_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS17_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS17_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS18_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS18_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS19_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS19_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS1_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS1_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS20_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS20_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS21_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS21_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS22_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS22_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS23_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS23_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS24_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS24_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS25_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS25_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS26_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS26_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS27_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS27_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS28_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS28_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS29_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS29_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS2_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS2_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS30_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS30_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS31_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS31_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS32_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS32_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS33_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS33_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS34_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS34_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS35_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS35_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS36_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS36_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS37_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS37_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS38_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS38_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS39_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS39_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS3_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS3_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS40_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS40_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS41_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS41_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS42_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS42_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS43_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS43_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS44_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS44_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS45_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS45_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS46_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS46_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS47_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS47_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS48_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS48_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS49_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS49_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS4_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS4_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS50_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS50_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS51_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS51_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS52_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS52_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS53_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS53_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS54_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS54_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS55_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS55_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS56_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS56_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS57_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS57_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS58_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS58_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS59_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS59_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS5_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS5_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS60_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS60_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS61_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS61_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS62_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS62_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS63_HIGH                             UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS63_LOW                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS6_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS6_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS7_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS7_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS8_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS8_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS9_HIGH                              UNTRIAGED
-ENET_QOS_TSN             MAC_ADDRESS9_LOW                               UNTRIAGED
 ENET_QOS_TSN             MAC_HW_FEATURE0                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_HW_FEATURE1                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_HW_FEATURE2                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_HW_FEATURE3                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_LPI_TIMERS_CONTROL                         UNTRIAGED
-ENET_QOS_TSN             MAC_ONEUS_TIC_COUNTER                          UNTRIAGED
 ENET_QOS_TSN             MAC_TIMESTAMP_CONTROL                          UNTRIAGED
-ENET_QOS_TSN             MAC_VERSION                                    UNTRIAGED
+ENET_QOS_TSN             MAC_VERSION                                    DECISION: we report snps 5.10a; silicon is 5.20. stmmac BRANCHES on SNPSVER to pick its register ops -- under-reporting the core version takes the older, simpler path, all of which we implement. Reporting 5.20 would enable dwmac5 features (safety/ECC, TSN) we do not model.
 ENET_QOS_TSN             MTL_DBG_STS                                    UNTRIAGED
 ENET_QOS_TSN             MTL_RXP_CONTROL_STATUS                         UNTRIAGED
 FLEXSPI1                 AHBRXBUF1CR0                                   UNTRIAGED
@@ -986,11 +842,9 @@ I3C1                     MDATACTRL                                      UNTRIAGE
 I3C1                     MDMACTRL                                       UNTRIAGED
 I3C1                     SCAPABILITIES                                  DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 I3C1                     SCAPABILITIES2                                 DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
-I3C1                     SCCCMASK                                       UNTRIAGED
 I3C1                     SCONFIG                                        UNTRIAGED
 I3C1                     SDATACTRL                                      UNTRIAGED
 I3C1                     SDMACTRL                                       UNTRIAGED
-I3C1                     SERRWARNMASK                                   UNTRIAGED
 I3C1                     SINTSET                                        UNTRIAGED
 I3C1                     SSTATUS                                        UNTRIAGED
 I3C1                     STCCLOCK                                       UNTRIAGED
@@ -1215,56 +1069,38 @@ LPIT2                    CVAL2                                          UNMODELL
 LPIT2                    CVAL3                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT2                    PARAM                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT2                    VERID                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-LPSPI1                   TCR                                            UNTRIAGED
-LPSPI2                   TCR                                            UNTRIAGED
-LPSPI3                   TCR                                            UNTRIAGED
-LPSPI4                   TCR                                            UNTRIAGED
-LPSPI5                   TCR                                            UNTRIAGED
-LPSPI6                   TCR                                            UNTRIAGED
-LPSPI7                   TCR                                            UNTRIAGED
-LPSPI8                   TCR                                            UNTRIAGED
 LPUART1                  DATARO                                         UNTRIAGED
-LPUART1                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART1                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART1                  PARAM                                          UNTRIAGED
 LPUART1                  TOSR                                           UNTRIAGED
 LPUART2                  DATARO                                         UNTRIAGED
-LPUART2                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART2                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART2                  PARAM                                          UNTRIAGED
 LPUART2                  TOSR                                           UNTRIAGED
 LPUART3                  DATARO                                         UNTRIAGED
-LPUART3                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART3                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART3                  PARAM                                          UNTRIAGED
 LPUART3                  TOSR                                           UNTRIAGED
 LPUART4                  DATARO                                         UNTRIAGED
-LPUART4                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART4                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART4                  PARAM                                          UNTRIAGED
 LPUART4                  TOSR                                           UNTRIAGED
 LPUART5                  DATARO                                         UNTRIAGED
-LPUART5                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART5                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART5                  PARAM                                          UNTRIAGED
 LPUART5                  TOSR                                           UNTRIAGED
 LPUART6                  DATARO                                         UNTRIAGED
-LPUART6                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART6                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART6                  PARAM                                          UNTRIAGED
 LPUART6                  TOSR                                           UNTRIAGED
 LPUART7                  DATARO                                         UNTRIAGED
-LPUART7                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART7                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART7                  PARAM                                          UNTRIAGED
 LPUART7                  TOSR                                           UNTRIAGED
 LPUART8                  DATARO                                         UNTRIAGED
-LPUART8                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM (16-deep) would make the driver program watermarks and DMA we do not implement.
+LPUART8                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO. Honouring the RM would make the driver program watermarks and DMA we do not implement.
 LPUART8                  PARAM                                          UNTRIAGED
 LPUART8                  TOSR                                           UNTRIAGED
-LPWDOG1                  CS                                             UNTRIAGED
-LPWDOG1                  TOVAL                                          UNTRIAGED
-LPWDOG2                  CS                                             UNTRIAGED
-LPWDOG2                  TOVAL                                          UNTRIAGED
-LPWDOG3                  CS                                             UNTRIAGED
-LPWDOG3                  TOVAL                                          UNTRIAGED
-LPWDOG4                  CS                                             UNTRIAGED
-LPWDOG4                  TOVAL                                          UNTRIAGED
-LPWDOG5                  CS                                             UNTRIAGED
-LPWDOG5                  TOVAL                                          UNTRIAGED
 MICFIL                   FIFO_CTRL                                      UNTRIAGED
 MICFIL                   PARAM                                          UNTRIAGED
 MICFIL                   VAD0_CTRL_2                                    UNTRIAGED
@@ -1452,12 +1288,6 @@ SRC.src_wkup_slice       PSW_ACK_CTRL_0                                 UNMODELL
 SRC.src_wkup_slice       PSW_ACK_CTRL_1                                 UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_wkup_slice       SINGLE_RESET_SW_CTRL                           UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_wkup_slice       SSAR_ACK_CTRL                                  UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-SYSPLL                   DENOMINATOR_CLR                                UNTRIAGED
-SYSPLL                   DENOMINATOR_SET                                UNTRIAGED
-SYSPLL                   DENOMINATOR_TOG                                UNTRIAGED
-SYSPLL                   DIV_CLR                                        UNTRIAGED
-SYSPLL                   DIV_SET                                        UNTRIAGED
-SYSPLL                   DIV_TOG                                        UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID0                                        UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID1                                        UNTRIAGED
 SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTSR                                          UNTRIAGED
@@ -1569,12 +1399,6 @@ USB.USB_OTG2             HWDEVICE                                       DECISION
 USB.USB_OTG2             PORTSC1                                        UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG2             USBMODE                                        UNTRIAGED
-VIDEOPLL                 DENOMINATOR_CLR                                UNTRIAGED
-VIDEOPLL                 DENOMINATOR_SET                                UNTRIAGED
-VIDEOPLL                 DENOMINATOR_TOG                                UNTRIAGED
-VIDEOPLL                 DIV_CLR                                        UNTRIAGED
-VIDEOPLL                 DIV_SET                                        UNTRIAGED
-VIDEOPLL                 DIV_TOG                                        UNTRIAGED
 ddr_ctrl.DDRC            DDRDSR_2                                       UNTRIAGED
 ddr_ctrl.DDRC            DDR_IP_REV1                                    UNTRIAGED
 ddr_ctrl.DDRC            DDR_SDRAM_CFG                                  UNTRIAGED

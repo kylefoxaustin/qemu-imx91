@@ -28,6 +28,10 @@
 #define CS_STOP     (1u << 0)
 #define CS_WAIT     (1u << 1)
 #define CS_EN       (1u << 7)
+
+/* Reset values, from the RM. */
+#define CS_RESET    0x00002900      /* CLK[8] | ULK[11] | CMD32EN[13]; EN is CLEAR */
+#define TOVAL_RESET 0x00000400
 #define CS_RCS      (1u << 10)
 #define CS_ULK      (1u << 11)
 #define CS_PRES     (1u << 12)
@@ -134,12 +138,33 @@ static void wdog_reset(DeviceState *dev)
     IMX93WdogState *s = IMX93_WDOG(dev);
 
     /*
-     * Default disabled (no bootloader ran to enable it under QEMU), but with
-     * CMD32EN set so the driver uses the single 32-bit UNLOCK/REFRESH sequence
-     * rather than two 16-bit half-word writes.
+     * CS = 2900h and TOVAL = 400h, from IMX91RM.pdf rev 5 (asserted by
+     * tests/imx91-reset-values).  EN (bit 7) is CLEAR in that value, so the
+     * watchdog is still disabled out of reset -- which is what we want under QEMU,
+     * where no bootloader ran -- but CLK, ULK and CMD32EN now read as the silicon
+     * does.
+     *
+     * ⭐ TOVAL IS THE ONE THAT MATTERS, AND ZERO WAS THE DANGEROUS DIRECTION.
+     *
+     * TOVAL is the watchdog TIMEOUT. This model reset it to ZERO and then GUARDED
+     * against its own zero:
+     *
+     *     if (!(cs & CS_EN) || rate == 0 || toval == 0)  timer_del(&s->timer);
+     *
+     * so a guest that enabled the watchdog and never programmed a timeout got NO
+     * WATCHDOG AT ALL here -- and a 1024-count timeout on silicon.  We were more
+     * forgiving than the hardware, in the one block whose entire job is to be
+     * unforgiving.
+     *
+     *     "THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL,
+     *      CATASTROPHIC VALUE -- not the ones where it is merely wrong."
+     *                                                    -- rt1180emulator
+     *
+     * A firmware bug that this model absorbed now expresses itself, here, the way
+     * it would on the board.
      */
-    s->cs = CS_CMD32EN;
-    s->toval = 0;
+    s->cs = CS_RESET;
+    s->toval = TOVAL_RESET;
     s->win = 0;
     s->unlocked = false;
     s->rcs = false;

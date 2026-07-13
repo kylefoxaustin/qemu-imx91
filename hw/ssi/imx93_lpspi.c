@@ -48,6 +48,18 @@
 #define RSR_RXEMPTY (1u << 1)
 
 #define TCR_FRAMESZ_MASK 0xfff
+
+/*
+ * ⭐ TCR RESETS TO 1Fh -- FRAMESZ = 31, i.e. a 32-BIT FRAME.  We reset it to ZERO.
+ *
+ * This model computes `bits = (tcr & FRAMESZ_MASK) + 1`, so a zero TCR is not
+ * "unconfigured" -- IT IS A ONE-BIT FRAME.  A guest that enables the peripheral and
+ * forgets to program FRAMESZ clocks single bits here and 32-bit words on silicon.
+ *
+ *     THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL VALUE --
+ *     not the ones where it is merely wrong.          -- rt1180emulator
+ */
+#define TCR_RESET        0x0000001f
 #define TCR_CONT (1u << 21)
 
 /*
@@ -200,7 +212,7 @@ static void lpspi_reset(DeviceState *dev)
     s->sr = 0;
     s->ier = 0;
     s->cfgr1 = 0;
-    s->tcr = 0;
+    s->tcr = TCR_RESET;    /* FRAMESZ = 31: a 32-bit frame, not a 1-bit one */
     fifo32_reset(&s->rx);
 }
 

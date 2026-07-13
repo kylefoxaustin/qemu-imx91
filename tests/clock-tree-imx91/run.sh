@@ -191,11 +191,67 @@ else
     fail=1
 fi
 
+# ⭐ DOES A PLL PROGRAMMED THROUGH ITS *ALIASES* REACH THE TIMER?
+#
+# Every ANATOP PLL register has SET/CLR/TOG aliases, and this model had NO alias
+# handling: a write to DIV_SET landed in the alias's own backing store and THE
+# DIVIDER NEVER MOVED. It was harmless right up until the ANATOP started COMPUTING
+# the PLL rate from DIV -- and then it became "your PLL programming does nothing",
+# silently.
+#
+#     FIXING ONE REGISTER MAKES ITS ALIASES LOAD-BEARING. A dead write is only
+#     harmless while nothing reads what it should have written.
+#
+# So drive the WHOLE CHAIN and touch the PLL ONLY through its aliases:
+#     guest -> CTRL_SET / DIV_CLR / DIV_SET -> anatop arithmetic -> CCM root -> TPM
+AUDIOPLL=0x44481200
+PLL_CTRL_SET=$((AUDIOPLL + 0x04))
+PLL_DIV_SET=$((AUDIOPLL + 0x64))
+PLL_DIV_CLR=$((AUDIOPLL + 0x68))
+TPM2_ROOT_AUDIO=0x00000217      # TPM_SEL mux 2 = audio_pll, DIV+1 = 24
+
+pll_case() { # <extra-writes> <expect>
+    q=$(printf 'writel %s 0x00000001\n' "$PLL_CTRL_SET")$'\n'
+    q="$q$2"
+    q="$q$(printf 'writel %s %s\nwritel 0x%x 0x0000ffff\nwritel 0x%x 0x00000000\nwritel 0x%x 0x00000008\nclock_step %d\nreadl 0x%x\n' \
+             "$CCM_TPM2_ROOT" "$TPM2_ROOT_AUDIO" $((TPM2 + 0x18)) $((TPM2 + 0x10)) $((TPM2 + 0x10)) \
+             "$STEP_NS" $((TPM2 + 0x14)))"$'\n'
+    { printf '%b' "$q" \
+        | timeout -s KILL 20 "$QEMU" -M imx91-11x11-evk -display none \
+            -accel qtest -qtest stdio -monitor none -serial none 2>/dev/null \
+        | grep '^OK 0x' | tail -1 | awk '{print strtonum($2)}'; } 2>/dev/null
+}
+
+echo
+# MFI = 200 (reset): 24 MHz * 200 / 2 = 2.4 GHz, / 24 = 100 MHz
+got=$(pll_case "" "")
+want=$(( 100000000 / (1000000000 / STEP_NS) % MODULO ))
+if [ "${got:-0}" -eq "$want" ]; then
+    printf "  ok    AudioPLL powered up via CTRL_SET  2.4 GHz -> /24 = 100 MHz  CNT=%6d\n" "$got"
+else
+    printf "  FAIL  AudioPLL via CTRL_SET: CNT=%s want %s\n" "${got:-none}" "$want"; fail=1
+fi
+
+# Reprogram MFI 200 -> 100 using ONLY the CLR and SET aliases: 1.2 GHz, / 24 = 50 MHz
+extra=$(printf 'writel %s 0x00c80000\nwritel %s 0x00640000\n' "$PLL_DIV_CLR" "$PLL_DIV_SET")$'\n'
+got=$(pll_case "" "$extra")
+want=$((  50000000 / (1000000000 / STEP_NS) % MODULO ))
+if [ "${got:-0}" -eq "$want" ]; then
+    printf "  ok    MFI 200->100 via DIV_CLR+DIV_SET  1.2 GHz -> /24 =  50 MHz  CNT=%6d\n" "$got"
+    echo   "        (the PLL was reprogrammed ONLY through its aliases; a model that"
+    echo   "         swallows alias writes reports 100 MHz for BOTH rows)"
+else
+    printf "  FAIL  PLL alias write did not reach the timer: CNT=%s want %s\n" "${got:-none}" "$want"
+    echo   "        A write to DIV_SET is landing in a DEAD register."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo
     echo "PASS: the TPM counter follows the CCM clock tree across mux, divider and"
-    echo "      gate -- STOPS when the tree gives it no clock -- and each timer is on"
-    echo "      the root it claims, proven by driving the two bus roots APART."
+    echo "      gate -- STOPS when the tree gives it no clock -- each timer is on the"
+    echo "      root it claims -- and a PLL programmed through its SET/CLR ALIASES"
+    echo "      reaches the timer."
 else
     echo
     echo "FAIL: the timer does not follow the clock tree."
