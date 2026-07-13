@@ -9,6 +9,14 @@ struct ChipideaState {
     EHCISysBusState parent_obj;
 
     MemoryRegion iomem[3];
+
+    /* Identification block (0x00..0x14, 0x90).  See chipidea.c. */
+    uint32_t id;
+    uint32_t hwgeneral;
+    uint32_t hwhost;
+    uint32_t hwtxbuf;
+    uint32_t hwrxbuf;
+    uint32_t sbuscfg;
 };
 
 #define TYPE_CHIPIDEA "usb-chipidea"

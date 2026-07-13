@@ -38,6 +38,7 @@ struct IMX93FlexSpiState {
 
     uint32_t regs[IMX93_FLEXSPI_NUM_REGS];
     bool lut_unlocked;
+    bool lutkey_written;    /* the guest actually WROTE the key this sequence */
     Fifo8 rx;       /* received bytes (RFDR packs 4/word) */
     Fifo8 tx;       /* bytes to transmit (TFDR unpacks 4/word) */
 };

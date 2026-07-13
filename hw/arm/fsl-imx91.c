@@ -884,6 +884,25 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
             hwaddr base = fsl_imx91_memmap[usb_table[i].region].addr;
             g_autofree char *misc = g_strdup_printf("usbmisc%d", i + 1);
 
+            /*
+             * The ChipIdea identification block, from IMX91RM.pdf rev 5.  These
+             * read as ZERO in the shared model, and ci_hdrc BRANCHES ON THEM:
+             * ID.VERSION == 0 makes the driver conclude it is talking to a
+             * ChipIdea 1.x controller.  This silicon is a 2.5 (ID = E4A1FA05h).
+             * A zero reset value is not the absence of a claim -- it is a claim.
+             *
+             * HWDEVICE is deliberately left at zero: we do not emulate device
+             * mode, and DCCPARAMS already reports host-only, so advertising 8
+             * endpoints here would leave two registers contradicting each other
+             * about the same fact.  We under-report, CONSISTENTLY.
+             */
+            object_property_set_uint(OBJECT(sbd), "id", 0xe4a1fa05, &error_abort);
+            object_property_set_uint(OBJECT(sbd), "hwgeneral", 0x00000015, &error_abort);
+            object_property_set_uint(OBJECT(sbd), "hwhost", 0x10020001, &error_abort);
+            object_property_set_uint(OBJECT(sbd), "hwtxbuf", 0x80080b08, &error_abort);
+            object_property_set_uint(OBJECT(sbd), "hwrxbuf", 0x00000808, &error_abort);
+            object_property_set_uint(OBJECT(sbd), "sbuscfg", 0x00000002, &error_abort);
+
             if (!sysbus_realize(sbd, errp)) {
                 return;
             }

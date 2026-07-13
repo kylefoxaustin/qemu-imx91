@@ -910,18 +910,16 @@ ENET_QOS_TSN             MAC_ADDRESS8_HIGH                              UNTRIAGE
 ENET_QOS_TSN             MAC_ADDRESS8_LOW                               UNTRIAGED
 ENET_QOS_TSN             MAC_ADDRESS9_HIGH                              UNTRIAGED
 ENET_QOS_TSN             MAC_ADDRESS9_LOW                               UNTRIAGED
-ENET_QOS_TSN             MAC_HW_FEATURE0                                DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
-ENET_QOS_TSN             MAC_HW_FEATURE1                                DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
-ENET_QOS_TSN             MAC_HW_FEATURE2                                DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
-ENET_QOS_TSN             MAC_HW_FEATURE3                                DECISION: we UNDER-report capabilities we do not implement (silicon: checksum offload, TSO, multi-queue, PTP). For a CAPABILITY register under-reporting is the SAFE error direction; over-reporting ships a promise the silicon cannot keep.
+ENET_QOS_TSN             MAC_HW_FEATURE0                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
+ENET_QOS_TSN             MAC_HW_FEATURE1                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
+ENET_QOS_TSN             MAC_HW_FEATURE2                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
+ENET_QOS_TSN             MAC_HW_FEATURE3                                DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE. Silicon: checksum offload, TSO, multi-queue, PTP.
 ENET_QOS_TSN             MAC_LPI_TIMERS_CONTROL                         UNTRIAGED
 ENET_QOS_TSN             MAC_ONEUS_TIC_COUNTER                          UNTRIAGED
 ENET_QOS_TSN             MAC_TIMESTAMP_CONTROL                          UNTRIAGED
 ENET_QOS_TSN             MAC_VERSION                                    UNTRIAGED
 ENET_QOS_TSN             MTL_DBG_STS                                    UNTRIAGED
 ENET_QOS_TSN             MTL_RXP_CONTROL_STATUS                         UNTRIAGED
-FLEXSPI1                 AHBCR                                          UNTRIAGED
-FLEXSPI1                 AHBRXBUF0CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF1CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF2CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF3CR0                                   UNTRIAGED
@@ -929,20 +927,10 @@ FLEXSPI1                 AHBRXBUF4CR0                                   UNTRIAGE
 FLEXSPI1                 AHBRXBUF5CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF6CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF7CR0                                   UNTRIAGED
-FLEXSPI1                 DLLACR                                         UNTRIAGED
-FLEXSPI1                 DLLBCR                                         UNTRIAGED
-FLEXSPI1                 FLSHA1CR1                                      UNTRIAGED
-FLEXSPI1                 FLSHA2CR1                                      UNTRIAGED
-FLEXSPI1                 FLSHB1CR1                                      UNTRIAGED
-FLEXSPI1                 FLSHB2CR1                                      UNTRIAGED
-FLEXSPI1                 FLSHCR4                                        UNTRIAGED
-FLEXSPI1                 INTR                                           UNTRIAGED
-FLEXSPI1                 LUTCR                                          UNTRIAGED
-FLEXSPI1                 LUTKEY                                         UNTRIAGED
-FLEXSPI1                 MCR0                                           UNTRIAGED
+FLEXSPI1                 INTR                                           DECISION: commands complete inline, so the IP FIFOs are never the bottleneck: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
 FLEXSPI1                 MCR1                                           UNTRIAGED
 FLEXSPI1                 MCR2                                           UNTRIAGED
-FLEXSPI1                 STS0                                           UNTRIAGED
+FLEXSPI1                 STS0                                           DECISION: commands complete inline, so the IP FIFOs are never the bottleneck: we always report TX-watermark-empty / sequencer-idle. Clearing them 'to match the RM' makes the driver's per-chunk poll TIME OUT and mis-sequence a SPI-NAND read.
 FLEXSPI1                 STS2                                           UNTRIAGED
 FSB1                     VERID                                          UNTRIAGED
 GPC.gpc_ctrl_ca55_0      CM_AUTHEN_CTRL                                 UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -996,25 +984,22 @@ GPC.gpc_global           PMIC_STBY_ACK_CTRL                             UNMODELL
 I3C1                     IBIEXT1                                        UNTRIAGED
 I3C1                     MDATACTRL                                      UNTRIAGED
 I3C1                     MDMACTRL                                       UNTRIAGED
-I3C1                     SCAPABILITIES                                  UNTRIAGED
-I3C1                     SCAPABILITIES2                                 UNTRIAGED
+I3C1                     SCAPABILITIES                                  DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
+I3C1                     SCAPABILITIES2                                 DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 I3C1                     SCCCMASK                                       UNTRIAGED
 I3C1                     SCONFIG                                        UNTRIAGED
 I3C1                     SDATACTRL                                      UNTRIAGED
 I3C1                     SDMACTRL                                       UNTRIAGED
 I3C1                     SERRWARNMASK                                   UNTRIAGED
-I3C1                     SIDEXT                                         UNTRIAGED
-I3C1                     SIDPARTNO                                      UNTRIAGED
 I3C1                     SINTSET                                        UNTRIAGED
 I3C1                     SSTATUS                                        UNTRIAGED
 I3C1                     STCCLOCK                                       UNTRIAGED
-I3C1                     SVENDORID                                      UNTRIAGED
 I3C2                     IBIEXT1                                        UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C2                     MDATACTRL                                      UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C2                     MDMACTRL                                       UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C2                     MSTATUS                                        UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-I3C2                     SCAPABILITIES                                  UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-I3C2                     SCAPABILITIES2                                 UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
+I3C2                     SCAPABILITIES                                  DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
+I3C2                     SCAPABILITIES2                                 DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 I3C2                     SCCCMASK                                       UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C2                     SCONFIG                                        UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 I3C2                     SDATACTRL                                      UNMODELLED: block 'i3c2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1564,34 +1549,30 @@ USB.USB_OTG1             CAPLENGTH                                      UNTRIAGE
 USB.USB_OTG1             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG1             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             ENDPTCTRL0                                     UNTRIAGED
+USB.USB_OTG1             ENDPTFLUSH                                     UNTRIAGED
+USB.USB_OTG1             ENDPTSETUPSTAT                                 UNTRIAGED
+USB.USB_OTG1             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG1             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HCIVERSION                                     UNTRIAGED
 USB.USB_OTG1             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG1             HWDEVICE                                       UNTRIAGED
-USB.USB_OTG1             HWGENERAL                                      UNTRIAGED
-USB.USB_OTG1             HWHOST                                         UNTRIAGED
-USB.USB_OTG1             HWRXBUF                                        UNTRIAGED
-USB.USB_OTG1             HWTXBUF                                        UNTRIAGED
-USB.USB_OTG1             ID                                             UNTRIAGED
+USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact -- the exact tell of a fabricated capability. We under-report, CONSISTENTLY.
 USB.USB_OTG1             PORTSC1                                        UNTRIAGED
-USB.USB_OTG1             SBUSCFG                                        UNTRIAGED
 USB.USB_OTG1             TXFILLTUNING                                   UNTRIAGED
+USB.USB_OTG1             USBMODE                                        UNTRIAGED
 USB.USB_OTG2             CAPLENGTH                                      UNTRIAGED
 USB.USB_OTG2             CONFIGFLAG                                     UNTRIAGED
 USB.USB_OTG2             DCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             ENDPTCTRL0                                     UNTRIAGED
+USB.USB_OTG2             ENDPTFLUSH                                     UNTRIAGED
+USB.USB_OTG2             ENDPTSETUPSTAT                                 UNTRIAGED
+USB.USB_OTG2             ENDPTSTAT                                      UNTRIAGED
 USB.USB_OTG2             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HCIVERSION                                     UNTRIAGED
 USB.USB_OTG2             HCSPARAMS                                      UNTRIAGED
-USB.USB_OTG2             HWDEVICE                                       UNTRIAGED
-USB.USB_OTG2             HWGENERAL                                      UNTRIAGED
-USB.USB_OTG2             HWHOST                                         UNTRIAGED
-USB.USB_OTG2             HWRXBUF                                        UNTRIAGED
-USB.USB_OTG2             HWTXBUF                                        UNTRIAGED
-USB.USB_OTG2             ID                                             UNTRIAGED
+USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER about the same fact -- the exact tell of a fabricated capability. We under-report, CONSISTENTLY.
 USB.USB_OTG2             PORTSC1                                        UNTRIAGED
-USB.USB_OTG2             SBUSCFG                                        UNTRIAGED
 USB.USB_OTG2             TXFILLTUNING                                   UNTRIAGED
+USB.USB_OTG2             USBMODE                                        UNTRIAGED
 VIDEOPLL                 DENOMINATOR_CLR                                UNTRIAGED
 VIDEOPLL                 DENOMINATOR_SET                                UNTRIAGED
 VIDEOPLL                 DENOMINATOR_TOG                                UNTRIAGED
@@ -1604,14 +1585,10 @@ ddr_ctrl.DDRC            DDR_SDRAM_CFG                                  UNTRIAGE
 ddr_ctrl.DDRC            DDR_SDRAM_REF_RATE                             UNTRIAGED
 ddr_ctrl.DDRC            TIMING_CFG_0                                   UNTRIAGED
 ddr_ctrl.DDRC            TX_CFG_1                                       UNTRIAGED
-gpio1                    PARAM                                          UNTRIAGED
-gpio1                    VERID                                          UNTRIAGED
-gpio2                    PARAM                                          UNTRIAGED
-gpio2                    VERID                                          UNTRIAGED
-gpio3                    PARAM                                          UNTRIAGED
-gpio3                    VERID                                          UNTRIAGED
-gpio4                    PARAM                                          UNTRIAGED
-gpio4                    VERID                                          UNTRIAGED
+gpio1                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
+gpio2                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
+gpio3                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
+gpio4                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 uSDHC1                   BLK_ATT                                        UNTRIAGED
 uSDHC1                   CQCAP                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC1                   CQRMEM                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.

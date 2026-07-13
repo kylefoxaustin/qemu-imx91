@@ -10,6 +10,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "hw/core/qdev-properties.h"
 #include "hw/usb/hcd-ehci.h"
 #include "hw/usb/chipidea.h"
 #include "qemu/module.h"
@@ -20,9 +21,62 @@ enum {
     CHIPIDEA_USBx_DCCPARAMS_HC = BIT(8),
 };
 
+/*
+ * The ChipIdea identification block (offsets 0x00..0x14, plus SBUSCFG at 0x90).
+ *
+ * ⭐ THESE ALL READ AS ZERO, AND THE GUEST BRANCHES ON THEM.
+ *
+ * ci_hdrc's ci_get_revision() does:
+ *
+ *     ver = hw_read_id_reg(ci, ID_ID, VERSION) >> __ffs(VERSION);
+ *     if (ver == 0x2)  rev = REVISION + CI_REVISION_20;
+ *     else if (ver == 0x0)  rev = CI_REVISION_1X;      <-- WE LAND HERE
+ *
+ * The i.MX 9 ID register is E4A1FA05h: VERSION = 2, REVISION = 5.  Returning zero
+ * does not mean "no answer" -- ZERO IS A VALID VERSION, and it tells the driver it
+ * is talking to a ChipIdea 1.x controller when the silicon is a 2.5.
+ *
+ *     A ZERO RESET VALUE IS NOT THE ABSENCE OF A CLAIM.  IT IS A CLAIM.
+ *
+ * (Latent today: ci->rev only gates quirks in udc.c, the device/gadget path, which
+ * we do not emulate.  It is still the wrong answer to "what chip are you", and it is
+ * the answer a driver would act on the moment gadget mode arrived.)
+ *
+ * Values are PROPERTIES, defaulting to the historical zero, so the i.MX6/i.MX7
+ * machines that share this model are byte-for-byte unchanged; the i.MX 9 SoC sets
+ * them from its reference manual.
+ *
+ * ⚠ HWDEVICE IS DELIBERATELY *NOT* SET, AND THAT IS THE INTERESTING ONE.
+ * Silicon reports DC=1 with 8 endpoints.  But chipidea_dc_read() below deliberately
+ * reports HOST-ONLY in DCCPARAMS, because we do not emulate device mode -- so
+ * advertising 8 endpoints in HWDEVICE would leave the two registers CONTRADICTING
+ * EACH OTHER about the same fact, which is the exact tell of a fabricated
+ * capability.  We under-report, consistently, in both.  It is allowlisted with that
+ * reason in tests/imx91-reset-values.
+ */
+enum {
+    CHIPIDEA_USBx_ID        = 0x00,
+    CHIPIDEA_USBx_HWGENERAL = 0x04,
+    CHIPIDEA_USBx_HWHOST    = 0x08,
+    CHIPIDEA_USBx_HWDEVICE  = 0x0c,
+    CHIPIDEA_USBx_HWTXBUF   = 0x10,
+    CHIPIDEA_USBx_HWRXBUF   = 0x14,
+    CHIPIDEA_USBx_SBUSCFG   = 0x90,
+};
+
 static uint64_t chipidea_read(void *opaque, hwaddr offset,
                                unsigned size)
 {
+    ChipideaState *ci = CHIPIDEA(opaque);
+
+    switch (offset) {
+    case CHIPIDEA_USBx_ID:        return ci->id;
+    case CHIPIDEA_USBx_HWGENERAL: return ci->hwgeneral;
+    case CHIPIDEA_USBx_HWHOST:    return ci->hwhost;
+    case CHIPIDEA_USBx_HWTXBUF:   return ci->hwtxbuf;
+    case CHIPIDEA_USBx_HWRXBUF:   return ci->hwrxbuf;
+    case CHIPIDEA_USBx_SBUSCFG:   return ci->sbuscfg;
+    }
     return 0;
 }
 
@@ -151,10 +205,22 @@ static void chipidea_init(Object *obj)
     }
 }
 
+static const Property chipidea_properties[] = {
+    /* Default 0 = the historical behaviour, so i.MX6/i.MX7 are unchanged. */
+    DEFINE_PROP_UINT32("id",        ChipideaState, id,        0),
+    DEFINE_PROP_UINT32("hwgeneral", ChipideaState, hwgeneral, 0),
+    DEFINE_PROP_UINT32("hwhost",    ChipideaState, hwhost,    0),
+    DEFINE_PROP_UINT32("hwtxbuf",   ChipideaState, hwtxbuf,   0),
+    DEFINE_PROP_UINT32("hwrxbuf",   ChipideaState, hwrxbuf,   0),
+    DEFINE_PROP_UINT32("sbuscfg",   ChipideaState, sbuscfg,   0),
+};
+
 static void chipidea_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusEHCIClass *sec = SYS_BUS_EHCI_CLASS(klass);
+
+    device_class_set_props(dc, chipidea_properties);
 
     /*
      * Offsets used were taken from i.MX7Dual Applications Processor

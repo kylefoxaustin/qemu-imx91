@@ -50,11 +50,21 @@ static void imx93_gpio_update_irq(IMX93GPIOState *s)
     qemu_set_irq(s->irq[0], !!pending);
 }
 
+/*
+ * Version ID, from IMX91RM.pdf rev 5.  Read as zero; a guest asking which revision
+ * of the RGPIO block it is driving got no answer.  (PARAM is left under-reported --
+ * a capability register, and under-reporting is the safe direction.)
+ */
+#define GPIO_VERID          0x00000000
+#define GPIO_VERID_RESET    0x02010001
+
 static uint64_t imx93_gpio_read(void *opaque, hwaddr offset, unsigned size)
 {
     IMX93GPIOState *s = opaque;
 
     switch (offset) {
+    case GPIO_VERID:
+        return GPIO_VERID_RESET;
     case GPIO_PDOR:
         return s->pdor;
     case GPIO_PDIR:

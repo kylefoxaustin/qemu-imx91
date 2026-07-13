@@ -26,6 +26,15 @@
 #include "qemu/module.h"
 
 #define FSPI_MCR0       0x00
+#define FSPI_AHBCR      0x0c
+#define FSPI_AHBRXBUF0CR0 0x20   /* .. AHBRXBUF7CR0 at 0x3c, 4 bytes apart */
+#define FSPI_FLSHA1CR1  0x70
+#define FSPI_FLSHA2CR1  0x74
+#define FSPI_FLSHB1CR1  0x78
+#define FSPI_FLSHB2CR1  0x7c
+#define FSPI_FLSHCR4    0x94
+#define FSPI_DLLACR     0xc0
+#define FSPI_DLLBCR     0xc4
 #define FSPI_MCR0_SWRST (1u << 0)
 #define FSPI_INTEN      0x10
 #define FSPI_INTR       0x14
@@ -34,6 +43,34 @@
 #define FSPI_INTR_IPTXWE    (1u << 6)   /* IP TX FIFO watermark empty     */
 #define FSPI_LUTKEY     0x18
 #define FSPI_LUTKEY_VAL 0x5af05af0
+
+/*
+ * Reset values from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ * All read-what-you-write config; the guest read ZERO from every one of them.
+ */
+#define FSPI_MCR0_RESET     0xffff80c2
+#define FSPI_AHBCR_RESET    0x00000018
+#define FSPI_LUTCR_RESET    0x00000002
+#define FSPI_AHBRX_RESET    0x80000020    /* AHBRXBUFnCR0, n = 0..7 */
+#define FSPI_FLSHCR1_RESET  0x00000063    /* FLSHA1/A2/B1/B2CR1 */
+#define FSPI_FLSHCR4_RESET  0x000000c3
+#define FSPI_DLLCR_RESET    0x00000100    /* DLLACR / DLLBCR */
+
+/*
+ * ⚠ LUTKEY RESETS TO THE KEY ITSELF (5AF05AF0h), AND THAT IS A TRAP.
+ *
+ * The unlock used to be `LUTCR == 2 && regs[LUTKEY] == KEY`.  Seed LUTKEY with its
+ * real reset value and that check passes WITHOUT THE GUEST EVER WRITING THE KEY --
+ * the model would unlock its LUT on a bare LUTCR write.
+ *
+ *     A MODEL THAT IS TOO FORGIVING DOES NOT FAIL SAFE.  IT SHIPS THE BUG
+ *     DOWNSTREAM.  A guest that forgets the key would PASS HERE and be undefined
+ *     on silicon.                                              -- mcxn947qemu
+ *
+ * So the reset value is now correct AND the unlock still requires the key to be
+ * WRITTEN, which is what firmware actually does and what a real unlock sequence is.
+ * Fixing a reset value must not quietly relax a guardrail.
+ */
 #define FSPI_LCKCR      0x1c
 #define FSPI_STS0       0xe0
 #define FSPI_STS0_IDLE  0x3         /* ARB_IDLE | SEQ_IDLE */
@@ -197,14 +234,21 @@ static void flexspi_write(void *opaque, hwaddr offset, uint64_t value,
         s->regs[FSPI_MCR0 >> 2] = value;
         break;
     case FSPI_LUTKEY:
+        s->lutkey_written = (value == FSPI_LUTKEY_VAL);
         s->regs[FSPI_LUTKEY >> 2] = value;
         break;
     case FSPI_LCKCR:
-        /* Unlock requires the key in LUTKEY then LCKCR=2 (unlock)/1 (lock). */
-        if (value == 2 && s->regs[FSPI_LUTKEY >> 2] == FSPI_LUTKEY_VAL) {
+        /*
+         * Unlock requires the key to have been WRITTEN, then LCKCR=2 (unlock) /
+         * 1 (lock).  Not merely "LUTKEY reads as the key" -- it resets to the key,
+         * so that test would unlock on a bare LUTCR write and let a guest that
+         * forgot the key pass here and be undefined on silicon.
+         */
+        if (value == 2 && s->lutkey_written) {
             s->lut_unlocked = true;
         } else if (value == 1) {
             s->lut_unlocked = false;
+            s->lutkey_written = false;
         }
         break;
     case FSPI_INTR:
@@ -287,7 +331,24 @@ static void flexspi_reset(DeviceState *dev)
     IMX93FlexSpiState *s = IMX93_FLEXSPI(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+
+    s->regs[FSPI_MCR0 >> 2]   = FSPI_MCR0_RESET;
+    s->regs[FSPI_AHBCR >> 2]  = FSPI_AHBCR_RESET;
+    s->regs[FSPI_LUTKEY >> 2] = FSPI_LUTKEY_VAL;
+    s->regs[FSPI_LCKCR >> 2]  = FSPI_LUTCR_RESET;   /* the RM calls 0x1c LUTCR */
+    for (int i = 0; i < 8; i++) {
+        s->regs[(FSPI_AHBRXBUF0CR0 + i * 4) >> 2] = FSPI_AHBRX_RESET;
+    }
+    s->regs[FSPI_FLSHA1CR1 >> 2] = FSPI_FLSHCR1_RESET;
+    s->regs[FSPI_FLSHA2CR1 >> 2] = FSPI_FLSHCR1_RESET;
+    s->regs[FSPI_FLSHB1CR1 >> 2] = FSPI_FLSHCR1_RESET;
+    s->regs[FSPI_FLSHB2CR1 >> 2] = FSPI_FLSHCR1_RESET;
+    s->regs[FSPI_FLSHCR4 >> 2]   = FSPI_FLSHCR4_RESET;
+    s->regs[FSPI_DLLACR >> 2]    = FSPI_DLLCR_RESET;
+    s->regs[FSPI_DLLBCR >> 2]    = FSPI_DLLCR_RESET;
+
     s->lut_unlocked = false;
+    s->lutkey_written = false;
     fifo8_reset(&s->rx);
     fifo8_reset(&s->tx);
 }

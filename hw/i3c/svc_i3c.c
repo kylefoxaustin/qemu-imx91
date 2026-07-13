@@ -196,12 +196,36 @@ static void svc_i3c_write(void *opaque, hwaddr offset, uint64_t value,
     svc_i3c_update_irq(s);
 }
 
+/*
+ * Identification, from IMX91RM.pdf rev 5.  These read as ZERO today, so a guest
+ * asking this controller WHAT IT IS gets nothing back -- and SIDPARTNO is not an
+ * opaque number, it is the ASCII string "MX93".
+ *
+ * Left alone deliberately: SCAPABILITIES / SCAPABILITIES2.  Silicon advertises a
+ * large feature set there and we implement a fraction of it.  On a CAPABILITY
+ * register, UNDER-reporting is the safe error direction -- over-reporting is a
+ * promise the emulator makes on the chip's behalf.  Allowlisted with that reason.
+ */
+#define I3C_SIDPARTNO   0x0000006c
+#define I3C_SIDEXT      0x00000070
+#define I3C_SVENDORID   0x00000074
+
+#define I3C_SIDPARTNO_RESET  0x4d583933      /* ASCII "MX93" */
+#define I3C_SIDEXT_RESET     0x00660000
+#define I3C_SVENDORID_RESET  0x00000124
+
 static uint64_t svc_i3c_read(void *opaque, hwaddr offset, unsigned size)
 {
     SvcI3cState *s = opaque;
     uint64_t r;
 
     switch (offset) {
+    case I3C_SIDPARTNO:
+        return I3C_SIDPARTNO_RESET;
+    case I3C_SIDEXT:
+        return I3C_SIDEXT_RESET;
+    case I3C_SVENDORID:
+        return I3C_SVENDORID_RESET;
     case MSTATUS:
         /* STATE is always IDLE here; surface the sticky bits + live FIFO. */
         r = s->mstatus | MINT_TXNOTFULL |
