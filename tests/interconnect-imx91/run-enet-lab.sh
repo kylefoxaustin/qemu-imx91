@@ -81,7 +81,10 @@ mknode() {                          # $1=name $2=my-et $3=mac-suffix  $4..=peer-
     local peers; peers=$(echo "$*" | tr ' ' ',')
     local evil=""
 
-    [ -n "${EVIL:-}" ] && evil="beacon.corrupt=$EVIL"
+    [ -n "${EVIL:-}" ]   && evil="$evil beacon.corrupt=$EVIL"
+    [ -n "${LEGACY:-}" ] && evil="$evil beacon.legacy=$LEGACY"
+    [ -n "${ROT:-}" ]    && evil="$evil beacon.legacy_after=$ROT"
+    [ -n "${STRICT:-}" ] && evil="$evil beacon.strict=$STRICT"
 
     "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
@@ -161,6 +164,74 @@ grep -a 'ENET-LAB3 CORRUPT:' "$WORK/good.log" 2>/dev/null | head -1 | sed 's/^/ 
 [ "${caught:-0}"    -ge 1 ] || { echo "    FAIL: the corruption check NEVER FIRED"; fail=1; }
 [ "${duped:-0}"     -eq 0 ] || { echo "    FAIL: honest node reached PASS while being lied to"; fail=1; }
 
+# ---------------------------------------------------------------------------
+# ⭐ THE FLAG-DAY TRAP, AND WHY THIS NODE DOES NOT NEED ONE.
+#
+# holobench, tonight, aimed squarely at receivers like this one:
+#
+#   "A RECEIVER THAT ENFORCES A FIELD ITS SENDERS DO NOT YET EMIT WILL CONDEMN THE HONEST
+#    ... and THE FALSE POSITIVE OF THIS DETECTOR IS INDISTINGUISHABLE FROM ITS TRUE
+#    POSITIVE.  'CORRUPT, magic=0' is EXACTLY what rt1180's 88 frames DMA'd to guest
+#    address 0 look like.  They will hunt a QEMU bug that is not there, or -- far worse --
+#    CONCLUDE THE CHECK IS BROKEN AND DELETE IT."
+#
+# Dead right, and my beacon enforced unconditionally: on the real segment it would have
+# gone RED against rt1180 and imx95, who are working perfectly and simply have not shipped
+# the emitter yet.
+#
+# The prescribed fix is a coordinated flag day.  But the premise is escapable:
+#
+#   ⭐ A PEER THAT HAS EVER EMITTED A VALID BODY CANNOT STOP KNOWING HOW.
+#
+# So the two cases are only identical if you look at ONE FRAME.  Look at the SENDER:
+#   never emitted a body      -> hasn't shipped the emitter.  COUNT IT.  Say so once.
+#   emitted, and now magic=0  -> A BUFFER THAT WAS NEVER WRITTEN.  CORRUPT.
+#
+# The enforcer arms itself, per peer, on first evidence.  Both branches are proven below --
+# with the SAME FRAME (magic=0) landing as benign in one and as a hard fail in the other.
+# ---------------------------------------------------------------------------
+echo
+echo "== PHASE-1 SAFETY: a peer that emits NO body (rt1180/imx95, today) =="
+for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.5:11895"
+mknode ph1good 0x88B8 a8 0x88B9
+LEGACY=1 mknode ph1old 0x88B9 a9 0x88B8
+sleep 14
+
+l_note=$(grep -ac 'ENET-LAB3 LEGACY:'  "$WORK/ph1good.log" 2>/dev/null) || true
+l_bad=$(grep -ac 'ENET-LAB3 CORRUPT:'  "$WORK/ph1good.log" 2>/dev/null) || true
+l_pass=$(grep -ac 'ENET-LAB3 PASS:'    "$WORK/ph1good.log" 2>/dev/null) || true
+echo "  noted as legacy : $l_note   (said once, not once per frame)"
+echo "  CONDEMNED       : $l_bad   (must be 0 -- DO NOT CONDEMN THE HONEST)"
+echo "  counted anyway  : $l_pass PASS beat(s)  (must be >0)"
+[ "${l_bad:-1}"  -eq 0 ] || { echo "    FAIL: condemned a peer that simply has not shipped the emitter"; fail=1; }
+[ "${l_pass:-0}" -ge 1 ] || { echo "    FAIL: refused to count an honest phase-1 peer"; fail=1; }
+[ "${l_note:-0}" -ge 1 ] || { echo "    FAIL: never noticed the peer emits no body"; fail=1; }
+
+echo
+echo "== SELF-ARMING: a KNOWN EMITTER whose buffers stop being written =="
+echo "   (no strict mode, no flag day -- rt1180's frames-to-address-0 signature)"
+for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.6:11896"
+mknode rotgood 0x88B8 b1 0x88B9
+ROT=6000 mknode rotbad 0x88B9 b2 0x88B8
+sleep 16
+
+r_arm=$(grep -ac 'body STOPPED'        "$WORK/rotbad.log" 2>/dev/null) || true
+r_bad=$(grep -ac 'ENET-LAB3 CORRUPT:'  "$WORK/rotgood.log" 2>/dev/null) || true
+r_leg=$(grep -ac 'ENET-LAB3 LEGACY:'   "$WORK/rotgood.log" 2>/dev/null) || true
+echo "  rot node armed  : $r_arm   (the mutation must land)"
+echo "  CAUGHT          : $r_bad corrupt frame(s)"
+echo "  mis-excused     : $r_leg   (must be 0 -- it DID emit, so it is not phase-1)"
+grep -a 'ENET-LAB3 CORRUPT:' "$WORK/rotgood.log" 2>/dev/null | head -1 | sed 's/^/    /'
+[ "${r_arm:-0}" -ge 1 ] || { echo "    FAIL: the rot never armed -- this proved nothing"; fail=1; }
+[ "${r_bad:-0}" -ge 1 ] || { echo "    FAIL: a known emitter went silent-bodied and we EXCUSED it"; fail=1; }
+[ "${r_leg:-1}" -eq 0 ] || { echo "    FAIL: excused a known emitter as a phase-1 peer"; fail=1; }
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "PASS: three i.MX 91 FEC nodes hold a broadcast segment -- every frame's BODY"
@@ -168,7 +239,10 @@ if [ "$fail" -eq 0 ]; then
     echo "      re-earning PASS on a sliding window, every node ignoring its own frames"
     echo "      by BOTH ethertype and source MAC.  Zero corrupt frames.
       AND the corruption check is PROVEN TO FIRE: a node whose payload ethertype
-      disagrees with its header is caught, and is NOT counted as a peer."
+      disagrees with its header is caught, and is NOT counted as a peer.
+      AND IT NEEDS NO FLAG DAY: the SAME frame (magic=0) is excused as a phase-1
+      peer from a sender that has never emitted a body, and condemned as a
+      never-written buffer from a sender that has.  Ask the SENDER, not the frame."
 else
     echo "FAIL: see above."
 fi

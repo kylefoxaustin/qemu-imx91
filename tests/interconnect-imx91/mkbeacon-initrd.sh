@@ -51,19 +51,26 @@ cat > "$WORK/root/init" <<'INIT'
 # ENET-LAB3 node (i.MX 91, Linux).  Config comes from the kernel command line, so this
 # image is a CONSTANT and the topology is a variable -- not the other way around:
 #
-#   beacon.et=0x88B8  beacon.peers=0x88B9,0x88BA  [beacon.corrupt=ethertype|magic|pattern]
+#   beacon.et=0x88B8  beacon.peers=0x88B9,0x88BA
+#   [beacon.strict=1]              -- holobench phase 2: enforce the body on EVERY peer
+#   [beacon.corrupt=ethertype|magic|pattern]   -- lie, to prove the checker fires
+#   [beacon.legacy=1]              -- emit NO body (impersonate a phase-1 peer)
+#   [beacon.legacy_after=<ms>]     -- emit a body, then stop (a known emitter going bad)
 #
 /bin/busybox mount -t proc proc /proc
 /bin/busybox mount -t sysfs sysfs /sys
 /bin/busybox mount -t devtmpfs devtmpfs /dev
 /bin/busybox --install -s /bin 2>/dev/null
 
-ET=""; PEERS=""; EVIL=""
+ET=""; PEERS=""; EVIL=""; STRICT=""; LEGACY=""; LEGACY_AFTER=""
 for a in $(cat /proc/cmdline); do
     case "$a" in
-        beacon.et=*)      ET="${a#beacon.et=}" ;;
-        beacon.peers=*)   PEERS="$(echo "${a#beacon.peers=}" | tr ',' ' ')" ;;
-        beacon.corrupt=*) EVIL="${a#beacon.corrupt=}" ;;
+        beacon.et=*)           ET="${a#beacon.et=}" ;;
+        beacon.peers=*)        PEERS="$(echo "${a#beacon.peers=}" | tr ',' ' ')" ;;
+        beacon.corrupt=*)      EVIL="${a#beacon.corrupt=}" ;;
+        beacon.strict=*)       STRICT="${a#beacon.strict=}" ;;
+        beacon.legacy=*)       LEGACY="${a#beacon.legacy=}" ;;
+        beacon.legacy_after=*) LEGACY_AFTER="${a#beacon.legacy_after=}" ;;
     esac
 done
 
@@ -77,6 +84,9 @@ fi
 
 ip link set eth0 up
 export BEACON_CORRUPT="$EVIL"
+export BEACON_STRICT="$STRICT"
+export BEACON_LEGACY="$LEGACY"
+export BEACON_LEGACY_AFTER="$LEGACY_AFTER"
 exec /enetbeacon eth0 "$ET" $PEERS
 INIT
 chmod +x "$WORK/root/init"
