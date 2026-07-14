@@ -46,6 +46,31 @@
 
 #define CTRL_SW_RESET               (1u << 31)
 
+/*
+ * Reset values from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ *
+ * ⚠ CTRL RESETS WITH SW_RESET *SET*.  The silicon holds the display block in
+ * software reset until firmware releases it -- mxsfb's lcdif_kms.c asserts it
+ * through CTRL+REG_SET and then clears it through CTRL+REG_CLR.  We came up
+ * ALREADY RELEASED, which is the forgiving direction: firmware that forgets to
+ * release the block works here and does not on the board.
+ *
+ * (The write path still auto-clears SW_RESET -- reset is instantaneous in this
+ * model -- but the register now READS as in-reset until the guest touches it.)
+ */
+#define CTRL_RESET                  0x80000000
+#define HSYN_PARA_RESET             0x00030003
+#define VSYN_PARA_RESET             0x00030003
+#define VSYN_HSYN_WIDTH_RESET       0x00030003
+#define CSC0_CTRL_RESET             0x00000001
+#define PANIC0_THRES_RESET          0x01000100
+
+#define LCDIF_HSYN_PARA             0x018
+#define LCDIF_VSYN_PARA             0x01c
+#define LCDIF_VSYN_HSYN_WIDTH       0x020
+#define LCDIF_CSC0_CTRL             0x21c
+#define LCDIF_PANIC0_THRES          0x238
+
 #define DISP_PARA_DISP_ON           (1u << 31)
 
 #define INT_STATUS_D0_VSYNC         (1u << 0)
@@ -363,6 +388,14 @@ static void lcdif_reset(DeviceState *dev)
     IMX93LcdifState *s = IMX93_LCDIF(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+
+    s->regs[LCDC_V8_CTRL >> 2]         = CTRL_RESET;
+    s->regs[LCDIF_HSYN_PARA >> 2]      = HSYN_PARA_RESET;
+    s->regs[LCDIF_VSYN_PARA >> 2]      = VSYN_PARA_RESET;
+    s->regs[LCDIF_VSYN_HSYN_WIDTH >> 2] = VSYN_HSYN_WIDTH_RESET;
+    s->regs[LCDIF_CSC0_CTRL >> 2]      = CSC0_CTRL_RESET;
+    s->regs[LCDIF_PANIC0_THRES >> 2]   = PANIC0_THRES_RESET;
+
     s->fb_base = 0;
     s->src_width = 0;
     s->rows = 0;

@@ -40,6 +40,24 @@
 #define MCR_CALSTART    (1u << 14)
 #define MCR_PWDN        (1u << 0)
 
+/*
+ * ⭐ MCR RESETS TO 3901h, NOT 1h -- AND THE DRIVER READ-MODIFY-WRITES IT.
+ *
+ * imx93_adc.c does `mcr = readl(MCR); mcr |= NSTART; writel(mcr)` and friends, so
+ * every bit we get wrong at reset is LAUNDERED INTO THE GUEST'S OWN CONFIGURATION
+ * the first time it starts a conversion.  We seeded PWDN (bit 0) and nothing else,
+ * so the guest wrote back ADCLKSE = 0 -- THE ADC CLOCK SELECT -- along with the
+ * sampling defaults, as if it had chosen them.
+ *
+ *     A REGISTER THE GUEST READ-MODIFY-WRITES IS THE ONE PLACE A WRONG RESET VALUE
+ *     SURVIVES INTO THE GUEST'S OWN STATE.
+ *
+ * (93emulator found the identical register, independently, on the i.MX 93 SAR-ADC
+ * the same evening: "was 0x0001 (PWDN only), RM = 0x3901".  Same IP, same memset,
+ * two chips.)
+ */
+#define MCR_RESET       0x00003901
+
 /* MSR.ADCSTATUS[2:0] codes the driver polls for. */
 #define MSR_STATUS_IDLE         0
 #define MSR_STATUS_POWER_DOWN   1
@@ -140,7 +158,7 @@ static void adc_reset(DeviceState *dev)
     IMX93AdcState *s = IMX93_ADC(dev);
     int ch;
 
-    s->mcr = MCR_PWDN;      /* powered down until the driver enables it */
+    s->mcr = MCR_RESET;     /* PWDN + ADCLKSE + the sampling defaults */
     s->isr = 0;
     s->imr = 0;
     s->ncmr0 = 0;

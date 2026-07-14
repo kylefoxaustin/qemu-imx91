@@ -36,7 +36,6 @@
 ADC1                     CALCFG0                                        UNTRIAGED
 ADC1                     CTR0                                           UNTRIAGED
 ADC1                     CTR1                                           UNTRIAGED
-ADC1                     MCR                                            UNTRIAGED
 ADC1                     STAW0R                                         UNTRIAGED
 ADC1                     STAW1AR                                        UNTRIAGED
 ADC1                     STAW1BR                                        UNTRIAGED
@@ -1048,15 +1047,6 @@ IOMUXC_GPR.IOMUXC_GPR    CONFIG                                         UNMODELL
 ISI                      CHNL_IMG_CFG                                   UNTRIAGED
 ISI                      CHNL_SCALE_FACTOR                              UNTRIAGED
 ISI                      CHNL_SCL_IMG_CFG                               UNTRIAGED
-LCDIF                    CSC0_CTRL                                      UNTRIAGED
-LCDIF                    CTRL                                           UNTRIAGED
-LCDIF                    CTRL_CLR                                       UNTRIAGED
-LCDIF                    CTRL_SET                                       UNTRIAGED
-LCDIF                    CTRL_TOG                                       UNTRIAGED
-LCDIF                    HSYN_PARA                                      UNTRIAGED
-LCDIF                    PANIC0_THRES                                   UNTRIAGED
-LCDIF                    VSYN_HSYN_WIDTH                                UNTRIAGED
-LCDIF                    VSYN_PARA                                      UNTRIAGED
 LPIT1                    CVAL0                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT1                    CVAL1                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT1                    CVAL2                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1115,23 +1105,6 @@ SAI2                     TCSR                                           UNTRIAGE
 SAI2                     VERID                                          UNTRIAGED
 SAI3                     TCSR                                           UNTRIAGED
 SAI3                     VERID                                          UNTRIAGED
-SPDIF                    CLK_CTRL                                       UNTRIAGED
-SPDIF                    DTS_PRE_MATCH_VAL                              UNTRIAGED
-SPDIF                    DTS_PRE_MATCH_VAL_CLR                          UNTRIAGED
-SPDIF                    DTS_PRE_MATCH_VAL_SET                          UNTRIAGED
-SPDIF                    DTS_PRE_MATCH_VAL_TOG                          UNTRIAGED
-SPDIF                    EXT_CTRL                                       UNTRIAGED
-SPDIF                    EXT_CTRL_CLR                                   UNTRIAGED
-SPDIF                    EXT_CTRL_SET                                   UNTRIAGED
-SPDIF                    EXT_CTRL_TOG                                   UNTRIAGED
-SPDIF                    PRE_MATCH_VAL                                  UNTRIAGED
-SPDIF                    PRE_MATCH_VAL_CLR                              UNTRIAGED
-SPDIF                    PRE_MATCH_VAL_SET                              UNTRIAGED
-SPDIF                    PRE_MATCH_VAL_TOG                              UNTRIAGED
-SPDIF                    RX_DATAPATH_CTRL                               UNTRIAGED
-SPDIF                    RX_DATAPATH_CTRL_CLR                           UNTRIAGED
-SPDIF                    RX_DATAPATH_CTRL_SET                           UNTRIAGED
-SPDIF                    RX_DATAPATH_CTRL_TOG                           UNTRIAGED
 SRC.src_a55_scu_mem      MEMLP_CTRL_0                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_a55_scu_mem      MEMLP_CTRL_1                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_a55_scu_mem      MEMLP_CTRL_2                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.

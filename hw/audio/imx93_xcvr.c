@@ -31,7 +31,21 @@
 #define AI_TOG_PHY          (1u << 26)
 #define AI_DONE_PHY         (1u << 27)
 
-#define XCVR_VERSION_VALUE  0x00010000
+/*
+ * ⭐ WE INVENTED A VERSION NUMBER.  0x00010000 is not a value, it is a VIBE.
+ *
+ * The RM resets VERSION to 0, and so does the driver's own regmap default table
+ * (fsl_xcvr.c: `{ FSL_XCVR_VERSION, 0x00000000 }`) -- two independent sources, and
+ * we agreed with neither.  "Plausible" is the word you use when you mean fabricated.
+ *
+ * ⚠ AND IT WAS INVISIBLE UNTIL TODAY.  The golden had every SPDIF register 0x800 too
+ * low -- the RM numbers this block from its CONTROL sub-block, not from the base it
+ * declares -- so the gate was comparing VERSION against the XCVR's FRAME RAM, which
+ * reads zero, and it MATCHED.
+ *
+ *     A WRONG GOLDEN DOES NOT ONLY INVENT FALSE LIES.  IT HIDES REAL ONES.
+ */
+#define XCVR_VERSION_VALUE  0x00000000
 
 #define RFDR_FIFO 0x0c00
 #define TFDR_FIFO 0x0e00
@@ -41,6 +55,26 @@
  * control-register window is 0x10/4. Its bits gate the transmit datapath.
  */
 #define XCVR_EXT_CTRL_REL       0x10
+
+/*
+ * Reset values from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values.
+ * The SET/CLR/TOG aliases read the base register, so only the bases are seeded.
+ *
+ * These are not cosmetic. PRE_MATCH_VAL and DTS_PRE_MATCH_VAL carry the receiver's
+ * preamble-match constants and RX_DATAPATH_CTRL its datapath defaults -- the values
+ * the block is BORN with and that firmware read-modify-writes around.  We answered
+ * zero for all of them.
+ */
+#define XCVR_CLK_CTRL           0xb0
+#define XCVR_RX_DATAPATH_CTRL   0x180
+#define XCVR_PRE_MATCH_VAL      0x1e0
+#define XCVR_DTS_PRE_MATCH_VAL  0x1f0
+
+#define XCVR_EXT_CTRL_RESET         0x18004040
+#define XCVR_CLK_CTRL_RESET         0x0000018f
+#define XCVR_RX_DATAPATH_RESET      0x00042cc1
+#define XCVR_PRE_MATCH_RESET        0x4e1ff872
+#define XCVR_DTS_PRE_MATCH_RESET    0x1387fe1c
 #define EXT_CTRL_TX_DPTH_RESET  (1u << 27)  /* TX datapath in reset       */
 #define EXT_CTRL_DMA_RD_DIS     (1u << 25)  /* DMA read (playback) disable */
 #define EXT_CTRL_SPDIF_MODE     (1u << 23)  /* SPDIF mode selected         */
@@ -272,6 +306,12 @@ static void xcvr_reset(DeviceState *dev)
     timer_del(s->tx_timer);
     memset(s->regs, 0, sizeof(s->regs));
     memset(s->ram, 0, sizeof(s->ram));
+
+    s->regs[XCVR_EXT_CTRL_REL >> 2]      = XCVR_EXT_CTRL_RESET;
+    s->regs[XCVR_CLK_CTRL >> 2]          = XCVR_CLK_CTRL_RESET;
+    s->regs[XCVR_RX_DATAPATH_CTRL >> 2]  = XCVR_RX_DATAPATH_RESET;
+    s->regs[XCVR_PRE_MATCH_VAL >> 2]     = XCVR_PRE_MATCH_RESET;
+    s->regs[XCVR_DTS_PRE_MATCH_VAL >> 2] = XCVR_DTS_PRE_MATCH_RESET;
     memset(s->ai_sub, 0, sizeof(s->ai_sub));
     s->regs[XCVR_VERSION >> 2] = XCVR_VERSION_VALUE;
     s->tx_rptr = s->tx_wptr = s->tx_count = 0;

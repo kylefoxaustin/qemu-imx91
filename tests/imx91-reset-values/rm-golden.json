@@ -56142,413 +56142,413 @@
  {
   "inst": "SPDIF",
   "reg": "VERSION",
-  "addr": 1114112000,
+  "addr": 1114114048,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_CTRL",
-  "addr": 1114112016,
+  "addr": 1114114064,
   "reset": 402669632,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_CTRL_SET",
-  "addr": 1114112020,
+  "addr": 1114114068,
   "reset": 402669632,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_CTRL_CLR",
-  "addr": 1114112024,
+  "addr": 1114114072,
   "reset": 402669632,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_CTRL_TOG",
-  "addr": 1114112028,
+  "addr": 1114114076,
   "reset": 402669632,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_STATUS",
-  "addr": 1114112032,
+  "addr": 1114114080,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_STATUS_SET",
-  "addr": 1114112036,
+  "addr": 1114114084,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_STATUS_CLR",
-  "addr": 1114112040,
+  "addr": 1114114088,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_STATUS_TOG",
-  "addr": 1114112044,
+  "addr": 1114114092,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER0",
-  "addr": 1114112048,
+  "addr": 1114114096,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER0_SET",
-  "addr": 1114112052,
+  "addr": 1114114100,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER0_CLR",
-  "addr": 1114112056,
+  "addr": 1114114104,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER0_TOG",
-  "addr": 1114112060,
+  "addr": 1114114108,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER1",
-  "addr": 1114112064,
+  "addr": 1114114112,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER1_SET",
-  "addr": 1114112068,
+  "addr": 1114114116,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER1_CLR",
-  "addr": 1114112072,
+  "addr": 1114114120,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_IER1_TOG",
-  "addr": 1114112076,
+  "addr": 1114114124,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_ISR",
-  "addr": 1114112080,
+  "addr": 1114114128,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_ISR_SET",
-  "addr": 1114112084,
+  "addr": 1114114132,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_ISR_CLR",
-  "addr": 1114112088,
+  "addr": 1114114136,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "EXT_ISR_TOG",
-  "addr": 1114112092,
+  "addr": 1114114140,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "DPATH_STATUS",
-  "addr": 1114112168,
+  "addr": 1114114216,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "CLK_CTRL",
-  "addr": 1114112176,
+  "addr": 1114114224,
   "reset": 399,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DATAPATH_CTRL",
-  "addr": 1114112384,
+  "addr": 1114114432,
   "reset": 273601,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DATAPATH_CTRL_SET",
-  "addr": 1114112388,
+  "addr": 1114114436,
   "reset": 273601,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DATAPATH_CTRL_CLR",
-  "addr": 1114112392,
+  "addr": 1114114440,
   "reset": 273601,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DATAPATH_CTRL_TOG",
-  "addr": 1114112396,
+  "addr": 1114114444,
   "reset": 273601,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_CNTR_CTRL",
-  "addr": 1114112448,
+  "addr": 1114114496,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_CNTR_CTRL_SET",
-  "addr": 1114112452,
+  "addr": 1114114500,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_CNTR_CTRL_CLR",
-  "addr": 1114112456,
+  "addr": 1114114504,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_CNTR_CTRL_TOG",
-  "addr": 1114112460,
+  "addr": 1114114508,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_TSCR",
-  "addr": 1114112464,
+  "addr": 1114114512,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_BCR",
-  "addr": 1114112468,
+  "addr": 1114114516,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_BCTR",
-  "addr": 1114112472,
+  "addr": 1114114520,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_BCRR",
-  "addr": 1114112476,
+  "addr": 1114114524,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "PRE_MATCH_VAL",
-  "addr": 1114112480,
+  "addr": 1114114528,
   "reset": 1310718066,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "PRE_MATCH_VAL_SET",
-  "addr": 1114112484,
+  "addr": 1114114532,
   "reset": 1310718066,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "PRE_MATCH_VAL_CLR",
-  "addr": 1114112488,
+  "addr": 1114114536,
   "reset": 1310718066,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "PRE_MATCH_VAL_TOG",
-  "addr": 1114112492,
+  "addr": 1114114540,
   "reset": 1310718066,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "DTS_PRE_MATCH_VAL",
-  "addr": 1114112496,
+  "addr": 1114114544,
   "reset": 327679516,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "DTS_PRE_MATCH_VAL_SET",
-  "addr": 1114112500,
+  "addr": 1114114548,
   "reset": 327679516,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "DTS_PRE_MATCH_VAL_CLR",
-  "addr": 1114112504,
+  "addr": 1114114552,
   "reset": 327679516,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "DTS_PRE_MATCH_VAL_TOG",
-  "addr": 1114112508,
+  "addr": 1114114556,
   "reset": 327679516,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_PRE_ERR",
-  "addr": 1114112512,
+  "addr": 1114114560,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_PARITY_ERR",
-  "addr": 1114112516,
+  "addr": 1114114564,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "RX_DPATH_PKT_CNT",
-  "addr": 1114112528,
+  "addr": 1114114576,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "PRE_MATCH_OFFSET",
-  "addr": 1114112536,
+  "addr": 1114114584,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DATAPATH_CTRL",
-  "addr": 1114112544,
+  "addr": 1114114592,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DATAPATH_CTRL_SET",
-  "addr": 1114112548,
+  "addr": 1114114596,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DATAPATH_CTRL_CLR",
-  "addr": 1114112552,
+  "addr": 1114114600,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DATAPATH_CTRL_TOG",
-  "addr": 1114112556,
+  "addr": 1114114604,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_CNTR_CTRL",
-  "addr": 1114112608,
+  "addr": 1114114656,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_CNTR_CTRL_SET",
-  "addr": 1114112612,
+  "addr": 1114114660,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_CNTR_CTRL_CLR",
-  "addr": 1114112616,
+  "addr": 1114114664,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_CNTR_CTRL_TOG",
-  "addr": 1114112620,
+  "addr": 1114114668,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_TSCR",
-  "addr": 1114112624,
+  "addr": 1114114672,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_BCR",
-  "addr": 1114112628,
+  "addr": 1114114676,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_BCTR",
-  "addr": 1114112632,
+  "addr": 1114114680,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "SPDIF",
   "reg": "TX_DPATH_BCRR",
-  "addr": 1114112636,
+  "addr": 1114114684,
   "reset": 0,
   "width": 32
  },

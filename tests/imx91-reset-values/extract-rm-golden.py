@@ -83,7 +83,49 @@ ANCHORS = [
     ("EDMA3_1",   "CH0_SBR", 0x4401000C, 0x00008007),  # §4.6.2.1 TCD memory map
     ("CCM_CTRL",  "CLOCK_ROOT0_CONTROL",
                              0x44450000, 0x00000000),  # a real zero, asserted
+    # ⭐ AN ANCHOR ON THE SUB-BLOCK CLASS BELOW.  Without the override this row
+    #    lands at 4268_0010h and the gate REFUSES rather than silently comparing
+    #    the RM's control registers against the XCVR's frame RAM.
+    ("SPDIF",     "EXT_CTRL", 0x42680810, 0x18004040),
 ]
+
+#
+# ⭐ THE RM DECLARES ONE BASE AND THEN NUMBERS A SUB-BLOCK FROM ZERO.
+#
+#     "THE RM USES DIFFERENT OFFSET BASES IN DIFFERENT SECTIONS."   -- mcxn947qemu
+#
+# I told mcxn this class was structurally absent from my tree because my golden keys
+# on ADDRESS rather than NAME.  That was true, and it was the wrong reassurance: an
+# address-keyed golden is only as good as the ADDRESS, and the RM computes it from a
+# base it does not use.
+#
+#     SPDIF base address: 4268_0000h        <- what the RM declares
+#     EXT_CTRL @ 0x010                      <- but numbered from the CONTROL sub-block
+#
+# The device tree is the ADDRESS oracle -- a different document, by different authors,
+# and the map the GUEST actually uses:
+#
+#     xcvr@42680000  reg = <0x42680000 0x800>,   "ram"
+#                          <0x42680800 0x400>,   "regs"     <- EXT_CTRL is +0x10 HERE
+#                          <0x42680c00 0x080>,   "rxfifo"
+#                          <0x42680e00 0x080>;   "txfifo"
+#
+# and sound/soc/fsl/fsl_xcvr.h agrees: FSL_XCVR_EXT_CTRL = 0x10, relative to "regs".
+#
+# So all 59 SPDIF rows were 0x800 too low -- INTO THE FRAME RAM -- and every "XCVR
+# deviation" this gate has ever reported was an artifact of my own arithmetic.
+#
+#     ⭐ A WRONG GOLDEN MAKES THE CHECKER LIE, AND THEN YOUR ORACLE IS THE THING THAT
+#        NEEDS AN ORACLE.
+#
+# Use each source for what it actually knows: THE RM FOR VALUES, THE DEVICE TREE FOR
+# ADDRESSES.  Each override below is hand-verified against the DTB and the driver, and
+# is pinned by an ANCHOR above so it cannot silently regress.
+#
+INSTANCE_BASE_OVERRIDE = {
+    # instance : true base of the register table the RM numbers from zero
+    "SPDIF": 0x42680800,    # DTB reg-names "regs"; fsl_xcvr.h EXT_CTRL = 0x10
+}
 
 BASE_RE  = re.compile(r'^([A-Za-z0-9_.]+)\s+base address:\s*([0-9A-Fa-f_]+)h\s*$')
 HEXNUM   = r'[0-9A-Fa-f][0-9A-Fa-f_]*'
@@ -208,8 +250,10 @@ def main(rm_txt, out_json):
             if rows_since_base:
                 insts = []
                 rows_since_base = False
-            insts.append((m.group(1), h(m.group(2)), i))
-            declared.append(m.group(1))
+            nm_i = m.group(1)
+            b = INSTANCE_BASE_OVERRIDE.get(nm_i, h(m.group(2)))
+            insts.append((nm_i, b, i))
+            declared.append(nm_i)
             i += 1
             continue
 
