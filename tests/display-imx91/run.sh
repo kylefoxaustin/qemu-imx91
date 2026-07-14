@@ -19,7 +19,7 @@ OUT=${OUT:-/tmp/imx91-display}
 mkdir -p "$OUT"; SOCK="$OUT/qmp.sock"; PPM="$OUT/screen.ppm"; LOG="$OUT/serial.log"
 rm -f "$SOCK" "$PPM" "$LOG"
 
-"$QEMU" -M imx91-11x11-evk -m 4G -display none \
+"$QEMU" -M imx91-11x11-evk -audio driver=none -m 4G -display none \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$INITRD" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
     -serial file:"$LOG" -serial null \

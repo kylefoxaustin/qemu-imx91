@@ -34,7 +34,7 @@ if [ -n "$INITRD" ]; then
 fi
 
 set -x
-exec "$QEMU" -M imx91-11x11-evk -smp "$SMP" -m "$MEM" -display none \
+exec "$QEMU" -M imx91-11x11-evk -audio driver=none -smp "$SMP" -m "$MEM" -display none \
     -kernel "$KERNEL" -dtb "$DTB" "${INITRD_ARGS[@]}" \
     -append "$CMDLINE" \
     -serial mon:stdio -serial null \

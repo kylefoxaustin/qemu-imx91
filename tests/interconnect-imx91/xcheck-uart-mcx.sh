@@ -98,7 +98,7 @@ sleep 2
 
 # ---- boot the 91 (socket client, runs uartpeer) ----------------------------
 echo "== booting i.MX 91 PEER (LPUART2 socket connect, uartpeer G+echo) =="
-timeout "$TMO" "$QEMU91" -M imx91-11x11-evk -smp 1 -m "$MEM" -display none \
+timeout "$TMO" "$QEMU91" -M imx91-11x11-evk -audio driver=none -smp 1 -m "$MEM" -display none \
     -kernel "$IMAGE" -dtb "$WORK/uart.dtb" -initrd "$WORK/peer.gz" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
     -serial file:"$PLOG" \

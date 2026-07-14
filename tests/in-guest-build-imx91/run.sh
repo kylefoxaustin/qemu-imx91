@@ -125,7 +125,7 @@ chmod +x "$STAGE/init"
 # ---- boot + score (plain imx91 tuple; NO System Manager) --------------------
 LOG="$WORK/serial.log"
 echo "== booting i.MX 91; building + running in-guest =="
-timeout "$TMO" "$QEMU" -M imx91-11x11-evk -smp "$SMP" -m "$MEM" -display none \
+timeout "$TMO" "$QEMU" -M imx91-11x11-evk -audio driver=none -smp "$SMP" -m "$MEM" -display none \
   -kernel "$IMAGE" -dtb "$DTB" -initrd "$WORK/initrd.gz" \
   -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
   -serial file:"$LOG" -serial null >/dev/null 2>&1 || true

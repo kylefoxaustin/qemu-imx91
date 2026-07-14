@@ -35,7 +35,7 @@ KEY=0x5af05af0
 
 ask() {
     printf '%b' "$1" \
-        | timeout -s KILL 20 "$QEMU" -M imx91-11x11-evk -display none \
+        | timeout -s KILL 20 "$QEMU" -M imx91-11x11-evk -audio driver=none -display none \
             -accel qtest -qtest stdio -monitor none -serial none 2>/dev/null \
         | grep '^OK 0x' | tail -1 | awk '{print strtonum($2)}'
 }

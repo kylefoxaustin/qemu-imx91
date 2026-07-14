@@ -98,7 +98,7 @@ mke2fs -F -q -t ext4 -L igbuild -d "$RF" "$DISK" >/dev/null 2>&1 || die "mke2fs 
 
 LOG=$(mktemp); trap 'rm -f "$LOG"' EXIT
 echo "== booting i.MX 91; building real projects in-guest (slow under TCG) =="
-timeout "$TMO" "$QEMU" -M imx91-11x11-evk -smp "$SMP" -m "$MEM" -display none \
+timeout "$TMO" "$QEMU" -M imx91-11x11-evk -audio driver=none -smp "$SMP" -m "$MEM" -display none \
   -kernel "$IMAGE" -dtb "$DTB" \
   -append "console=ttyLP0,115200 root=$ROOTDEV rootwait rootfstype=ext4 rw init=/igtest.sh cpuidle.off=1" \
   -drive if=sd,format=raw,file="$DISK" \

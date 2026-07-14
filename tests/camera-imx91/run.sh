@@ -34,7 +34,7 @@ fakeroot bash -c "
   find . | cpio -o -H newc 2>/dev/null | gzip -1 > '$TMP/initrd.cpio.gz'
 "
 set -x
-exec "$QEMU" -M imx91-11x11-evk -m 4G -display none \
+exec "$QEMU" -M imx91-11x11-evk -audio driver=none -m 4G -display none \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel" \
     -serial mon:stdio -serial null "$@"

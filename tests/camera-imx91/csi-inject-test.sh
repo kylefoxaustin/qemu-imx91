@@ -81,7 +81,7 @@ fakeroot bash -c "
 "
 
 echo "csi-inject: booting mt9m114 DTB, ISI frames=$TMP/frames"
-"$QEMU" -M imx91-11x11-evk -m 4G -display none \
+"$QEMU" -M imx91-11x11-evk -audio driver=none -m 4G -display none \
     -global driver=imx93.isi,property=frames,value="$TMP/frames" \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \
     -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel" \

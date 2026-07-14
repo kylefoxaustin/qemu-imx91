@@ -60,7 +60,7 @@ fi
 
 boot_one() {
     local name="$1" dtb="$2" log="$TMP/$1.log"
-    timeout "$TIMEOUT" "$QEMU" -M imx91-11x11-evk -m 4G -display none \
+    timeout "$TIMEOUT" "$QEMU" -M imx91-11x11-evk -audio driver=none -m 4G -display none \
         -kernel "$KERNEL" -dtb "$dtb" -initrd "$TMP/initrd.cpio.gz" \
         -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/minit ignore_loglevel" \
         -serial mon:stdio -serial null >"$log" 2>/dev/null

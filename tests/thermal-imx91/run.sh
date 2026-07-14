@@ -66,7 +66,7 @@ chmod +x "$WORK/ird/init"
 # The die temperature is set on the command line, so a model that answers with some
 # plausible built-in number -- or that "works" by always reporting ready -- fails.
 probe() { # <millidegrees>
-    timeout -s KILL 90 "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none \
+    timeout -s KILL 90 "$QEMU" -M imx91-11x11-evk -audio driver=none -smp 1 -m 1G -display none \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$WORK/ird.cpio.gz" \
         -global driver=imx91.tmu,property=temperature,value="$1" \
         -append "earlycon=lpuart32,mmio32,0x44380010 console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \

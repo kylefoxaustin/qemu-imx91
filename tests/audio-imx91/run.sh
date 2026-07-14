@@ -58,7 +58,10 @@ fakeroot bash -c "
   [ -e dev/console ] || mknod -m 600 dev/console c 5 1
   find . | cpio -o -H newc 2>/dev/null | gzip -1 > '$TMP/initrd.cpio.gz'
 "
-AUDIO=(); [ -n "$WAV" ] && AUDIO=(-audio "driver=wav,path=$WAV")
+# MUTED BY DEFAULT.  This test PLAYS PCM, and with AUDIO=() QEMU grabs whatever host
+# backend it was built with (pulseaudio/sndio/alsa) -- i.e. the developer's speakers.
+# Set WAV=<path> to capture the playback to a file instead; never to the host.
+AUDIO=(-audio driver=none); [ -n "$WAV" ] && AUDIO=(-audio "driver=wav,path=$WAV")
 set -x
 exec "$QEMU" -M imx91-11x11-evk -m 4G -display none "${AUDIO[@]}" \
     -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \

@@ -89,7 +89,7 @@ sleep "$WARMUP"
 
 LOG="$WORK/guest.log"
 echo "== booting i.MX 91 as the usbredir host (importer) =="
-timeout "$TMO" "$QEMU" -M imx91-11x11-evk -smp 1 -m "$MEM" -display none \
+timeout "$TMO" "$QEMU" -M imx91-11x11-evk -audio driver=none -smp 1 -m "$MEM" -display none \
   -kernel "$IMAGE" -dtb "$DTB" -initrd "$WORK/initrd.gz" \
   -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
   -chardev socket,id=ur0,path="$SOCK",server=off,reconnect-ms=2000 \
