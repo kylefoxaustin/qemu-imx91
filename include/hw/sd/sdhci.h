@@ -75,12 +75,14 @@ struct SDHCIState {
     uint16_t acmd12errsts; /* Auto CMD12 error status register */
     uint16_t hostctl2;     /* Host Control 2 */
     uint64_t admasysaddr;  /* ADMA System Address Register */
-    uint16_t vendor_spec;  /* Vendor specific register */
+    uint32_t vendor_spec;  /* Vendor specific register (i.MX VEND_SPEC: 32-bit) */
 
     /* Read-only registers */
     uint64_t capareg;      /* Capabilities Register */
     uint64_t maxcurr;      /* Maximum Current Capabilities Register */
     uint16_t version;      /* Host Controller Version Register */
+
+    uint32_t vendor_spec_reset; /* VEND_SPEC power-on value (0 = none) */
 
     uint8_t  *fifo_buffer; /* SD host i/o FIFO buffer */
     uint32_t buf_maxsz;

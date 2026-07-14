@@ -526,6 +526,13 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         for (i = 0; i < FSL_IMX91_NUM_USDHCS; i++) {
             SysBusDevice *sbd = SYS_BUS_DEVICE(&s->usdhc[i]);
 
+            /*
+             * VEND_SPEC comes out of reset at 3000_7809h (IMX91RM), not 0 -- bits
+             * 14:11 are the uSDHC's soft clock enables, and sdhci-esdhc-imx.c
+             * read-modify-writes this register.  See sdhci_reset().
+             */
+            qdev_prop_set_uint32(DEVICE(sbd), "vendor-spec-reset", 0x30007809);
+
             if (!sysbus_realize(sbd, errp)) {
                 return;
             }

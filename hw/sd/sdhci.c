@@ -300,6 +300,30 @@ static void sdhci_reset(SDHCIState *s)
      */
     memset(&s->sdmasysad, 0, (uintptr_t)&s->capareg - (uintptr_t)&s->sdmasysad);
 
+    /*
+     * ⭐ VEND_SPEC DOES NOT RESET TO ZERO ON i.MX, AND THE DRIVER READ-MODIFY-WRITES IT.
+     *
+     * The memset above zeroes vendor_spec (it lives inside the sdmasysad..capareg
+     * range -- note that the reset set here is defined by STRUCT FIELD ORDER rather
+     * than by intent, which is its own kind of fragile).  Zero is wrong for i.MX:
+     * IMX91RM gives VEND_SPEC = 3000_7809h, and bits 14:11 of that are the block's
+     * SOFT CLOCK ENABLES, which come out of reset ON.
+     *
+     * sdhci-esdhc-imx.c does this, in three places:
+     *
+     *     v = readl(ioaddr + ESDHC_VENDOR_SPEC);
+     *     v |= ESDHC_VENDOR_SPEC_FRC_SDCLK_ON;      // or &= ~SDIO_QUIRK
+     *     writel(v, ioaddr + ESDHC_VENDOR_SPEC);
+     *
+     * so every bit we get wrong at reset is READ BACK BY THE GUEST AND WRITTEN INTO
+     * ITS OWN IDEA OF THE HARDWARE.  A register the guest read-modify-writes is where
+     * a wrong reset value stops being our bug and becomes the guest's state.
+     *
+     * Default 0 keeps i.MX6/7 and the FSL eSDHC variants exactly as they were; the
+     * i.MX 91 sets the property.
+     */
+    s->vendor_spec = s->vendor_spec_reset;
+
     /* Reset other state based on current card insertion/readonly status */
     sdhci_set_inserted(dev, sdbus_get_inserted(&s->sdbus));
     sdhci_set_readonly(dev, sdbus_get_readonly(&s->sdbus));
@@ -1492,6 +1516,30 @@ static const VMStateDescription sdhci_pending_insert_vmstate = {
     },
 };
 
+/*
+ * ⭐ vendor_spec WAS NOT MIGRATED AT ALL.  It is read at ESDHC_VENDOR_SPEC and it
+ *    drives PRNSTS[CLOCK_GATE_OFF] -- so a guest migrated or snapshotted mid-transfer
+ *    came back with the SD clock gate desynced from the register that controls it.
+ *    A subsection, so old streams still load.
+ */
+static bool sdhci_vendor_spec_needed(void *opaque)
+{
+    SDHCIState *s = opaque;
+
+    return s->vendor_spec != 0;
+}
+
+static const VMStateDescription sdhci_vendor_spec_vmstate = {
+    .name = "sdhci/vendor-spec",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = sdhci_vendor_spec_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT32(vendor_spec, SDHCIState),
+        VMSTATE_END_OF_LIST()
+    },
+};
+
 const VMStateDescription sdhci_vmstate = {
     .name = "sdhci",
     .version_id = 1,
@@ -1528,6 +1576,7 @@ const VMStateDescription sdhci_vmstate = {
         VMSTATE_END_OF_LIST()
     },
     .subsections = (const VMStateDescription * const []) {
+        &sdhci_vendor_spec_vmstate,
         &sdhci_pending_insert_vmstate,
         NULL
     },
@@ -1550,6 +1599,7 @@ static const Property sdhci_sysbus_properties[] = {
                      false),
     DEFINE_PROP_LINK("dma", SDHCIState,
                      dma_mr, TYPE_MEMORY_REGION, MemoryRegion *),
+    DEFINE_PROP_UINT32("vendor-spec-reset", SDHCIState, vendor_spec_reset, 0),
     DEFINE_PROP_BOOL("wp-inverted", SDHCIState,
                      wp_inverted, false),
 };
