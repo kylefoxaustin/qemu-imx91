@@ -69,7 +69,21 @@
  * forever -- so this model's counter was DEAD at reset until the guest wrote MOD.
  */
 #define TPM_VERID_RESET 0x06000007
-#define TPM_PARAM_RESET 0x00200404
+/*
+ * COMPUTED from the channels we actually have.  pwm-imx-tpm.c decodes CHAN as
+ * GENMASK(7,0) -- the LOW byte, not where you would guess -- and creates exactly that many
+ * PWM channels.  This tree already shipped the over-promise once: we advertised SIX PWM
+ * channels where the silicon has four.  A constant can drift back into that; a computed
+ * value cannot.
+ */
+#define TPM_PARAM_WIDTH  32u                    /* PARAM[23:16]: counter width  */
+#define TPM_PARAM_TRIG   4u                     /* PARAM[15:8]:  trigger inputs */
+#define TPM_PARAM_RESET  ((TPM_PARAM_WIDTH << 16) | \
+                          (TPM_PARAM_TRIG  <<  8) | \
+                          IMX93_TPM_CHANNELS)
+
+/* Decode CHAN exactly as the driver does, and compare against the channels we implement. */
+QEMU_BUILD_BUG_ON((TPM_PARAM_RESET & 0xff) != IMX93_TPM_CHANNELS);
 #define TPM_MOD_RESET   0x0000ffff
 
 static uint32_t tpm_count(IMX93TpmState *s)

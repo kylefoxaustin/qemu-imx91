@@ -38,7 +38,27 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93MicfilState, IMX93_MICFIL)
  * fsl_micfil_imx93.fifo_depth is 32.  A capability register that disagrees with the
  * implementation it describes is not an under-report.  It is a THIRD OPINION.
  */
-#define IMX93_MICFIL_FIFO_DEPTH 32
+/*
+ * ⭐ THE CAPABILITY FIELD IS THE SOURCE OF TRUTH; THE IMPLEMENTATION IS DERIVED FROM IT.
+ *
+ * mcxn947qemu: "A CAPABILITY REGISTER THAT IS A *CONSTANT* CAN DRIFT FROM THE THING IT
+ * DESCRIBES.  ONE *COMPUTED FROM* IT CANNOT."  They found their SAI's PARAM was right only
+ * BY LUCK, with a comment claiming FIFO=32 above a value that encoded 8 -- the comment had
+ * already drifted from the value it was describing, and nobody noticed for months.
+ *
+ * That lands on me: I "fixed" MICFIL by making three numbers agree BY HAND (the array, the
+ * PARAM constant, and the RM).  Hand-agreement is exactly what drifts -- change the depth
+ * and PARAM silently lies again, rebuilding the bug I had just fixed.
+ *
+ * So PARAM's FIFO_PTRWID is now PRIMARY and the array size is derived from it.  That is the
+ * stronger direction: the register field is an EXPONENT (the driver does
+ * `1 << FIFO_PTRWID`), so deriving the depth from it makes a NON-POWER-OF-TWO DEPTH
+ * UNREPRESENTABLE rather than merely wrong.  You cannot write a depth this register could
+ * not have described.
+ */
+#define IMX93_MICFIL_FIFO_PTRWID  5                                 /* PARAM[7:4] */
+#define IMX93_MICFIL_FIFO_DEPTH   (1u << IMX93_MICFIL_FIFO_PTRWID)  /* = 32, as silicon */
+#define IMX93_MICFIL_NPAIR        4                                 /* PARAM[3:0]: 8 mics */
 
 struct IMX93MicfilState {
     SysBusDevice parent_obj;

@@ -63,7 +63,26 @@
  *    difference from the RM is exactly the VAD bits, and nothing else.
  */
 #define MICFIL_VERID_VALUE  0x020f0000
-#define MICFIL_PARAM_VALUE  0x00000154
+
+/*
+ * COMPUTED, never hand-written.  The VAD bits stay clear -- see the DECISION above.
+ * fsl_micfil.c decodes: fifo_ptrwid = (PARAM & GENMASK(7,4)) >> 4, npair = PARAM & 0xf.
+ */
+#define MICFIL_PARAM_FIL_OUT_WIDTH  (1u << 8)
+#define MICFIL_PARAM_VALUE  (MICFIL_PARAM_FIL_OUT_WIDTH                  | \
+                             (IMX93_MICFIL_FIFO_PTRWID << 4)             | \
+                             IMX93_MICFIL_NPAIR)
+
+/*
+ * ⭐ AND THE ASSERTION DECODES THE REGISTER THE WAY THE *GUEST* DOES.
+ *
+ * Not "does the constant match another constant" -- that only re-states the arithmetic
+ * above.  This computes the FIFO depth a Linux driver would infer from what we advertise,
+ * and compares it against the FIFO WE ACTUALLY HAVE.  Any encoding mistake, in either
+ * direction, is now a COMPILE ERROR rather than a silent over-promise.
+ */
+QEMU_BUILD_BUG_ON((1u << ((MICFIL_PARAM_VALUE >> 4) & 0xf)) !=
+                  ARRAY_SIZE(((IMX93MicfilState *)0)->rx_fifo));
 
 /* FIFO_CTRL: watermark resets to depth-1, exactly as the driver later programs it. */
 #define MICFIL_FIFO_CTRL_RESET  0x0000001f

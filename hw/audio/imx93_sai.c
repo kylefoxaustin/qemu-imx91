@@ -99,7 +99,29 @@
  * PARAM: SPF (max slots/frame) = 5 -> 32 slots, WPF (FIFO depth) = 7 -> 128
  * words, DLN (datalines) = 4. Matches the imx93 soc_data the driver assumes.
  */
-#define SAI_PARAM_VALUE 0x00050704
+/*
+ * COMPUTED.  fsl_sai.c decodes:
+ *     slot_num   = 1 << ((PARAM & GENMASK(19,16)) >> 16)
+ *     fifo_depth = 1 << ((PARAM & GENMASK(11, 8)) >>  8)
+ *     dataline   =       (PARAM & GENMASK( 3, 0))
+ */
+#define SAI_PARAM_VALUE ((IMX93_SAI_SPF << 16) | \
+                         (IMX93_SAI_WPF <<  8) | \
+                         IMX93_SAI_DLN)
+
+/*
+ * ⭐ COMPARE AGAINST THE ARRAY, NOT AGAINST THE CONSTANT THE ARRAY WAS SIZED FROM.
+ *
+ * Asserting the computed PARAM against IMX93_SAI_FIFO_DEPTH would be a TAUTOLOGY -- both
+ * are derived from IMX93_SAI_WPF, so it could never fire, and an assertion that cannot
+ * fire is decoration.  Comparing against ARRAY_SIZE of the FIFO WE ACTUALLY HAVE is a real
+ * check: it survives someone hand-editing the array bound and bypassing the constant
+ * entirely, which is precisely how a capability drifts away from its implementation.
+ */
+QEMU_BUILD_BUG_ON((1u << ((SAI_PARAM_VALUE >> 8) & 0xf)) !=
+                  ARRAY_SIZE(((IMX93SaiState *)0)->tx_fifo));
+QEMU_BUILD_BUG_ON(ARRAY_SIZE(((IMX93SaiState *)0)->rx_fifo) !=
+                  ARRAY_SIZE(((IMX93SaiState *)0)->tx_fifo));
 
 /* One word of a 48 kHz stereo stream: 96000 words/s. */
 #define SAI_TX_WORD_NS  (NANOSECONDS_PER_SECOND / 96000)

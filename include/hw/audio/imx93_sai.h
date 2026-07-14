@@ -31,7 +31,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93SaiState, IMX93_SAI)
 #define IMX93_SAI_REGS   (0x108 / 4)
 
 /* PARAM reports WPF=7 -> a 128-word transmit FIFO per data line. */
-#define IMX93_SAI_FIFO_DEPTH 128
+/* See the MICFIL header: the capability field is primary, the array is derived from it. */
+#define IMX93_SAI_WPF        7                          /* PARAM[11:8] */
+#define IMX93_SAI_FIFO_DEPTH (1u << IMX93_SAI_WPF)      /* = 128 words */
+#define IMX93_SAI_SPF        5                          /* PARAM[19:16]: 32 slots/frame */
+#define IMX93_SAI_DLN        4                          /* PARAM[3:0]:   4 datalines    */
 
 /* Capture ring decoupling the FIFO drain from the audio backend's callback. */
 #define IMX93_SAI_CAP_SIZE 16384
