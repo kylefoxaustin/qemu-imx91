@@ -174,6 +174,7 @@ int main(int argc, char **argv)
     int64_t  legacy_after_ms = 0, t0;
     int      went_legacy = 0;
     long     replay_every = 0;      /* impersonate a ring replaying a stale buffer */
+    int      freeze = 0;            /* impersonate a PURE repeater: seq never advances */
 
     if (argc < 4) {
         fprintf(stderr, "usage: %s <ifname> <my-ethertype> <peer-ethertype>...\n",
@@ -260,6 +261,29 @@ int main(int argc, char **argv)
      *                           written.  This is rt1180's frames-to-address-zero, and the
      *                           receiver must catch it EVEN IN PHASE 1.
      */
+    {
+        /*
+         * ⭐ A PURE REPEATER -- a peer whose sequence NEVER ADVANCES.
+         *
+         * BEACON_REPLAY=<n> re-sends the previous seq every n-th frame.  Note it does NOT
+         * give you a pure repeater at n=1: the stream becomes 0,0,1,2,3,4... which is
+         * lagged by one but still MONOTONIC after the first duplicate, and a correct
+         * receiver rightly accepts it.  I nearly reported an emergent property of my node
+         * using n=1 and would have been describing a peer that was, in fact, fresh.
+         *
+         * BEACON_FREEZE is the real thing: the seq is pinned forever.  Every frame is a
+         * perfectly well-formed frame that says NOTHING NEW.
+         */
+        const char *fz = getenv("BEACON_FREEZE");
+
+        if (fz && *fz && strcmp(fz, "0")) {
+            freeze = 1;
+            printf("ENET-LAB3 EVIL: PURE REPEATER -- my sequence number never advances. "
+                   "Every frame I send is well-formed and says nothing new.\n");
+            fflush(stdout);
+        }
+    }
+
     {
         const char *r = getenv("BEACON_REPLAY");
 
@@ -519,7 +543,9 @@ int main(int argc, char **argv)
         }
 
         if (t >= next_tx) {                     /* RULE 1: BEACON FOREVER. */
-            if (replay_every && seq && (seq % replay_every) == 0) {
+            if (freeze) {
+                put32(tx + 20, 0);              /* pinned: says nothing new, ever */
+            } else if (replay_every && seq && (seq % replay_every) == 0) {
                 put32(tx + 20, seq - 1);        /* the stale buffer, re-delivered */
             } else {
                 put32(tx + 20, seq);

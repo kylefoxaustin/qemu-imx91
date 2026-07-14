@@ -86,6 +86,7 @@ mknode() {                          # $1=name $2=my-et $3=mac-suffix  $4..=peer-
     [ -n "${ROT:-}" ]    && evil="$evil beacon.legacy_after=$ROT"
     [ -n "${STRICT:-}" ] && evil="$evil beacon.strict=$STRICT"
     [ -n "${REPLAY:-}" ] && evil="$evil beacon.replay=$REPLAY"
+    [ -n "${FREEZE:-}" ] && evil="$evil beacon.freeze=$FREEZE"
 
     "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
@@ -275,6 +276,49 @@ grep -a 'PAYLOAD-REPLAY' "$WORK/repgood.log" 2>/dev/null | head -1 | sed 's/^/  
 [ "${p_rep:-0}" -ge 1 ] || { echo "    FAIL: a stale buffer was replayed and we COUNTED IT AS FRESH"; fail=1; }
 [ "${p_wf:-1}"  -eq 0 ] || { echo "    NOTE: a stale frame tripped a well-formedness check -- unexpected"; }
 
+# ---------------------------------------------------------------------------
+# ⭐ FRESHNESS AND LIVENESS COMPOSE: A NODE SAYING NOTHING *NEW* IS SAYING NOTHING.
+#
+# mcxn947qemu found this as an emergent property of the same freshness fix -- not designed,
+# just true: a rejected frame never refreshes its peer's liveness timestamp, so a peer that
+# ONLY EVER REPEATS ITSELF is correctly reclassified as one that WENT QUIET.
+#
+# (holobench: that means a stalled ring and a departed peer produce the SAME signal, which
+#  is the honest answer -- from the segment's point of view they ARE the same event. Your
+#  scorer gets LOST either way and does not need to care which.)
+#
+# I checked mine by reading the code, went to demonstrate it with beacon.replay=1 -- and it
+# did NOT reproduce. My own impostor was wrong: replay=1 emits 0,0,1,2,3,4..., which is
+# LAGGED BY ONE but still MONOTONIC after the first duplicate, i.e. a genuinely fresh peer
+# that a correct receiver rightly accepts. I was about to report an emergent property using
+# a peer that was not, in fact, stale.
+#
+#     A NEGATIVE TEST THAT DOES NOT PRODUCE THE CONDITION IT NAMES IS NOT A NEGATIVE TEST.
+#
+# beacon.freeze=1 is the real thing: the sequence is PINNED. Every frame is well-formed and
+# says nothing new.
+# ---------------------------------------------------------------------------
+echo
+echo "== PURE REPEATER: a peer whose sequence NEVER ADVANCES =="
+for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.10:11900"
+mknode frzgood 0x88B8 e1 0x88B9
+FREEZE=1 mknode frzbad 0x88B9 e2 0x88B8
+sleep 18
+
+f_arm=$(grep -ac 'PURE REPEATER'      "$WORK/frzbad.log" 2>/dev/null) || true
+f_bad=$(grep -ac 'ENET-LAB3 CORRUPT:' "$WORK/frzgood.log" 2>/dev/null) || true
+f_lost=$(grep -ac 'ENET-LAB3 LOST:'   "$WORK/frzgood.log" 2>/dev/null) || true
+echo "  repeater armed : $f_arm    (the mutation must land)"
+echo "  CAUGHT         : $f_bad corrupt frame(s)"
+echo "  reclassified   : $f_lost LOST  (a peer saying nothing NEW is saying nothing)"
+grep -a 'ENET-LAB3 LOST:' "$WORK/frzgood.log" 2>/dev/null | tail -1 | sed 's/^/    /'
+[ "${f_arm:-0}"  -ge 1 ] || { echo "    FAIL: the repeater never armed -- this proved nothing"; fail=1; }
+[ "${f_bad:-0}"  -ge 1 ] || { echo "    FAIL: a pure repeater was accepted as fresh"; fail=1; }
+[ "${f_lost:-0}" -ge 1 ] || { echo "    FAIL: a peer that says nothing new was still counted LIVE"; fail=1; }
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "PASS: three i.MX 91 FEC nodes hold a broadcast segment -- every frame's BODY"
@@ -288,7 +332,10 @@ if [ "$fail" -eq 0 ]; then
       never-written buffer from a sender that has.  Ask the SENDER, not the frame.
       AND a REPLAYED STALE BUFFER is caught -- a frame that passes every
       well-formedness check this node has, because it IS well-formed; it is just
-      not NEW.  Freshness, not validity: assert on a number going up."
+      not NEW.  Freshness, not validity: assert on a number going up.
+      AND a PURE REPEATER -- a peer whose seq never advances -- is caught AND
+      reclassified as LOST: freshness and liveness compose, so a node saying
+      nothing NEW is saying nothing."
 else
     echo "FAIL: see above."
 fi
