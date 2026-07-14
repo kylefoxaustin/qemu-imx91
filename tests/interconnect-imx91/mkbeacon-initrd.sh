@@ -66,7 +66,7 @@ cat > "$WORK/root/init" <<'INIT'
 /bin/busybox mount -t devtmpfs devtmpfs /dev
 /bin/busybox --install -s /bin 2>/dev/null
 
-ET=""; PEERS=""; EVIL=""; STRICT=""; LEGACY=""; LEGACY_AFTER=""; REPLAY=""; FREEZE=""
+ET=""; PEERS=""; EVIL=""; STRICT=""; LEGACY=""; LEGACY_AFTER=""; REPLAY=""; FREEZE=""; OVERLONG=""
 for a in $(cat /proc/cmdline); do
     case "$a" in
         beacon.et=*)           ET="${a#beacon.et=}" ;;
@@ -77,6 +77,7 @@ for a in $(cat /proc/cmdline); do
         beacon.legacy_after=*) LEGACY_AFTER="${a#beacon.legacy_after=}" ;;
         beacon.replay=*)       REPLAY="${a#beacon.replay=}" ;;
         beacon.freeze=*)       FREEZE="${a#beacon.freeze=}" ;;
+        beacon.overlong=*)     OVERLONG="${a#beacon.overlong=}" ;;
     esac
 done
 
@@ -95,6 +96,7 @@ export BEACON_LEGACY="$LEGACY"
 export BEACON_LEGACY_AFTER="$LEGACY_AFTER"
 export BEACON_REPLAY="$REPLAY"
 export BEACON_FREEZE="$FREEZE"
+export BEACON_OVERLONG="$OVERLONG"
 exec /enetbeacon eth0 "$ET" $PEERS
 INIT
 chmod +x "$WORK/root/init"

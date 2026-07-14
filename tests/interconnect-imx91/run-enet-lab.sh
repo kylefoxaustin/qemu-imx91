@@ -134,14 +134,86 @@ src_want=$(awk '$1=="source"{print $2}' "$PIN")
 
 PIDS=()
 KEEP=${KEEP:-}
+#
+# ⭐ A KILL THAT REACHES THE WRAPPER AND NOT THE PROCESS IS NOT A KILL.  (mcxn947qemu)
+#
+# The nodes now run under `timeout -s KILL`, so $! is the TIMEOUT's pid, NOT QEMU's.
+# `kill -9 $!` would reap the wrapper and ORPHAN the emulator it was supposed to bound --
+# creating the exact ghost this wrapper was added to prevent.  rt1180 lost FIVE "failed"
+# departure runs to this: they were measuring a departure that never happened.
+#
+# So: kill the child first, then the wrapper.
+#
+kill_tree() {
+    local p=$1 c
+    for c in $(pgrep -P "$p" 2>/dev/null); do
+        kill -9 "$c" 2>/dev/null
+    done
+    kill -9 "$p" 2>/dev/null
+}
 cleanup() {
     for p in "${PIDS[@]:-}"; do
-        [ -n "$p" ] && kill -9 "$p" 2>/dev/null
+        [ -n "$p" ] && kill_tree "$p"
     done
     [ -n "$KEEP" ] && { cp "$WORK"/*.log "$KEEP/" 2>/dev/null; }
     rm -rf "$WORK"
 }
 trap cleanup EXIT
+
+#
+# ⭐ AN ORPHANED PROCESS ON A SHARED BUS IS NOT A LEAK.  IT IS A LIAR THAT OUTLIVED THE RUN
+#    THAT CREATED IT -- AND ITS TESTIMONY IS INDISTINGUISHABLE FROM A PEER'S.
+#
+# holobench killed a lab runner; asyncio reaped the python and ORPHANED ITS QEMU CHILDREN,
+# which kept beaconing.  Their mcast group is allocated from a per-run set, so the NEXT run
+# lands on THE SAME WIRE -- not a race, a GUARANTEE.  Their "4-node lab" was an EIGHT-node
+# segment, half of it ghosts still speaking the OLD protocol, and their scorer came within
+# one message of posting a FALSE ACCUSATION against two peers who had already fixed the bugs
+# it was accusing them of.
+#
+# I HAVE THE SAME BUG, AND I PROVED IT RATHER THAN ASSUMING IT: SIGKILL this script and TWO
+# beacon QEMUs survive, orphaned, still broadcasting on a FIXED group.  `trap ... EXIT` does
+# not run on SIGKILL -- and I have been running this suite under `timeout -s KILL` ALL NIGHT.
+#
+# Two defences, because either alone is a single point of failure:
+#   1. EVERY node gets a HARD LIFETIME (timeout -s KILL).  An orphan reaps ITSELF, so a
+#      ghost cannot outlive one run's worth of wall clock even if the runner dies violently.
+#   2. A PREFLIGHT that REFUSES to launch onto a wire that is not empty.  Belt and braces:
+#      defence 1 shrinks the window, defence 2 refuses to run inside it.
+#
+node_lifetime() { echo $(( ${RUNTIME:-25} + 90 )); }
+
+wire_is_dirty() {                       # $1 = "group:port"
+    python3 - "$1" <<'EOF'
+import socket, struct, sys, time
+grp, port = sys.argv[1].split(":")
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    s.bind(("", int(port)))
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
+                 struct.pack("4sl", socket.inet_aton(grp), socket.INADDR_ANY))
+    s.settimeout(1.5)
+    s.recv(2048)          # ANY frame at all means somebody is already on this wire
+    print("dirty")
+except socket.timeout:
+    print("clean")
+except OSError:
+    print("clean")        # cannot bind => cannot judge; do not manufacture a failure
+EOF
+}
+
+for g in 230.0.0.1:11891 230.0.0.2:11892 230.0.0.5:11895 230.0.0.6:11896 \
+         230.0.0.7:11897 230.0.0.10:11900; do
+    if [ "$(wire_is_dirty "$g")" = "dirty" ]; then
+        die "THE WIRE IS NOT EMPTY: traffic already on $g before we launched anything.
+      Something is beaconing there -- almost certainly ORPHANED nodes from a previous run
+      that was killed.  Their frames are indistinguishable from a peer's, and scoring
+      against them would produce a CONFIDENT, WRONG result about somebody else's model.
+      Reap them first:
+          pkill -9 -f 'qemu-system-aarch64.*mcast=230.0.0'"
+    fi
+done
 
 echo "artifact: $ARTIFACT"
 echo "  md5:    $have  (artifact AND source hash VERIFIED against the committed pin)"
@@ -159,7 +231,10 @@ mknode() {                          # $1=name $2=my-et $3=mac-suffix  $4..=peer-
     [ -n "${STRICT:-}" ] && evil="$evil beacon.strict=$STRICT"
     [ -n "${REPLAY:-}" ] && evil="$evil beacon.replay=$REPLAY"
     [ -n "${FREEZE:-}" ] && evil="$evil beacon.freeze=$FREEZE"
+    [ -n "${OVERLONG:-}" ] && evil="$evil beacon.overlong=$OVERLONG"
 
+    # HARD LIFETIME: if this script is SIGKILLed, the node still reaps ITSELF.
+    timeout -s KILL "$(node_lifetime)" \
     "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
         -nic socket,mcast="$MCAST",model=imx.enet,mac=52:54:00:12:34:$suffix \
@@ -232,7 +307,7 @@ done
 # ---------------------------------------------------------------------------
 echo
 echo "== NEGATIVE TEST: one node lies (payload ethertype != header ethertype) =="
-for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
 wait 2>/dev/null
 PIDS=()
 sleep 1
@@ -285,7 +360,7 @@ grep -a 'ENET-LAB3 CORRUPT:' "$WORK/good.log" 2>/dev/null | head -1 | sed 's/^/ 
 # ---------------------------------------------------------------------------
 echo
 echo "== PHASE-1 SAFETY: a peer that emits NO body (rt1180/imx95, today) =="
-for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
 wait 2>/dev/null
 PIDS=()
 MCAST="230.0.0.5:11895"
@@ -306,7 +381,7 @@ echo "  counted anyway  : $l_pass PASS beat(s)  (must be >0)"
 echo
 echo "== SELF-ARMING: a KNOWN EMITTER whose buffers stop being written =="
 echo "   (no strict mode, no flag day -- rt1180's frames-to-address-0 signature)"
-for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
 wait 2>/dev/null
 PIDS=()
 MCAST="230.0.0.6:11896"
@@ -348,7 +423,7 @@ grep -a 'ENET-LAB3 CORRUPT:' "$WORK/rotgood.log" 2>/dev/null | head -1 | sed 's/
 echo
 echo "== STALE-BUFFER REPLAY: every 3rd frame re-delivers the previous seq =="
 echo "   (each replayed frame is PERFECTLY VALID -- magic ok, ethertype ok, pattern ok)"
-for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
 wait 2>/dev/null
 PIDS=()
 MCAST="230.0.0.7:11897"
@@ -391,7 +466,7 @@ grep -a 'PAYLOAD-REPLAY' "$WORK/repgood.log" 2>/dev/null | head -1 | sed 's/^/  
 # ---------------------------------------------------------------------------
 echo
 echo "== PURE REPEATER: a peer whose sequence NEVER ADVANCES =="
-for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
 wait 2>/dev/null
 PIDS=()
 MCAST="230.0.0.10:11900"
@@ -410,6 +485,53 @@ grep -a 'ENET-LAB3 LOST:' "$WORK/frzgood.log" 2>/dev/null | tail -1 | sed 's/^/ 
 [ "${f_bad:-0}"  -ge 1 ] || { echo "    FAIL: a pure repeater was accepted as fresh"; fail=1; }
 [ "${f_lost:-0}" -ge 1 ] || { echo "    FAIL: a peer that says nothing new was still counted LIVE"; fail=1; }
 
+# ---------------------------------------------------------------------------
+# ⭐ THE LENGTH IS A TERM OF THE CONTRACT, NOT A FLOOR.
+#
+# 95emulator, from rt1180's retraction: their checker rejected frames SHORTER than 64 and
+# ACCEPTED ANYTHING LONGER -- so rt1180's 1000-byte beacon, which every other enforcing node
+# threw away, would have sailed into their peer set.  "A RECEIVER THAT IS MORE PERMISSIVE
+# THAN THE SEGMENT COUNTS PEERS THAT EVERYONE ELSE IS REJECTING -- AND THEN *YOUR* GREEN IS
+# THE LIE, BECAUSE YOURS IS THE ONLY ONE THAT CAME BACK."
+#
+# I had it too, and I had LOOKED STRAIGHT AT IT: diffing against mcx's frame_ok() an hour
+# earlier I noted "I reject short, mcx doesn't reject long either, so we agree" and filed it
+# as the safe direction.  mcx's FRAME_LEN is 64 EXACTLY.
+#
+# AND TIGHTENING THE LENGTH CHECK ALONE BOUGHT NOTHING -- the first attempt DID NOT FIRE.
+# An over-long frame has no valid body, so the SELF-ARMING LATCH asked "has this peer ever
+# emitted one?", saw no, and filed a peer spraying 1000-byte garbage as a PHASE-1 PEER THAT
+# HAS NOT UPGRADED YET.  268 PASS beats against a liar.  My leniency was in the LATCH, not in
+# the length check.
+#
+#   ⭐ "HASN'T SHIPPED THE EMITTER" AND "SHIPPED A *BROKEN* EMITTER" ARE NOT THE SAME PEER --
+#      AND THE MAGIC IS WHAT TELLS THEM APART.  A frame carrying 0xB5B6B7C0 IS speaking the
+#      protocol; it is just speaking it WRONG.
+# ---------------------------------------------------------------------------
+echo
+echo "== OVER-LONG FRAME: a valid 64-byte prefix, then 936 more bytes (rt1180's shape) =="
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.13:11903"
+mknode ovgood 0x88B8 b1 0x88B9
+OVERLONG=1000 mknode ovbad 0x88B9 b2 0x88B8
+sleep 16
+
+o_arm=$(grep -ac 'PERFECTLY VALID 64-byte prefix' "$WORK/ovbad.log" 2>/dev/null) || true
+o_bad=$(grep -ac 'BAD-LENGTH'          "$WORK/ovgood.log" 2>/dev/null) || true
+o_dup=$(grep -ac 'ENET-LAB3 PASS:'     "$WORK/ovgood.log" 2>/dev/null) || true
+o_leg=$(grep -ac 'ENET-LAB3 LEGACY:'   "$WORK/ovgood.log" 2>/dev/null) || true
+echo "  liar armed         : $o_arm    (the mutation must land)"
+echo "  CAUGHT             : $o_bad over-long frame(s)"
+echo "  DUPED              : $o_dup PASS beat(s)   (must be 0 -- a caught frame must not count)"
+echo "  mis-excused LEGACY : $o_leg    (must be 0 -- a BROKEN emitter is not an UN-UPGRADED peer)"
+grep -a 'BAD-LENGTH' "$WORK/ovgood.log" 2>/dev/null | head -1 | sed 's/^/    /'
+[ "${o_arm:-0}" -ge 1 ] || { echo "    FAIL: the liar never armed -- this proved nothing"; fail=1; }
+[ "${o_bad:-0}" -ge 1 ] || { echo "    FAIL: an over-long frame was ACCEPTED -- more permissive than the segment"; fail=1; }
+[ "${o_dup:-1}" -eq 0 ] || { echo "    FAIL: counted a peer every other node is rejecting"; fail=1; }
+[ "${o_leg:-1}" -eq 0 ] || { echo "    FAIL: filed a BROKEN emitter as a phase-1 peer"; fail=1; }
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "PASS: three i.MX 91 FEC nodes hold a broadcast segment -- every frame's BODY"
@@ -427,6 +549,8 @@ if [ "$fail" -eq 0 ]; then
       AND a PURE REPEATER -- a peer whose seq never advances -- is caught AND
       reclassified as LOST: freshness and liveness compose, so a node saying
       nothing NEW is saying nothing.
+      AND an OVER-LONG frame with a valid 64-byte prefix is REFUSED (the length is a
+      term of the contract, not a floor) and is NOT excused as an un-upgraded peer.
       AND foreign traffic (IPv6 NDP/MLD from three real Linux kernels) WAS on the
       wire and was NOT body-checked, NOT reported -- asserted as a MEASUREMENT,
       not inferred from an absence."

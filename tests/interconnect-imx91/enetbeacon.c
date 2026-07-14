@@ -224,6 +224,7 @@ int main(int argc, char **argv)
     int      went_legacy = 0;
     long     replay_every = 0;      /* impersonate a ring replaying a stale buffer */
     int      freeze = 0;            /* impersonate a PURE repeater: seq never advances */
+    long     overlong = 0;          /* valid 64-byte prefix, then junk: rt1180's 1000-byte frame */
 
     if (argc < 4) {
         fprintf(stderr, "usage: %s <ifname> <my-ethertype> <peer-ethertype>...\n",
@@ -345,6 +346,18 @@ int main(int argc, char **argv)
          * BEACON_FREEZE is the real thing: the seq is pinned forever.  Every frame is a
          * perfectly well-formed frame that says NOTHING NEW.
          */
+        const char *ov = getenv("BEACON_OVERLONG");
+
+        if (ov && *ov) {
+            overlong = strtol(ov, NULL, 0);
+            printf("ENET-LAB3 EVIL: sending %ld-byte frames with a PERFECTLY VALID 64-byte "
+                   "prefix -- a receiver that treats FRAME_LEN as a FLOOR will count me\n",
+                   overlong);
+            fflush(stdout);
+        }
+    }
+
+    {
         const char *fz = getenv("BEACON_FREEZE");
 
         if (fz && *fz && strcmp(fz, "0")) {
@@ -482,9 +495,33 @@ int main(int argc, char **argv)
                          * is known to send one.  See the `emits` latch above.
                          */
                         {
-                            int has_body = (n >= FRAME_LEN &&
-                                            get32(rx + 14) == MAGIC);
-                            int enforce  = strict || peers[i].emits;
+                            /*
+                             * ⭐ "HASN'T SHIPPED THE EMITTER" AND "SHIPPED A *BROKEN* EMITTER"
+                             *    ARE NOT THE SAME PEER -- AND THE MAGIC IS WHAT TELLS THEM APART.
+                             *
+                             * My first attempt at the exactly-64 rule DID NOT FIRE, and the
+                             * reason was worse than the bug I was fixing.  An over-long frame
+                             * has n != FRAME_LEN, so has_body was false -- and the self-arming
+                             * latch then asked "has this peer EVER emitted a valid body?", saw
+                             * no, and filed a peer spraying 1000-byte garbage as a PHASE-1 PEER
+                             * THAT HAS NOT UPGRADED YET.  268 PASS beats against a liar.
+                             *
+                             * That is 95's finding in a different mechanism: "A RECEIVER THAT IS
+                             * MORE PERMISSIVE THAN THE SEGMENT COUNTS PEERS THAT EVERYONE ELSE IS
+                             * REJECTING -- and then YOUR green is the lie."  My leniency was in
+                             * the LATCH rather than the length check, so tightening the length
+                             * check alone bought nothing.
+                             *
+                             * A frame carrying 0xB5B6B7C0 IS speaking the protocol.  It is just
+                             * speaking it WRONG.  So:
+                             *
+                             *   magic present, length wrong   -> CORRUPT.  A broken beacon.
+                             *   no magic at all, never emitted -> LEGACY.  An un-upgraded peer.
+                             *   no magic at all, HAS emitted   -> CORRUPT.  An unwritten buffer.
+                             */
+                            int has_magic = (n >= 18 && get32(rx + 14) == MAGIC);
+                            int has_body  = (n == FRAME_LEN && has_magic);
+                            int enforce   = strict || peers[i].emits || has_magic;
 
                             if (has_body) {
                                 peers[i].emits = 1;     /* LATCH.  Never cleared. */
@@ -510,11 +547,34 @@ int main(int argc, char **argv)
                                 break;
                             }
 
-                            if (n < FRAME_LEN) {
+                            /*
+                             * ⭐ THE LENGTH IS A TERM OF THE CONTRACT, NOT A FLOOR.
+                             *
+                             * 95emulator, from rt1180's retraction: their checker rejected
+                             * frames SHORTER than 64 and ACCEPTED ANYTHING LONGER -- so
+                             * rt1180's 1000-byte beacon, which every other enforcing node
+                             * threw away, would have sailed into their peer set.
+                             *
+                             *   "A RECEIVER THAT IS MORE PERMISSIVE THAN THE SEGMENT COUNTS
+                             *    PEERS THAT EVERYONE ELSE IS REJECTING -- AND THEN *YOUR*
+                             *    GREEN IS THE LIE, BECAUSE YOURS IS THE ONLY ONE THAT CAME
+                             *    BACK."
+                             *
+                             * I HAD THE SAME BUG, AND I LOOKED STRAIGHT AT IT.  While diffing
+                             * against mcx's frame_ok() an hour ago I noted "I reject short,
+                             * mcx doesn't reject long either, so we agree" -- and filed it as
+                             * the safe direction.  It is not: mcx's FRAME_LEN is 64 EXACTLY.
+                             *
+                             *   ⭐ A CHECKER IS ONLY AS INDEPENDENT AS ITS *STRICTEST* CLAUSE.
+                             *     (95's line.)  I transcribed four of mcx's checks from source
+                             *     and supplied the fifth from my own instincts -- which makes
+                             *     it, in exactly one dimension, my own hopes in mcx's clothes.
+                             */
+                            if (n != FRAME_LEN) {
                                 peers[i].corrupt++;
-                                printf("ENET-LAB3 CORRUPT: et=0x%04X short frame "
-                                       "(%zd < %d)%s\n", et, n, FRAME_LEN,
-                                       peers[i].emits ? " from a KNOWN EMITTER" : "");
+                                printf("ENET-LAB3 CORRUPT: et=0x%04X BAD-LENGTH got %zd, "
+                                       "want %d exactly%s\n", et, n, FRAME_LEN,
+                                       peers[i].emits ? " (from a KNOWN EMITTER)" : "");
                                 fflush(stdout);
                                 break;
                             }
@@ -660,9 +720,21 @@ int main(int argc, char **argv)
                 put32(tx + 20, seq);
             }
             seq++;
-            if (sendto(fd, tx, FRAME_LEN, 0, (struct sockaddr *)&sa,
-                       sizeof(sa)) < 0 && errno != ENOBUFS) {
-                perror("ENET-LAB3: sendto");
+            {
+                uint8_t big[1600];
+                const uint8_t *buf = tx;
+                size_t len = FRAME_LEN;
+
+                if (overlong > FRAME_LEN && (size_t)overlong <= sizeof(big)) {
+                    memcpy(big, tx, FRAME_LEN);               /* valid prefix */
+                    memset(big + FRAME_LEN, 0x5a, overlong - FRAME_LEN);
+                    buf = big;
+                    len = overlong;
+                }
+                if (sendto(fd, buf, len, 0, (struct sockaddr *)&sa,
+                           sizeof(sa)) < 0 && errno != ENOBUFS) {
+                    perror("ENET-LAB3: sendto");
+                }
             }
             next_tx = t + BEACON_MS;
         }
