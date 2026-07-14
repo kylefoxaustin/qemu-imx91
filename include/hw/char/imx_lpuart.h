@@ -50,6 +50,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMXLPUARTState, IMX_LPUART)
 #define LPUART_MODIR            0x24
 #define LPUART_FIFO             0x28
 #define LPUART_WATER            0x2C
+#define LPUART_DATARO           0x30    /* Data Read-Only (peek, non-destructive) */
+#define LPUART_TOSR             0x5C    /* Timeout Status (W1C, resets ALL SET)   */
 
 /* GLOBAL: write GLOBAL_RST to trigger a software reset of the IP. */
 #define LPUART_GLOBAL_RST       0x00000002
@@ -74,6 +76,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMXLPUARTState, IMX_LPUART)
 /* DATA: bits [7:0] carry the actual character; upper bits are status. */
 #define LPUART_DATA_MASK        0x000000FF
 #define LPUART_DATA_RXEMPT      0x00001000  /* RX buffer was empty */
+#define LPUART_TOSR_FLAGS       0x0000000f  /* TOF3..TOF0, write-1-to-clear */
+#define LPUART_TOSR_RESET       0x0000000f  /* all four flags reset SET */
 
 /*
  * FIFO bits. TXEMPT/RXEMPT/TXOF/RXUF are read-only (status) and must never be
@@ -123,6 +127,7 @@ struct IMXLPUARTState {
     uint32_t        fifo;
     uint32_t        water;
     uint32_t        pincfg;
+    uint32_t        tosr;           /* Timeout Status: 4 W1C flags, reset SET */
 
     /* Single-byte RX buffer (1-deep). */
     uint8_t         rx_byte;

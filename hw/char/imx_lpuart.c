@@ -61,6 +61,20 @@ static void imx_lpuart_reset(IMXLPUARTState *s)
      */
     s->baud   = 0x0F000004;     /* default OSR = 4 + SBR field */
     s->stat   = LPUART_STAT_TDRE | LPUART_STAT_TC;
+    /*
+     * ⭐ TOSR's FOUR TIMEOUT FLAGS RESET *SET* (0000_000Fh), NOT CLEAR.
+     *
+     * ...and that is precisely why it had to be IMPLEMENTED rather than seeded.  A
+     * status flag whose reset value is SET is only safe if the path that CLEARS it
+     * works: these are write-1-to-clear, so had I simply answered a constant 0xf to
+     * make the reset-value gate go green, a guest that writes 1 and polls for the
+     * flag to drop would spin forever.  I would have turned a benign zero into a
+     * HANG -- and the gate would have called it an improvement.
+     *
+     *     A RESET VALUE IS NOT A NUMBER YOU RETURN.  IT IS THE STATE A WORKING
+     *     REGISTER STARTS IN.
+     */
+    s->tosr   = LPUART_TOSR_RESET;
     s->ctrl   = 0;
     s->match  = 0;
     s->modir  = 0;
@@ -128,6 +142,22 @@ static uint64_t imx_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         }
         break;
 
+    case LPUART_DATARO:
+        /*
+         * "Indicates the first entry in the receive FIFO, but DOES NOT PULL DATA
+         *  FROM THE FIFO." -- IMX91RM 47.6.14.  A non-destructive peek: it must not
+         * consume the byte, must not clear RDRF, and must not re-arm the front end.
+         * Empty (the reset state) reads back as RXEMPT -- 0000_1000h -- which is
+         * exactly the RM's reset value, and is why we used to answer 0: "a byte is
+         * waiting, and its value is zero."
+         */
+        value = s->rx_full ? (s->rx_byte & LPUART_DATA_MASK) : LPUART_DATA_RXEMPT;
+        break;
+
+    case LPUART_TOSR:
+        value = s->tosr;
+        break;
+
     case LPUART_MATCH:
         value = s->match;
         break;
@@ -186,6 +216,7 @@ static void imx_lpuart_write(void *opaque, hwaddr offset,
     switch (offset) {
     case LPUART_VERID:
     case LPUART_PARAM:
+    case LPUART_DATARO:
         /* Read-only registers; silently ignore writes (HW behavior). */
         break;
 
@@ -206,6 +237,10 @@ static void imx_lpuart_write(void *opaque, hwaddr offset,
          * it wrote. Preserve DMA-enable and other configuration bits.
          */
         s->baud = value;
+        break;
+
+    case LPUART_TOSR:
+        s->tosr &= ~(value & LPUART_TOSR_FLAGS);   /* write-1-to-clear */
         break;
 
     case LPUART_STAT:
