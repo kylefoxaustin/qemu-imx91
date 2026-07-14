@@ -87,6 +87,9 @@ ANCHORS = [
     #    lands at 4268_0010h and the gate REFUSES rather than silently comparing
     #    the RM's control registers against the XCVR's frame RAM.
     ("SPDIF",     "EXT_CTRL", 0x42680810, 0x18004040),
+    # The eDMA4 channel stride the DRIVER and the DEVICE TREE use (0x8000), not the
+    # 0x1000 the RM's own table implies.  Anchored so the override cannot vanish.
+    ("EDMA4_2.TCD", "CH1_SBR", 0x4201800C, 0x00008007),
 ]
 
 #
@@ -125,6 +128,39 @@ ANCHORS = [
 INSTANCE_BASE_OVERRIDE = {
     # instance : true base of the register table the RM numbers from zero
     "SPDIF": 0x42680800,    # DTB reg-names "regs"; fsl_xcvr.h EXT_CTRL = 0x10
+}
+
+#
+# ⭐ AND SOMETIMES THE RM IS NOT MERELY USING A DIFFERENT BASE.  IT IS WRONG.
+#
+# The RM's EDMA4_2 TCD summary row reads
+#
+#     0 - 3_F000   Channel Control and Status (CH0_CSR - CH63_CSR)
+#
+# which is 0x3F000 across 63 gaps = a channel stride of 0x1000.  THREE independent
+# sources say otherwise, and they are the ones the silicon actually obeys:
+#
+#     drivers/dma/fsl-edma-main.c   imx93_data4.chreg_space_sz = 0x8000
+#                                   (chan base = membase + i*chreg_space_sz + chreg_off)
+#     imx93.dtsi                    edma2 reg = <0x42000000 0x210000>, 64 channels
+#                                   0x210000 = chreg_off 0x10000 + 64 * 0x8000  ✔
+#                                   at a 0x1000 stride the block would need 0x50000
+#     the model                     reads 8007h at CH1 and CH63 on the 0x8000 stride
+#
+# So the RM's ADDRESS ARITHMETIC contradicts the hardware, and my golden believed it:
+# 56 of the 64 channels were being probed at addresses no channel occupies, and the
+# gate reported 56 lies in a model that was CORRECT.  (Every 8th channel "matched" --
+# 0x8000 / 0x1000 = 8 -- which is the tell.)
+#
+#     ⭐ THE RM IS AUTHORITATIVE FOR VALUES.  THE DRIVER AND THE DEVICE TREE ARE
+#        AUTHORITATIVE FOR ADDRESSES.  USE EACH SOURCE FOR WHAT IT ACTUALLY KNOWS.
+#                                       -- mcxn947qemu / rt1180emulator, twice over
+#
+# Pinned by an anchor below, so removing this override makes the extractor REFUSE
+# rather than quietly resume slandering a correct model.
+#
+INSTANCE_ARRAY_STRIDE = {
+    "EDMA4_2.TCD": 0x8000,
 }
 
 BASE_RE  = re.compile(r'^([A-Za-z0-9_.]+)\s+base address:\s*([0-9A-Fa-f_]+)h\s*$')
@@ -330,7 +366,8 @@ def main(rm_txt, out_json):
             if n < 2 or off_end <= off or (off_end - off) % (n - 1):
                 dropped_ambig += 1
                 continue
-            stride = (off_end - off) // (n - 1)
+            stride = INSTANCE_ARRAY_STRIDE.get(inst_names[0],
+                                              (off_end - off) // (n - 1))
             for k in range(n):
                 nm = "".join(parts[:idx]) + str(start + k) + "".join(parts[idx + 1:])
                 for inm, base in zip(inst_names, bases):

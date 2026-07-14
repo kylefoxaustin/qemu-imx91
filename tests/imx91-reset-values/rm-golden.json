@@ -1164,441 +1164,441 @@
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH1_SBR",
-  "addr": 1107365900,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH2_SBR",
-  "addr": 1107369996,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH3_SBR",
-  "addr": 1107374092,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH4_SBR",
-  "addr": 1107378188,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH5_SBR",
-  "addr": 1107382284,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH6_SBR",
-  "addr": 1107386380,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH7_SBR",
-  "addr": 1107390476,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH8_SBR",
   "addr": 1107394572,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH9_SBR",
-  "addr": 1107398668,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH10_SBR",
-  "addr": 1107402764,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH11_SBR",
-  "addr": 1107406860,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH12_SBR",
-  "addr": 1107410956,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH13_SBR",
-  "addr": 1107415052,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH14_SBR",
-  "addr": 1107419148,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH15_SBR",
-  "addr": 1107423244,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH16_SBR",
+  "reg": "CH2_SBR",
   "addr": 1107427340,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH17_SBR",
-  "addr": 1107431436,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH18_SBR",
-  "addr": 1107435532,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH19_SBR",
-  "addr": 1107439628,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH20_SBR",
-  "addr": 1107443724,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH21_SBR",
-  "addr": 1107447820,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH22_SBR",
-  "addr": 1107451916,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH23_SBR",
-  "addr": 1107456012,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH24_SBR",
+  "reg": "CH3_SBR",
   "addr": 1107460108,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH25_SBR",
-  "addr": 1107464204,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH26_SBR",
-  "addr": 1107468300,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH27_SBR",
-  "addr": 1107472396,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH28_SBR",
-  "addr": 1107476492,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH29_SBR",
-  "addr": 1107480588,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH30_SBR",
-  "addr": 1107484684,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH31_SBR",
-  "addr": 1107488780,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH32_SBR",
+  "reg": "CH4_SBR",
   "addr": 1107492876,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH33_SBR",
-  "addr": 1107496972,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH34_SBR",
-  "addr": 1107501068,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH35_SBR",
-  "addr": 1107505164,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH36_SBR",
-  "addr": 1107509260,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH37_SBR",
-  "addr": 1107513356,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH38_SBR",
-  "addr": 1107517452,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH39_SBR",
-  "addr": 1107521548,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH40_SBR",
+  "reg": "CH5_SBR",
   "addr": 1107525644,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH41_SBR",
-  "addr": 1107529740,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH42_SBR",
-  "addr": 1107533836,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH43_SBR",
-  "addr": 1107537932,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH44_SBR",
-  "addr": 1107542028,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH45_SBR",
-  "addr": 1107546124,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH46_SBR",
-  "addr": 1107550220,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH47_SBR",
-  "addr": 1107554316,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH48_SBR",
+  "reg": "CH6_SBR",
   "addr": 1107558412,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH49_SBR",
-  "addr": 1107562508,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH50_SBR",
-  "addr": 1107566604,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH51_SBR",
-  "addr": 1107570700,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH52_SBR",
-  "addr": 1107574796,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH53_SBR",
-  "addr": 1107578892,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH54_SBR",
-  "addr": 1107582988,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH55_SBR",
-  "addr": 1107587084,
-  "reset": 32775,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH56_SBR",
+  "reg": "CH7_SBR",
   "addr": 1107591180,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
+  "reg": "CH8_SBR",
+  "addr": 1107623948,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH9_SBR",
+  "addr": 1107656716,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH10_SBR",
+  "addr": 1107689484,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH11_SBR",
+  "addr": 1107722252,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH12_SBR",
+  "addr": 1107755020,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH13_SBR",
+  "addr": 1107787788,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH14_SBR",
+  "addr": 1107820556,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH15_SBR",
+  "addr": 1107853324,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH16_SBR",
+  "addr": 1107886092,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH17_SBR",
+  "addr": 1107918860,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH18_SBR",
+  "addr": 1107951628,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH19_SBR",
+  "addr": 1107984396,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH20_SBR",
+  "addr": 1108017164,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH21_SBR",
+  "addr": 1108049932,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH22_SBR",
+  "addr": 1108082700,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH23_SBR",
+  "addr": 1108115468,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH24_SBR",
+  "addr": 1108148236,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH25_SBR",
+  "addr": 1108181004,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH26_SBR",
+  "addr": 1108213772,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH27_SBR",
+  "addr": 1108246540,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH28_SBR",
+  "addr": 1108279308,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH29_SBR",
+  "addr": 1108312076,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH30_SBR",
+  "addr": 1108344844,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH31_SBR",
+  "addr": 1108377612,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH32_SBR",
+  "addr": 1108410380,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH33_SBR",
+  "addr": 1108443148,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH34_SBR",
+  "addr": 1108475916,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH35_SBR",
+  "addr": 1108508684,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH36_SBR",
+  "addr": 1108541452,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH37_SBR",
+  "addr": 1108574220,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH38_SBR",
+  "addr": 1108606988,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH39_SBR",
+  "addr": 1108639756,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH40_SBR",
+  "addr": 1108672524,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH41_SBR",
+  "addr": 1108705292,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH42_SBR",
+  "addr": 1108738060,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH43_SBR",
+  "addr": 1108770828,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH44_SBR",
+  "addr": 1108803596,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH45_SBR",
+  "addr": 1108836364,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH46_SBR",
+  "addr": 1108869132,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH47_SBR",
+  "addr": 1108901900,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH48_SBR",
+  "addr": 1108934668,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH49_SBR",
+  "addr": 1108967436,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH50_SBR",
+  "addr": 1109000204,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH51_SBR",
+  "addr": 1109032972,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH52_SBR",
+  "addr": 1109065740,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH53_SBR",
+  "addr": 1109098508,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH54_SBR",
+  "addr": 1109131276,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH55_SBR",
+  "addr": 1109164044,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH56_SBR",
+  "addr": 1109196812,
+  "reset": 32775,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
   "reg": "CH57_SBR",
-  "addr": 1107595276,
+  "addr": 1109229580,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH58_SBR",
-  "addr": 1107599372,
+  "addr": 1109262348,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH59_SBR",
-  "addr": 1107603468,
+  "addr": 1109295116,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH60_SBR",
-  "addr": 1107607564,
+  "addr": 1109327884,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH61_SBR",
-  "addr": 1107611660,
+  "addr": 1109360652,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH62_SBR",
-  "addr": 1107615756,
+  "addr": 1109393420,
   "reset": 32775,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH63_SBR",
-  "addr": 1107619852,
+  "addr": 1109426188,
   "reset": 32775,
   "width": 32
  },
@@ -1612,441 +1612,441 @@
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH1_PRI",
-  "addr": 1107365904,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH2_PRI",
-  "addr": 1107370000,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH3_PRI",
-  "addr": 1107374096,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH4_PRI",
-  "addr": 1107378192,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH5_PRI",
-  "addr": 1107382288,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH6_PRI",
-  "addr": 1107386384,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH7_PRI",
-  "addr": 1107390480,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH8_PRI",
   "addr": 1107394576,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH9_PRI",
-  "addr": 1107398672,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH10_PRI",
-  "addr": 1107402768,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH11_PRI",
-  "addr": 1107406864,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH12_PRI",
-  "addr": 1107410960,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH13_PRI",
-  "addr": 1107415056,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH14_PRI",
-  "addr": 1107419152,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH15_PRI",
-  "addr": 1107423248,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH16_PRI",
+  "reg": "CH2_PRI",
   "addr": 1107427344,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH17_PRI",
-  "addr": 1107431440,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH18_PRI",
-  "addr": 1107435536,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH19_PRI",
-  "addr": 1107439632,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH20_PRI",
-  "addr": 1107443728,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH21_PRI",
-  "addr": 1107447824,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH22_PRI",
-  "addr": 1107451920,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH23_PRI",
-  "addr": 1107456016,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH24_PRI",
+  "reg": "CH3_PRI",
   "addr": 1107460112,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH25_PRI",
-  "addr": 1107464208,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH26_PRI",
-  "addr": 1107468304,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH27_PRI",
-  "addr": 1107472400,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH28_PRI",
-  "addr": 1107476496,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH29_PRI",
-  "addr": 1107480592,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH30_PRI",
-  "addr": 1107484688,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH31_PRI",
-  "addr": 1107488784,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH32_PRI",
+  "reg": "CH4_PRI",
   "addr": 1107492880,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH33_PRI",
-  "addr": 1107496976,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH34_PRI",
-  "addr": 1107501072,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH35_PRI",
-  "addr": 1107505168,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH36_PRI",
-  "addr": 1107509264,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH37_PRI",
-  "addr": 1107513360,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH38_PRI",
-  "addr": 1107517456,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH39_PRI",
-  "addr": 1107521552,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH40_PRI",
+  "reg": "CH5_PRI",
   "addr": 1107525648,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH41_PRI",
-  "addr": 1107529744,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH42_PRI",
-  "addr": 1107533840,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH43_PRI",
-  "addr": 1107537936,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH44_PRI",
-  "addr": 1107542032,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH45_PRI",
-  "addr": 1107546128,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH46_PRI",
-  "addr": 1107550224,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH47_PRI",
-  "addr": 1107554320,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH48_PRI",
+  "reg": "CH6_PRI",
   "addr": 1107558416,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH49_PRI",
-  "addr": 1107562512,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH50_PRI",
-  "addr": 1107566608,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH51_PRI",
-  "addr": 1107570704,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH52_PRI",
-  "addr": 1107574800,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH53_PRI",
-  "addr": 1107578896,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH54_PRI",
-  "addr": 1107582992,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH55_PRI",
-  "addr": 1107587088,
-  "reset": 0,
-  "width": 32
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH56_PRI",
+  "reg": "CH7_PRI",
   "addr": 1107591184,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
+  "reg": "CH8_PRI",
+  "addr": 1107623952,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH9_PRI",
+  "addr": 1107656720,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH10_PRI",
+  "addr": 1107689488,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH11_PRI",
+  "addr": 1107722256,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH12_PRI",
+  "addr": 1107755024,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH13_PRI",
+  "addr": 1107787792,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH14_PRI",
+  "addr": 1107820560,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH15_PRI",
+  "addr": 1107853328,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH16_PRI",
+  "addr": 1107886096,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH17_PRI",
+  "addr": 1107918864,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH18_PRI",
+  "addr": 1107951632,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH19_PRI",
+  "addr": 1107984400,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH20_PRI",
+  "addr": 1108017168,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH21_PRI",
+  "addr": 1108049936,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH22_PRI",
+  "addr": 1108082704,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH23_PRI",
+  "addr": 1108115472,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH24_PRI",
+  "addr": 1108148240,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH25_PRI",
+  "addr": 1108181008,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH26_PRI",
+  "addr": 1108213776,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH27_PRI",
+  "addr": 1108246544,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH28_PRI",
+  "addr": 1108279312,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH29_PRI",
+  "addr": 1108312080,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH30_PRI",
+  "addr": 1108344848,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH31_PRI",
+  "addr": 1108377616,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH32_PRI",
+  "addr": 1108410384,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH33_PRI",
+  "addr": 1108443152,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH34_PRI",
+  "addr": 1108475920,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH35_PRI",
+  "addr": 1108508688,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH36_PRI",
+  "addr": 1108541456,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH37_PRI",
+  "addr": 1108574224,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH38_PRI",
+  "addr": 1108606992,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH39_PRI",
+  "addr": 1108639760,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH40_PRI",
+  "addr": 1108672528,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH41_PRI",
+  "addr": 1108705296,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH42_PRI",
+  "addr": 1108738064,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH43_PRI",
+  "addr": 1108770832,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH44_PRI",
+  "addr": 1108803600,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH45_PRI",
+  "addr": 1108836368,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH46_PRI",
+  "addr": 1108869136,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH47_PRI",
+  "addr": 1108901904,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH48_PRI",
+  "addr": 1108934672,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH49_PRI",
+  "addr": 1108967440,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH50_PRI",
+  "addr": 1109000208,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH51_PRI",
+  "addr": 1109032976,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH52_PRI",
+  "addr": 1109065744,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH53_PRI",
+  "addr": 1109098512,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH54_PRI",
+  "addr": 1109131280,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH55_PRI",
+  "addr": 1109164048,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH56_PRI",
+  "addr": 1109196816,
+  "reset": 0,
+  "width": 32
+ },
+ {
+  "inst": "EDMA4_2.TCD",
   "reg": "CH57_PRI",
-  "addr": 1107595280,
+  "addr": 1109229584,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH58_PRI",
-  "addr": 1107599376,
+  "addr": 1109262352,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH59_PRI",
-  "addr": 1107603472,
+  "addr": 1109295120,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH60_PRI",
-  "addr": 1107607568,
+  "addr": 1109327888,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH61_PRI",
-  "addr": 1107611664,
+  "addr": 1109360656,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH62_PRI",
-  "addr": 1107615760,
+  "addr": 1109393424,
   "reset": 0,
   "width": 32
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH63_PRI",
-  "addr": 1107619856,
+  "addr": 1109426192,
   "reset": 0,
   "width": 32
  },
@@ -2060,441 +2060,441 @@
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH1_MATTR",
-  "addr": 1107365912,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH2_MATTR",
-  "addr": 1107370008,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH3_MATTR",
-  "addr": 1107374104,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH4_MATTR",
-  "addr": 1107378200,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH5_MATTR",
-  "addr": 1107382296,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH6_MATTR",
-  "addr": 1107386392,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH7_MATTR",
-  "addr": 1107390488,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH8_MATTR",
   "addr": 1107394584,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH9_MATTR",
-  "addr": 1107398680,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH10_MATTR",
-  "addr": 1107402776,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH11_MATTR",
-  "addr": 1107406872,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH12_MATTR",
-  "addr": 1107410968,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH13_MATTR",
-  "addr": 1107415064,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH14_MATTR",
-  "addr": 1107419160,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH15_MATTR",
-  "addr": 1107423256,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH16_MATTR",
+  "reg": "CH2_MATTR",
   "addr": 1107427352,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH17_MATTR",
-  "addr": 1107431448,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH18_MATTR",
-  "addr": 1107435544,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH19_MATTR",
-  "addr": 1107439640,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH20_MATTR",
-  "addr": 1107443736,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH21_MATTR",
-  "addr": 1107447832,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH22_MATTR",
-  "addr": 1107451928,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH23_MATTR",
-  "addr": 1107456024,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH24_MATTR",
+  "reg": "CH3_MATTR",
   "addr": 1107460120,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH25_MATTR",
-  "addr": 1107464216,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH26_MATTR",
-  "addr": 1107468312,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH27_MATTR",
-  "addr": 1107472408,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH28_MATTR",
-  "addr": 1107476504,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH29_MATTR",
-  "addr": 1107480600,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH30_MATTR",
-  "addr": 1107484696,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH31_MATTR",
-  "addr": 1107488792,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH32_MATTR",
+  "reg": "CH4_MATTR",
   "addr": 1107492888,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH33_MATTR",
-  "addr": 1107496984,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH34_MATTR",
-  "addr": 1107501080,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH35_MATTR",
-  "addr": 1107505176,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH36_MATTR",
-  "addr": 1107509272,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH37_MATTR",
-  "addr": 1107513368,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH38_MATTR",
-  "addr": 1107517464,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH39_MATTR",
-  "addr": 1107521560,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH40_MATTR",
+  "reg": "CH5_MATTR",
   "addr": 1107525656,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH41_MATTR",
-  "addr": 1107529752,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH42_MATTR",
-  "addr": 1107533848,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH43_MATTR",
-  "addr": 1107537944,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH44_MATTR",
-  "addr": 1107542040,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH45_MATTR",
-  "addr": 1107546136,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH46_MATTR",
-  "addr": 1107550232,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH47_MATTR",
-  "addr": 1107554328,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH48_MATTR",
+  "reg": "CH6_MATTR",
   "addr": 1107558424,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
-  "reg": "CH49_MATTR",
-  "addr": 1107562520,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH50_MATTR",
-  "addr": 1107566616,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH51_MATTR",
-  "addr": 1107570712,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH52_MATTR",
-  "addr": 1107574808,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH53_MATTR",
-  "addr": 1107578904,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH54_MATTR",
-  "addr": 1107583000,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH55_MATTR",
-  "addr": 1107587096,
-  "reset": 0,
-  "width": 16
- },
- {
-  "inst": "EDMA4_2.TCD",
-  "reg": "CH56_MATTR",
+  "reg": "CH7_MATTR",
   "addr": 1107591192,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
+  "reg": "CH8_MATTR",
+  "addr": 1107623960,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH9_MATTR",
+  "addr": 1107656728,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH10_MATTR",
+  "addr": 1107689496,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH11_MATTR",
+  "addr": 1107722264,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH12_MATTR",
+  "addr": 1107755032,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH13_MATTR",
+  "addr": 1107787800,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH14_MATTR",
+  "addr": 1107820568,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH15_MATTR",
+  "addr": 1107853336,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH16_MATTR",
+  "addr": 1107886104,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH17_MATTR",
+  "addr": 1107918872,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH18_MATTR",
+  "addr": 1107951640,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH19_MATTR",
+  "addr": 1107984408,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH20_MATTR",
+  "addr": 1108017176,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH21_MATTR",
+  "addr": 1108049944,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH22_MATTR",
+  "addr": 1108082712,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH23_MATTR",
+  "addr": 1108115480,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH24_MATTR",
+  "addr": 1108148248,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH25_MATTR",
+  "addr": 1108181016,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH26_MATTR",
+  "addr": 1108213784,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH27_MATTR",
+  "addr": 1108246552,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH28_MATTR",
+  "addr": 1108279320,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH29_MATTR",
+  "addr": 1108312088,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH30_MATTR",
+  "addr": 1108344856,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH31_MATTR",
+  "addr": 1108377624,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH32_MATTR",
+  "addr": 1108410392,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH33_MATTR",
+  "addr": 1108443160,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH34_MATTR",
+  "addr": 1108475928,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH35_MATTR",
+  "addr": 1108508696,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH36_MATTR",
+  "addr": 1108541464,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH37_MATTR",
+  "addr": 1108574232,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH38_MATTR",
+  "addr": 1108607000,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH39_MATTR",
+  "addr": 1108639768,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH40_MATTR",
+  "addr": 1108672536,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH41_MATTR",
+  "addr": 1108705304,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH42_MATTR",
+  "addr": 1108738072,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH43_MATTR",
+  "addr": 1108770840,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH44_MATTR",
+  "addr": 1108803608,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH45_MATTR",
+  "addr": 1108836376,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH46_MATTR",
+  "addr": 1108869144,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH47_MATTR",
+  "addr": 1108901912,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH48_MATTR",
+  "addr": 1108934680,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH49_MATTR",
+  "addr": 1108967448,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH50_MATTR",
+  "addr": 1109000216,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH51_MATTR",
+  "addr": 1109032984,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH52_MATTR",
+  "addr": 1109065752,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH53_MATTR",
+  "addr": 1109098520,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH54_MATTR",
+  "addr": 1109131288,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH55_MATTR",
+  "addr": 1109164056,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
+  "reg": "CH56_MATTR",
+  "addr": 1109196824,
+  "reset": 0,
+  "width": 16
+ },
+ {
+  "inst": "EDMA4_2.TCD",
   "reg": "CH57_MATTR",
-  "addr": 1107595288,
+  "addr": 1109229592,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH58_MATTR",
-  "addr": 1107599384,
+  "addr": 1109262360,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH59_MATTR",
-  "addr": 1107603480,
+  "addr": 1109295128,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH60_MATTR",
-  "addr": 1107607576,
+  "addr": 1109327896,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH61_MATTR",
-  "addr": 1107611672,
+  "addr": 1109360664,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH62_MATTR",
-  "addr": 1107615768,
+  "addr": 1109393432,
   "reset": 0,
   "width": 16
  },
  {
   "inst": "EDMA4_2.TCD",
   "reg": "CH63_MATTR",
-  "addr": 1107619864,
+  "addr": 1109426200,
   "reset": 0,
   "width": 16
  },

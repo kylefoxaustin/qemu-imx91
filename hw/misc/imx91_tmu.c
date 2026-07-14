@@ -51,12 +51,20 @@
 #include "migration/vmstate.h"
 #include "qemu/log.h"
 
-#define TMU_CTRL0           0x000   /* +0x04/08/0c: SET / CLR / TOG */
-#define TMU_STAT0           0x010   /* +0x14/18/1c */
-#define TMU_DATA0           0x020   /* +0x24/28/2c */
+/*
+ * Every one of these carries SET/CLR/TOG aliases at +4/+8/+C -- the whole block does.
+ * Modelling only the four the driver happens to touch would leave the rest swallowing
+ * writes, which is the bug that killed this peripheral in the first place.
+ */
+#define TMU_CTRL0           0x000
+#define TMU_STAT0           0x010
+#define TMU_DATA0           0x020
 #define TMU_THR_CTRL01      0x030
 #define TMU_THR_CTRL23      0x040
-#define TMU_CTRL1           0x200   /* +0x204/208/20c */
+#define TMU_CTRL1           0x200
+#define TMU_STAT1           0x210
+#define TMU_DATA1           0x220
+#define TMU_THR_CTRL45      0x250
 #define TMU_PERIOD_CTRL     0x270
 #define TMU_REF_DIV         0x280
 #define TMU_PUD_ST_CTRL     0x2b0
@@ -75,7 +83,10 @@
 /* Reset values, from IMX91RM.pdf rev 5, asserted by tests/imx91-reset-values. */
 #define CTRL0_RESET         0x00003000
 #define STAT0_RESET         0x80000000
+#define CTRL1_RESET         0x00043000    /* RESOLUTION = 1 out of reset */
+#define STAT1_RESET         0x80000000
 #define REF_DIV_RESET       0x80000000
+#define PUD_ST_CTRL_RESET   0x00640000    /* power-up delay */
 
 /* Registers that carry SET/CLR/TOG aliases at +4 / +8 / +C. */
 static bool tmu_is_alias(hwaddr offset, hwaddr *base)
@@ -84,7 +95,15 @@ static bool tmu_is_alias(hwaddr offset, hwaddr *base)
     case TMU_CTRL0:
     case TMU_STAT0:
     case TMU_DATA0:
+    case TMU_THR_CTRL01:
+    case TMU_THR_CTRL23:
     case TMU_CTRL1:
+    case TMU_STAT1:
+    case TMU_DATA1:
+    case TMU_THR_CTRL45:
+    case TMU_PERIOD_CTRL:
+    case TMU_REF_DIV:
+    case TMU_PUD_ST_CTRL:
         *base = offset & ~0xfull;
         return true;
     default:
@@ -210,9 +229,12 @@ static void imx91_tmu_reset(DeviceState *dev)
     IMX91TmuState *s = IMX91_TMU(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->regs[TMU_CTRL0 / 4]   = CTRL0_RESET;
-    s->regs[TMU_STAT0 / 4]   = STAT0_RESET;
-    s->regs[TMU_REF_DIV / 4] = REF_DIV_RESET;
+    s->regs[TMU_CTRL0 / 4]       = CTRL0_RESET;
+    s->regs[TMU_STAT0 / 4]       = STAT0_RESET;
+    s->regs[TMU_CTRL1 / 4]       = CTRL1_RESET;
+    s->regs[TMU_STAT1 / 4]       = STAT1_RESET;
+    s->regs[TMU_REF_DIV / 4]     = REF_DIV_RESET;
+    s->regs[TMU_PUD_ST_CTRL / 4] = PUD_ST_CTRL_RESET;
 }
 
 static void imx91_tmu_init(Object *obj)
