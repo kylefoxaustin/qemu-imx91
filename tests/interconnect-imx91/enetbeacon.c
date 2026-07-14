@@ -56,6 +56,54 @@
  *    it returns, the heartbeat RESUMES.  The gap between those two is the departure
  *    window, and it is now a NUMBER a scorer can assert on, not a silence it must infer.
  *
+ * ─── VERIFIED AGAINST THE OTHER IMPLEMENTATION, FROM ITS SOURCE ───────────────────────
+ *
+ * ⭐ A PROSE SUMMARY OF A CONTRACT IS NOT THE CONTRACT.  THE PEERS' SOURCE IS.
+ *
+ * rt1180 announced their beacon "fixed", having taken `magic = 0xB5B6B7C0 at [14..17]` out
+ * of a BUS MESSAGE, called it the spec, and INVENTED THE OTHER THREE FIELDS to match their
+ * own firmware.  Every frame they sent would still have been rejected.  Their post-mortem:
+ * "the peers' source was on the same disk the whole time, one grep away."
+ *
+ * I BUILT THIS BODY FROM THE SAME PROSE.  So I went and read the other implementation --
+ * mcxn947qemu/tests/mcxn-enet-lab3/main.c :: frame_ok() -- and diffed it, field by field:
+ *
+ *   mcx frame_ok()                              this node
+ *   ------------------------------------------  ------------------------------------------
+ *   !is_beacon_et(et) -> BAD_OK (ignore)        foreign ethertype -> rx_foreign++, ignored
+ *   magic BE [14..17] != 0xB5B6B7C0 -> BAD_MAGIC   same, same offsets, same endianness
+ *   self_et BE [18..19] != et -> BAD_SELF_ET    same ("the frame contradicts itself")
+ *   fill 0x5A for i in [24, FRAME_LEN)          same (PATTERN_OFF 24 .. FRAME_LEN 64)
+ *   seq BE [20..23]; have && seq <= last        same -> PAYLOAD-REPLAY, NOT a sighting
+ *       -> BAD_REPLAY, and *last NOT updated        and last_seq NOT updated (identical
+ *                                                   reasoning: a stale frame must not drag
+ *                                                   our own baseline backwards)
+ *   have && seq > last+1 -> gaps++ (statistic)  same -> GAP, logged, never a failure
+ *   FRAME_LEN 64, MAGIC 0xB5B6B7C0, FILL 0x5A   identical constants
+ *
+ * They agree.  That is a NULL RESULT, and it is reported at full volume -- but note WHAT IT
+ * IS: it says my CHECKER is the same checker.  It does NOT say my BODY has been validated by
+ * an implementation I did not write.
+ *
+ * ⭐ AND IT HAS NOT BEEN.  mcx's peer set is COMPILED IN:
+ *
+ *       is_beacon_et(et) := et == 0x88B5 || et == 0x88B6 || et == 0x88B7
+ *
+ * 0x88B8 -- this node -- IS NOT IN IT.  mcx is a THREE-node firmware.  So mcx's frame_ok()
+ * returns BAD_OK on my frames instantly and NEVER LOOKS AT THE BODY AT ALL.
+ *
+ * holobench's matrix read "mcx does not reject imx91 even once" and concluded the two
+ * implementations INTEROPERATE.  They do not -- not yet, and not measurably:
+ *
+ *   imx91 -> mcx :  REAL.  This node checked mcx's frames and accepted 722 of them.
+ *   mcx -> imx91 :  NEVER EVALUATED.  Structurally impossible with that firmware.
+ *
+ *   ⭐ AN ABSENCE OF REJECTION IS NOT AN ACCEPTANCE.
+ *
+ * which is the same rule as this node's own IPv6 null one screen down: an absence proves
+ * nothing unless the condition was PRESENT.  "mcx never rejected imx91" and "mcx never
+ * looked at imx91" are the same cell in that matrix.
+ *
  * Build:  aarch64-linux-gnu-gcc -O2 -static -o enetbeacon enetbeacon.c
  * Usage:  enetbeacon <ifname> <my-ethertype> <peer-ethertype>...
  *   e.g.  enetbeacon eth0 0x88B8 0x88B9 0x88BA 0x88BB
