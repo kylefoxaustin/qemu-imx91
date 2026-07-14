@@ -35,6 +35,37 @@
 #define TA_EN_MSK       (0x3 << 2)
 #define EVENT_TA        (0x2 << 2)   /* time-alarm event in EVENTS */
 
+#define BBNSM_VID       0x00
+#define BBNSM_FEATURES  0x04
+
+/*
+ * ⭐ RTC_EN AND TA_EN ARE TWO-BIT SAFETY-ENCODED FIELDS, AND WE RESET THEM TO A THIRD
+ *    STATE THE SILICON NEVER PRODUCES.
+ *
+ * Note the masks above: RTC_EN is bits [1:0] and TA_EN is bits [3:2], each TWO bits
+ * wide, where 0b10 means ENABLED.  NXP encodes the enables of a tamper/RTC block in
+ * two bits precisely so that a single flipped bit cannot arm or disarm it.  The
+ * DISABLED encoding is 0b01 -- which is why the RM resets CTRL and INT_EN to
+ * ...0101b: both fields explicitly, verifiably OFF.
+ *
+ * We reset them to 0b00: NEITHER encoding.  Not enabled, not disabled -- a state no
+ * write to this device can produce and no reset on silicon ever yields.  And the
+ * driver read-modify-writes CTRL, so it would carry that non-state forward.
+ *
+ * (Same shape as the FlexCAN MCR reset in this tree: a power-on state the device's own
+ * logic could not have reached.  A RESET VALUE IS A STATE, AND SOME STATES DO NOT EXIST.)
+ *
+ * Seeding is safe here and I checked rather than assumed: EVENT_TA is 0x8, and the RM
+ * resets EVENTS to 0x05, so EVENT_TA is CLEAR -- (events & EVENT_TA) && (int_en & TA_EN)
+ * is false at reset and no interrupt is asserted.  A status flag that reset SET would
+ * have needed its clear path implemented first, not a constant (see LPUART TOSR).
+ */
+#define BBNSM_VID_RESET      0x0001013e
+#define BBNSM_FEATURES_RESET 0x00000020
+#define BBNSM_CTRL_RESET     0x01000005   /* RTC_EN = TA_EN = 0b01: explicitly OFF */
+#define BBNSM_INT_EN_RESET   0x00000005
+#define BBNSM_EVENTS_RESET   0x00000005
+
 #define RTC_HZ          32768
 #define RTC_SECS_SHIFT  15
 #define RTC_COUNTER_MASK ((1ULL << 47) - 1)
@@ -86,6 +117,12 @@ static uint64_t bbnsm_read(void *opaque, hwaddr offset, unsigned size)
     IMX93BbnsmState *s = opaque;
 
     switch (offset) {
+    case BBNSM_VID:
+        return BBNSM_VID_RESET;
+
+    case BBNSM_FEATURES:
+        return BBNSM_FEATURES_RESET;
+
     case BBNSM_CTRL:
         return s->ctrl;
     case BBNSM_INT_EN:
@@ -168,9 +205,9 @@ static void bbnsm_reset(DeviceState *dev)
 {
     IMX93BbnsmState *s = IMX93_BBNSM(dev);
 
-    s->ctrl = 0;
-    s->int_en = 0;
-    s->events = 0;
+    s->ctrl = BBNSM_CTRL_RESET;
+    s->int_en = BBNSM_INT_EN_RESET;
+    s->events = BBNSM_EVENTS_RESET;
     s->pad_ctrl = 0;
     s->ta = 0;
     s->set_ls = 0;

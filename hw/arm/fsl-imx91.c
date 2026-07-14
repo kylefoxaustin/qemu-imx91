@@ -547,6 +547,8 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     object_property_set_uint(OBJECT(&s->fec), "phy-num",
                              FSL_IMX91_FEC_PHY_NUM, &error_abort);
     object_property_set_uint(OBJECT(&s->fec), "tx-ring-num", 3, &error_abort);
+    /* ECR's reserved top nibble is 7 on this SoC, not the i.MX6/7's f. */
+    object_property_set_uint(OBJECT(&s->fec), "ecr-reset", 0x70000000, &error_abort);
     qemu_configure_nic_device(DEVICE(&s->fec), true, NULL);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->fec), errp)) {
         return;

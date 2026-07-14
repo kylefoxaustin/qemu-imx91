@@ -533,7 +533,12 @@ static void imx_eth_reset(DeviceState *d)
 
     /* Reset the Device */
     memset(s->regs, 0, sizeof(s->regs));
-    s->regs[ENET_ECR]   = 0xf0000000;
+    /*
+     * ECR's top nibble is reserved-but-not-zero, and it is NOT the same nibble on
+     * every i.MX.  0xf0000000 is right for i.MX6/7; the i.MX 91 RM gives 7000_0000h
+     * -- bits 30:28 set, bit 31 clear.  A property, so the older boards are untouched.
+     */
+    s->regs[ENET_ECR]   = s->ecr_reset;
     s->regs[ENET_MIBC]  = 0xc0000000;
     s->regs[ENET_RCR]   = 0x05ee0001;
     s->regs[ENET_OPD]   = 0x00010000;
@@ -1223,6 +1228,7 @@ static void imx_eth_realize(DeviceState *dev, Error **errp)
 
 static const Property imx_eth_properties[] = {
     DEFINE_NIC_PROPERTIES(IMXFECState, conf),
+    DEFINE_PROP_UINT32("ecr-reset", IMXFECState, ecr_reset, 0xf0000000),
     DEFINE_PROP_UINT32("tx-ring-num", IMXFECState, tx_ring_num, 1),
     DEFINE_PROP_UINT32("phy-num", IMXFECState, phy_num, 0),
     DEFINE_PROP_BOOL("phy-connected", IMXFECState, phy_connected, true),

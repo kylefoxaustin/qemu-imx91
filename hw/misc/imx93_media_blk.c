@@ -43,11 +43,46 @@ static const MemoryRegionOps media_blk_ctrl_ops = {
     .valid = { .min_access_size = 4, .max_access_size = 4 },
 };
 
+/*
+ * ⭐ BLOCKS ARE BORN HELD IN RESET.  A MODEL THAT SKIPS THAT IS A MODEL OF A BOARD
+ *    THAT HAS ALREADY BOOTED.
+ *
+ * MEDIAMIX RESET (offset 0) resets to 0000_047Fh: those bits are the per-block reset
+ * lines for everything in the mixer, and they come out of power-on ASSERTED.  The
+ * blk-ctrl driver read-modify-writes this register to RELEASE each block as it probes.
+ * We memset it to 0 -- so every block in the MEDIAMIX came up already released, and a
+ * guest that never wrote the register would still find the hardware running.
+ *
+ * (This tree has now been bitten by the same shape three times: LCDIF CTRL[SW_RESET]
+ * -- which 93emulator confirmed on their chip after I reported it -- and now here.
+ * Silicon holds you down until you ask to be let up.)
+ *
+ * This is a plain register file with no behaviour behind it, so the reset values are
+ * SEEDED and the guest's read-modify-write does the rest.  See LPUART TOSR for the
+ * other case, where seeding a value whose CLEAR PATH is unimplemented is a hang.
+ */
+#define MEDIA_BLK_RESET             0x00
+#define MEDIA_BLK_RESET_VALUE       0x0000047f   /* every block held in reset */
+#define MEDIA_BLK_LCDIF             0x0c
+#define MEDIA_BLK_LCDIF_VALUE       0x00000012
+#define MEDIA_BLK_ISI0              0x14
+#define MEDIA_BLK_ISI0_VALUE        0x000f2222
+#define MEDIA_BLK_PIXEL_CTRL        0x3c
+#define MEDIA_BLK_PIXEL_CTRL_VALUE  0x00000403
+#define MEDIA_BLK_IFACE_CTRL        0x78
+#define MEDIA_BLK_IFACE_CTRL_VALUE  0x80000000
+
 static void media_blk_ctrl_reset(DeviceState *dev)
 {
     IMX93MediaBlkCtrlState *s = IMX93_MEDIA_BLK_CTRL(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+
+    s->regs[MEDIA_BLK_RESET / 4]      = MEDIA_BLK_RESET_VALUE;
+    s->regs[MEDIA_BLK_LCDIF / 4]      = MEDIA_BLK_LCDIF_VALUE;
+    s->regs[MEDIA_BLK_ISI0 / 4]       = MEDIA_BLK_ISI0_VALUE;
+    s->regs[MEDIA_BLK_PIXEL_CTRL / 4] = MEDIA_BLK_PIXEL_CTRL_VALUE;
+    s->regs[MEDIA_BLK_IFACE_CTRL / 4] = MEDIA_BLK_IFACE_CTRL_VALUE;
 }
 
 static void media_blk_ctrl_realize(DeviceState *dev, Error **errp)

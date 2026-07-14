@@ -43,6 +43,11 @@
 #define   CHNL_CTRL_CHNL_EN     0x80000000  /* BIT(31) */
 #define CHNL_IMG_CTRL           0x0004
 #define CHNL_IMG_CFG            0x000c      /* (height << 16) | width */
+#define CHNL_SCALE_FACTOR       0x0018      /* fixed point: 0x1000 == 1.0 */
+#define CHNL_SCL_IMG_CFG        0x0098
+#define CHNL_IMG_CFG_RESET      0x04380780  /* 1920 x 1080 */
+#define CHNL_SCALE_FACTOR_RESET 0x10001000  /* unity, X and Y */
+#define CHNL_SCL_IMG_CFG_RESET  0x04380780
 #define   CHNL_IMG_CFG_W_MASK   0x00001fff
 #define   CHNL_IMG_CFG_H_SHIFT  16
 #define   CHNL_IMG_CFG_H_MASK   0x1fff
@@ -294,6 +299,21 @@ static void imx93_isi_reset(DeviceState *dev)
 
     timer_del(s->frame_timer);
     memset(s->regs, 0, sizeof(s->regs));
+
+    /*
+     * ⭐ A SCALE FACTOR OF ZERO IS NOT "NO SCALING".
+     *
+     * CHNL_SCALE_FACTOR is fixed-point with 0x1000 = 1.0, so the RM's reset value of
+     * 1000_1000h is UNITY -- X and Y both 1:1.  Zero is not the absence of a scale
+     * factor; it is a scale factor, and it is the one that divides by nothing.  The
+     * dangerous zeros are the ones where zero is a LEGAL, MEANINGFUL, CATASTROPHIC
+     * value, and a scaler's ratio is exactly that.
+     *
+     * CHNL_IMG_CFG likewise resets to 1920x1080, not to a zero-by-zero image.
+     */
+    R(s, CHNL_IMG_CFG)      = CHNL_IMG_CFG_RESET;
+    R(s, CHNL_SCALE_FACTOR) = CHNL_SCALE_FACTOR_RESET;
+    R(s, CHNL_SCL_IMG_CFG)  = CHNL_SCL_IMG_CFG_RESET;
     s->frame = 0;
     s->frame_index = 0;
     if (s->frame_fp) {

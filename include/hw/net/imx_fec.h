@@ -264,6 +264,7 @@ struct IMXFECState {
     uint32_t rx_descriptor;
 
     uint32_t tx_descriptor[ENET_TX_RING_NUM];
+    uint32_t ecr_reset;     /* ECR reserved-bit reset value (per-SoC) */
     uint32_t tx_ring_num;
 
     Lan9118PhyState mii;
