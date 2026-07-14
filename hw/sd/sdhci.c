@@ -1517,16 +1517,44 @@ static const VMStateDescription sdhci_pending_insert_vmstate = {
 };
 
 /*
- * ⭐ vendor_spec WAS NOT MIGRATED AT ALL.  It is read at ESDHC_VENDOR_SPEC and it
- *    drives PRNSTS[CLOCK_GATE_OFF] -- so a guest migrated or snapshotted mid-transfer
- *    came back with the SD clock gate desynced from the register that controls it.
- *    A subsection, so old streams still load.
+ * ⭐ vendor_spec WAS NOT MIGRATED AT ALL.  It is read at ESDHC_VENDOR_SPEC and it drives
+ *    PRNSTS[CLOCK_GATE_OFF] -- so a guest migrated or snapshotted mid-transfer came back
+ *    with the SD clock gate desynced from the register that controls it.  A subsection,
+ *    so old streams still load.
+ *
+ * ⭐ AND THE PREDICATE IS NOT "IS THE VALUE INTERESTING".  MY FIRST ONE WAS, AND IT LOST
+ *    THE GUEST'S STATE.
+ *
+ * I first wrote `return s->vendor_spec != 0;`.  That reads as "only migrate it if there is
+ * something in it" -- and it silently DROPS THE FIELD PRECISELY WHEN THE GUEST HAS WRITTEN
+ * THE ONE VALUE THE PREDICATE MISTAKES FOR 'ABSENT'.  Reproduced with a real migrate:
+ *
+ *      guest writes 0x00000000  ->  migrate  ->  reads back 0x30007809
+ *
+ * ...because on load, an absent subsection leaves whatever reset() put there.  The guest's
+ * deliberate zero came back as the RESET value.  THIS IS THE DANGEROUS-ZEROS BUG, ONE LAYER
+ * OUT: zero is not the absence of a value, and a `needed` predicate that treats it as one
+ * will lose it.
+ *
+ * (93emulator shipped this same fix and keyed on `vendor_spec_reset != 0` -- "did the
+ *  platform opt in".  That fixes my bug, but it never emits the subsection for i.MX6/7,
+ *  whose vendor_spec_reset is 0 by default and who nonetheless WRITE this register at
+ *  runtime (FRC_SDCLK_ON) -- so their value would still be lost.)
+ *
+ * The correct question is neither.  On load, an omitted subsection leaves the field holding
+ * exactly what sdhci_reset() wrote: vendor_spec_reset.  Therefore:
+ *
+ *   ⭐ A SUBSECTION MAY BE OMITTED IFF THE FIELD ALREADY HOLDS WHAT RESET WOULD PUT THERE.
+ *
+ * which is this, and nothing else -- and it happens to fix i.MX6/7's migration too, while
+ * leaving the generic-SDHCI wire format byte-for-byte unchanged (reset 0, never written,
+ * value 0 -> not emitted, exactly as before).
  */
 static bool sdhci_vendor_spec_needed(void *opaque)
 {
     SDHCIState *s = opaque;
 
-    return s->vendor_spec != 0;
+    return s->vendor_spec != s->vendor_spec_reset;
 }
 
 static const VMStateDescription sdhci_vendor_spec_vmstate = {
