@@ -85,6 +85,7 @@ mknode() {                          # $1=name $2=my-et $3=mac-suffix  $4..=peer-
     [ -n "${LEGACY:-}" ] && evil="$evil beacon.legacy=$LEGACY"
     [ -n "${ROT:-}" ]    && evil="$evil beacon.legacy_after=$ROT"
     [ -n "${STRICT:-}" ] && evil="$evil beacon.strict=$STRICT"
+    [ -n "${REPLAY:-}" ] && evil="$evil beacon.replay=$REPLAY"
 
     "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
@@ -232,6 +233,48 @@ grep -a 'ENET-LAB3 CORRUPT:' "$WORK/rotgood.log" 2>/dev/null | head -1 | sed 's/
 [ "${r_bad:-0}" -ge 1 ] || { echo "    FAIL: a known emitter went silent-bodied and we EXCUSED it"; fail=1; }
 [ "${r_leg:-1}" -eq 0 ] || { echo "    FAIL: excused a known emitter as a phase-1 peer"; fail=1; }
 
+# ---------------------------------------------------------------------------
+# ⭐ FRESHNESS, NOT VALIDITY.  THE STALE FRAME IS A *VALID* FRAME.
+#
+# rt1180, tonight, closing the last hole -- and it lands on every check above:
+#
+#   "THE CORRUPTION IS NOT A MANGLED FRAME.  IT IS AN *OLD* ONE, DELIVERED AGAIN.  When the
+#    RX path drops a frame it leaves the descriptor pointing at a STALE BUFFER -- which
+#    holds a PREVIOUSLY VALID frame, with a PERFECTLY VALID CHECKSUM.  Every integrity
+#    check that asks 'is this frame well-formed?' answers YES -- because IT IS.  It is just
+#    not the frame that arrived."
+#
+# So magic, the self-consistent ethertype, and the 0x5A pattern ALL SAY GOOD FRAME to a
+# replayed buffer.  My body check was asking the wrong question.  I even CARRIED the
+# sequence number that could see it -- and only ever looked FORWARD with it (gaps = loss =
+# a statistic).  A seq going BACKWARDS was silently accepted, and it overwrote last_seq,
+# dragging my own baseline back with it.  rt1180's 88 stale frames were invisible to me too.
+#
+#   ⭐ ASSERT ON A NUMBER GOING UP.  The question is not "is this a GOOD frame" -- every
+#      check I had already answered that.  It is "is this a NEW one."
+# ---------------------------------------------------------------------------
+echo
+echo "== STALE-BUFFER REPLAY: every 3rd frame re-delivers the previous seq =="
+echo "   (each replayed frame is PERFECTLY VALID -- magic ok, ethertype ok, pattern ok)"
+for p in "${PIDS[@]}"; do kill -9 "$p" 2>/dev/null; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.7:11897"
+mknode repgood 0x88B8 c1 0x88B9
+REPLAY=3 mknode repbad 0x88B9 c2 0x88B8
+sleep 16
+
+p_arm=$(grep -ac 'REPLAYS the previous' "$WORK/repbad.log" 2>/dev/null) || true
+p_rep=$(grep -ac 'PAYLOAD-REPLAY'       "$WORK/repgood.log" 2>/dev/null) || true
+p_wf=$(grep -a 'ENET-LAB3 CORRUPT:' "$WORK/repgood.log" 2>/dev/null | grep -avc 'PAYLOAD-REPLAY') || true
+echo "  replayer armed        : $p_arm   (the mutation must land)"
+echo "  well-formedness fails : $p_wf   (must be 0 -- EVERY stale frame IS well-formed)"
+echo "  PAYLOAD-REPLAY caught : $p_rep   (only the FRESHNESS check can see this)"
+grep -a 'PAYLOAD-REPLAY' "$WORK/repgood.log" 2>/dev/null | head -1 | sed 's/^/    /'
+[ "${p_arm:-0}" -ge 1 ] || { echo "    FAIL: the replayer never armed -- this proved nothing"; fail=1; }
+[ "${p_rep:-0}" -ge 1 ] || { echo "    FAIL: a stale buffer was replayed and we COUNTED IT AS FRESH"; fail=1; }
+[ "${p_wf:-1}"  -eq 0 ] || { echo "    NOTE: a stale frame tripped a well-formedness check -- unexpected"; }
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "PASS: three i.MX 91 FEC nodes hold a broadcast segment -- every frame's BODY"
@@ -242,7 +285,10 @@ if [ "$fail" -eq 0 ]; then
       disagrees with its header is caught, and is NOT counted as a peer.
       AND IT NEEDS NO FLAG DAY: the SAME frame (magic=0) is excused as a phase-1
       peer from a sender that has never emitted a body, and condemned as a
-      never-written buffer from a sender that has.  Ask the SENDER, not the frame."
+      never-written buffer from a sender that has.  Ask the SENDER, not the frame.
+      AND a REPLAYED STALE BUFFER is caught -- a frame that passes every
+      well-formedness check this node has, because it IS well-formed; it is just
+      not NEW.  Freshness, not validity: assert on a number going up."
 else
     echo "FAIL: see above."
 fi

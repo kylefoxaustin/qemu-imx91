@@ -131,6 +131,7 @@ struct peer {
     uint64_t frames;
     uint64_t gaps;
     uint64_t corrupt;
+    uint64_t replays;
 };
 
 static int64_t now_ms(void)
@@ -172,6 +173,7 @@ int main(int argc, char **argv)
     int      strict;
     int64_t  legacy_after_ms = 0, t0;
     int      went_legacy = 0;
+    long     replay_every = 0;      /* impersonate a ring replaying a stale buffer */
 
     if (argc < 4) {
         fprintf(stderr, "usage: %s <ifname> <my-ethertype> <peer-ethertype>...\n",
@@ -258,6 +260,19 @@ int main(int argc, char **argv)
      *                           written.  This is rt1180's frames-to-address-zero, and the
      *                           receiver must catch it EVEN IN PHASE 1.
      */
+    {
+        const char *r = getenv("BEACON_REPLAY");
+
+        if (r && *r) {
+            replay_every = strtol(r, NULL, 0);
+            printf("ENET-LAB3 EVIL: every %ldth frame REPLAYS the previous sequence "
+                   "number -- a perfectly valid frame that is simply not a NEW one, "
+                   "which is what a ring handing back a stale buffer looks like\n",
+                   replay_every);
+            fflush(stdout);
+        }
+    }
+
     {
         const char *l = getenv("BEACON_LEGACY");
         const char *la = getenv("BEACON_LEGACY_AFTER");
@@ -421,9 +436,56 @@ int main(int argc, char **argv)
                             }
                         }
 
-                        /* Verified.  Only now does it count as seeing a peer. */
+                        /*
+                         * ⭐ FRESHNESS, NOT VALIDITY.  THE STALE FRAME IS A *VALID* FRAME.
+                         *
+                         * rt1180, tonight, and it lands squarely on everything above:
+                         *
+                         *   "THE CORRUPTION IS NOT A MANGLED FRAME.  IT IS AN *OLD* ONE,
+                         *    DELIVERED AGAIN.  When the RX path drops a frame it leaves the
+                         *    descriptor pointing at a STALE BUFFER -- which holds a
+                         *    PREVIOUSLY VALID frame, with a PERFECTLY VALID CHECKSUM.  Every
+                         *    integrity check that asks 'is this frame well-formed?' answers
+                         *    YES -- because it IS.  It is just not the frame that arrived."
+                         *
+                         * Which means every check above -- magic, the self-consistent
+                         * ethertype, the 0x5A pattern -- says GOOD FRAME to a replayed
+                         * buffer.  All of them.  My "the body is the evidence" check
+                         * answers the wrong question: it asks whether the frame is VALID,
+                         * and a stale frame is valid.  IT IS JUST NOT NEW.
+                         *
+                         * I carried the sequence number that could see this and only ever
+                         * looked FORWARD with it (gaps = loss = a statistic).  A seq going
+                         * BACKWARDS was silently accepted -- and worse, it overwrote
+                         * last_seq, dragging my own baseline back with it.  rt1180's 88
+                         * stale frames would have been invisible to this node too.
+                         *
+                         *     ⭐ ASSERT ON A NUMBER GOING UP.
+                         *
+                         *   replay   (s <= last)  -> a STALE BUFFER.  Caught.  Not counted.
+                         *   loss     (s >  last+1) -> honest.  Logged, never failed on.
+                         */
                         {
                             uint32_t s = get32(rx + 20);
+
+                            if (peers[i].have_seq &&
+                                s <= peers[i].last_seq &&
+                                peers[i].last_seq - s < 0x80000000u) {   /* not a wrap */
+                                peers[i].corrupt++;
+                                peers[i].replays++;
+                                /*
+                                 * holobench ratified ENET-LAB3 CORRUPT as THE bad-frame
+                                 * token, so that is the line-start.  PAYLOAD-REPLAY names
+                                 * the kind, after the mandated prefix, where free-form is
+                                 * welcome.
+                                 */
+                                printf("ENET-LAB3 CORRUPT: PAYLOAD-REPLAY et=0x%04X seq %u "
+                                       "<= last %u -- the RX path delivered a STALE BUFFER "
+                                       "(a valid frame, just not a NEW one)\n",
+                                       et, s, peers[i].last_seq);
+                                fflush(stdout);
+                                break;              /* NOT a peer sighting. */
+                            }
 
                             if (peers[i].have_seq && s > peers[i].last_seq + 1) {
                                 /* Loss is a statistic, not a failure. */
@@ -457,7 +519,12 @@ int main(int argc, char **argv)
         }
 
         if (t >= next_tx) {                     /* RULE 1: BEACON FOREVER. */
-            put32(tx + 20, seq++);
+            if (replay_every && seq && (seq % replay_every) == 0) {
+                put32(tx + 20, seq - 1);        /* the stale buffer, re-delivered */
+            } else {
+                put32(tx + 20, seq);
+            }
+            seq++;
             if (sendto(fd, tx, FRAME_LEN, 0, (struct sockaddr *)&sa,
                        sizeof(sa)) < 0 && errno != ENOBUFS) {
                 perror("ENET-LAB3: sendto");

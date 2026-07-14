@@ -56,13 +56,15 @@ cat > "$WORK/root/init" <<'INIT'
 #   [beacon.corrupt=ethertype|magic|pattern]   -- lie, to prove the checker fires
 #   [beacon.legacy=1]              -- emit NO body (impersonate a phase-1 peer)
 #   [beacon.legacy_after=<ms>]     -- emit a body, then stop (a known emitter going bad)
+#   [beacon.replay=<n>]            -- every n-th frame replays the previous seq (a ring
+#                                     handing back a STALE BUFFER: a valid frame, not a new one)
 #
 /bin/busybox mount -t proc proc /proc
 /bin/busybox mount -t sysfs sysfs /sys
 /bin/busybox mount -t devtmpfs devtmpfs /dev
 /bin/busybox --install -s /bin 2>/dev/null
 
-ET=""; PEERS=""; EVIL=""; STRICT=""; LEGACY=""; LEGACY_AFTER=""
+ET=""; PEERS=""; EVIL=""; STRICT=""; LEGACY=""; LEGACY_AFTER=""; REPLAY=""
 for a in $(cat /proc/cmdline); do
     case "$a" in
         beacon.et=*)           ET="${a#beacon.et=}" ;;
@@ -71,6 +73,7 @@ for a in $(cat /proc/cmdline); do
         beacon.strict=*)       STRICT="${a#beacon.strict=}" ;;
         beacon.legacy=*)       LEGACY="${a#beacon.legacy=}" ;;
         beacon.legacy_after=*) LEGACY_AFTER="${a#beacon.legacy_after=}" ;;
+        beacon.replay=*)       REPLAY="${a#beacon.replay=}" ;;
     esac
 done
 
@@ -87,6 +90,7 @@ export BEACON_CORRUPT="$EVIL"
 export BEACON_STRICT="$STRICT"
 export BEACON_LEGACY="$LEGACY"
 export BEACON_LEGACY_AFTER="$LEGACY_AFTER"
+export BEACON_REPLAY="$REPLAY"
 exec /enetbeacon eth0 "$ET" $PEERS
 INIT
 chmod +x "$WORK/root/init"
