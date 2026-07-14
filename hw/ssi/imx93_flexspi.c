@@ -35,6 +35,8 @@
 #define FSPI_FLSHCR4    0x94
 #define FSPI_DLLACR     0xc0
 #define FSPI_DLLBCR     0xc4
+#define FSPI_MCR2       0x08
+#define FSPI_STS2       0xe8
 #define FSPI_MCR0_SWRST (1u << 0)
 #define FSPI_INTEN      0x10
 #define FSPI_INTR       0x14
@@ -66,7 +68,30 @@
 #define FSPI_MCR1_RESET     0xffffffff
 #define FSPI_AHBCR_RESET    0x00000018
 #define FSPI_LUTCR_RESET    0x00000002
-#define FSPI_AHBRX_RESET    0x80000020    /* AHBRXBUFnCR0, n = 0..7 */
+/*
+ * ⭐ AHBRXBUFnCR0's RESET VALUE IS NOT A CONSTANT -- IT CARRIES THE BUFFER'S OWN INDEX.
+ *
+ * The RM gives 8000_0020h, 8001_0020h, 8002_0020h ... 8007_0020h: bits 19:16 are
+ * MSTRID, and each AHB RX buffer comes out of reset owning ITS OWN master ID.  I
+ * seeded the same constant into all eight.
+ *
+ * Buffer 0 MATCHED -- which is exactly why it survived.  A pattern that is correct at
+ * index 0 tells you NOTHING about index n.  (This tree already learned that once, from
+ * the eDMA stride bug where channels 0, 8, 16 ... all matched and the 56 in between
+ * did not.  I wrote the rule down -- WHEN A GATE FINDS A BUG, FIND ITS SIBLINGS -- and
+ * then fixed AHBRXBUF0CR0 and walked away from its seven siblings.)
+ */
+#define FSPI_AHBRX_RESET    0x80000020    /* | (n << 16): MSTRID varies per buffer */
+
+#define FSPI_MCR2_RESET     0x200081f7
+#define FSPI_STS2_RESET     0x01000100    /* slave-delay selects; NOT the lock bits */
+
+/* DLL lock status, produced by the DLL -- asserted only once the guest ENABLES it. */
+#define FSPI_DLLCR_DLLEN    (1u << 31)
+#define FSPI_STS2_ASLVLOCK  (1u << 0)
+#define FSPI_STS2_AREFLOCK  (1u << 1)
+#define FSPI_STS2_BSLVLOCK  (1u << 16)
+#define FSPI_STS2_BREFLOCK  (1u << 17)
 #define FSPI_FLSHCR1_RESET  0x00000063    /* FLSHA1/A2/B1/B2CR1 */
 #define FSPI_FLSHCR4_RESET  0x000000c3
 #define FSPI_DLLCR_RESET    0x00000100    /* DLLACR / DLLBCR */
@@ -217,6 +242,40 @@ static uint64_t flexspi_read(void *opaque, hwaddr offset, unsigned size)
     }
 }
 
+/*
+ * ⭐ THE DLL LOCK BITS ARE STATUS PRODUCED BY A MECHANISM, SO THEY ARE COMPUTED, NOT
+ *    SEEDED -- AND THE GUEST HAS BEEN COMPLAINING ABOUT THEM IN PLAIN ENGLISH.
+ *
+ * spi-nxp-fspi.c resets the DLL, enables it, then polls STS2 for REF/SLV lock:
+ *
+ *     ret = fspi_readl_poll_tout(f, iobase + FSPI_STS2, FSPI_STS2_AB_LOCK, ...);
+ *     if (ret)
+ *             dev_warn(f->dev, "DLL lock failed, please fix it!\n");
+ *
+ * We answered 0 forever, so the DLL never locked: the driver burned the full poll
+ * timeout on every DLL configuration and then printed a warning ASKING US TO FIX IT.
+ *
+ * Note what the RM's STS2 reset value is NOT: 0100_0100h has bits 8 and 24 (the
+ * slave-delay selects) and NONE of the lock bits.  The chip comes up UNLOCKED, and it
+ * is right to -- a DLL that reports "locked" before you have switched it on is the
+ * fabricated-ready bug.  So the reset value is seeded and the lock is EARNED.
+ */
+static void flexspi_dll_update(IMX93FlexSpiState *s)
+{
+    uint32_t sts2 = s->regs[FSPI_STS2 >> 2];
+
+    sts2 &= ~(FSPI_STS2_ASLVLOCK | FSPI_STS2_AREFLOCK |
+              FSPI_STS2_BSLVLOCK | FSPI_STS2_BREFLOCK);
+
+    if (s->regs[FSPI_DLLACR >> 2] & FSPI_DLLCR_DLLEN) {
+        sts2 |= FSPI_STS2_ASLVLOCK | FSPI_STS2_AREFLOCK;
+    }
+    if (s->regs[FSPI_DLLBCR >> 2] & FSPI_DLLCR_DLLEN) {
+        sts2 |= FSPI_STS2_BSLVLOCK | FSPI_STS2_BREFLOCK;
+    }
+    s->regs[FSPI_STS2 >> 2] = sts2;
+}
+
 static void flexspi_write(void *opaque, hwaddr offset, uint64_t value,
                           unsigned size)
 {
@@ -287,6 +346,15 @@ static void flexspi_write(void *opaque, hwaddr offset, uint64_t value,
             flexspi_run_seq(s, seqid);
         }
         break;
+    case FSPI_DLLACR:
+    case FSPI_DLLBCR:
+        s->regs[offset >> 2] = value;
+        flexspi_dll_update(s);      /* the lock is EARNED, not seeded */
+        break;
+
+    case FSPI_STS2:
+        break;                      /* read-only status */
+
     default:
         if ((offset >> 2) < IMX93_FLEXSPI_NUM_REGS) {
             s->regs[offset >> 2] = value;
@@ -353,7 +421,7 @@ static void flexspi_reset(DeviceState *dev)
     s->regs[FSPI_LUTKEY >> 2] = FSPI_LUTKEY_VAL;
     s->regs[FSPI_LCKCR >> 2]  = FSPI_LUTCR_RESET;   /* the RM calls 0x1c LUTCR */
     for (int i = 0; i < 8; i++) {
-        s->regs[(FSPI_AHBRXBUF0CR0 + i * 4) >> 2] = FSPI_AHBRX_RESET;
+        s->regs[(FSPI_AHBRXBUF0CR0 + i * 4) >> 2] = FSPI_AHBRX_RESET | (i << 16);
     }
     s->regs[FSPI_FLSHA1CR1 >> 2] = FSPI_FLSHCR1_RESET;
     s->regs[FSPI_FLSHA2CR1 >> 2] = FSPI_FLSHCR1_RESET;
@@ -362,6 +430,8 @@ static void flexspi_reset(DeviceState *dev)
     s->regs[FSPI_FLSHCR4 >> 2]   = FSPI_FLSHCR4_RESET;
     s->regs[FSPI_DLLACR >> 2]    = FSPI_DLLCR_RESET;
     s->regs[FSPI_DLLBCR >> 2]    = FSPI_DLLCR_RESET;
+    s->regs[FSPI_MCR2 >> 2]      = FSPI_MCR2_RESET;
+    s->regs[FSPI_STS2 >> 2]      = FSPI_STS2_RESET;
 
     s->lut_unlocked = false;
     s->lutkey_written = false;

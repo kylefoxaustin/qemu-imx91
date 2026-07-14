@@ -31,7 +31,14 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93MicfilState, IMX93_MICFIL)
 /* CTRL1.DISEL=IRQ / error / VAD share four interrupt lines. */
 #define IMX93_MICFIL_IRQS   4
 /* Deeper than the i.MX93 FIFO (32) so the fill can exceed the watermark. */
-#define IMX93_MICFIL_FIFO_DEPTH 64
+/*
+ * 32, because that is what the silicon has -- and because the model, its own PARAM
+ * register, and the driver's soc_data used to give THREE DIFFERENT ANSWERS for the
+ * depth of one FIFO: the array below was 64, PARAM advertised 8 (FIFO_PTRWID=3), and
+ * fsl_micfil_imx93.fifo_depth is 32.  A capability register that disagrees with the
+ * implementation it describes is not an under-report.  It is a THIRD OPINION.
+ */
+#define IMX93_MICFIL_FIFO_DEPTH 32
 
 struct IMX93MicfilState {
     SysBusDevice parent_obj;

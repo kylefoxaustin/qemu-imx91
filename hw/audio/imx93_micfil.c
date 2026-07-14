@@ -32,13 +32,41 @@
 
 #define MICFIL_FIFO_CTRL_FIFOWMK 0x1f       /* Watermark (bits 4:0)         */
 
-/* VERID: major 1, minor 0, feature 0. */
-#define MICFIL_VERID_VALUE  0x01000000
 /*
- * PARAM: FIFO_PTRWID = 3 (FIFO depth 8) and NPAIR = 4 (eight mic inputs). No
- * HWVAD reported, which keeps the voice-activity-detect path out of probe.
+ * ⭐ VERID: 020F_0000h -- THE RM'S VALUE.  THE OLD ONE (v1.0) WAS INVENTED, AND IT
+ *    BOUGHT NOTHING: fsl_micfil.c reads VERID into micfil->verid.version and then
+ *    NEVER GATES ANYTHING ON IT.  A fabrication that does not even buy a shortcut.
+ *
+ * ⭐ PARAM: and here is the comment that used to sit here, which is the SAME SENTENCE
+ *    I found above SAI_VERID, in a different block, written by me:
+ *
+ *      "FIFO_PTRWID = 3 (FIFO depth 8) ... No HWVAD reported, WHICH KEEPS THE
+ *       VOICE-ACTIVITY-DETECT PATH OUT OF PROBE."
+ *
+ *    Twice now: when I did not want to implement a feature, I LIED IN THE CAPABILITY
+ *    REGISTER SO LINUX WOULD NOT ASK FOR IT.  That is a model of the driver, not of
+ *    the chip -- and the FIFO_PTRWID half of it was not even a considered under-report.
+ *    It was simply wrong: the array is 32 entries (was 64), the RM says 32, the
+ *    driver's own soc_data says 32, and PARAM said 8.
+ *
+ *    So PARAM now reports what this model ACTUALLY IS:
+ *      NPAIR          = 4   (eight mic inputs)   -- as the RM
+ *      FIFO_PTRWID    = 5   (depth 32)           -- as the RM, and as our FIFO
+ *      FIL_OUT_WIDTH  = 1                        -- as the RM
+ *      HWVAD/ZCD/ENERGY/NUM_HWVAD = 0            -- DELIBERATE, and defended:
+ *
+ *    the RM sets those (PARAM = 010B_0154h), but this model has NO voice-activity
+ *    detector -- VAD0_CTRL/STAT/NCONFIG/ZCD are not implemented.  Advertising HWVAD
+ *    would have the driver register VAD controls with nothing behind them.  A
+ *    CAPABILITY REGISTER IS A CONTRACT: under-reporting is the safe direction, and
+ *    over-reporting is a promise the emulator makes on the chip's behalf.  The
+ *    difference from the RM is exactly the VAD bits, and nothing else.
  */
-#define MICFIL_PARAM_VALUE  0x00000034
+#define MICFIL_VERID_VALUE  0x020f0000
+#define MICFIL_PARAM_VALUE  0x00000154
+
+/* FIFO_CTRL: watermark resets to depth-1, exactly as the driver later programs it. */
+#define MICFIL_FIFO_CTRL_RESET  0x0000001f
 
 /* MICFIL outputs ~48 kHz; one decimated sample per word period. */
 #define MICFIL_WORD_NS  (1000000000LL / 48000)
@@ -201,6 +229,7 @@ static void imx93_micfil_reset(DeviceState *dev)
 
     timer_del(s->rx_timer);
     memset(s->regs, 0, sizeof(s->regs));
+    R(s, MICFIL_FIFO_CTRL) = MICFIL_FIFO_CTRL_RESET;
     imx93_micfil_rx_reset(s);
     s->rx_words = 0;
 }
