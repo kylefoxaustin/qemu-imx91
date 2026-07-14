@@ -162,15 +162,34 @@ for n in n88B8 n88B9 n88BA; do
     gaps=$(grep -ac 'ENET-LAB3 GAP:'   "$WORK/$n.log" 2>/dev/null) || true
     self=$(grep -a 'ENET-LAB3 PASS:' "$WORK/$n.log" 2>/dev/null | tail -1 |
            sed -n 's/.*rx_self_ignored=\([0-9]*\).*/\1/p')
+    foreign=$(grep -a 'ENET-LAB3 PASS:' "$WORK/$n.log" 2>/dev/null | tail -1 |
+           sed -n 's/.*rx_foreign_ignored=\([0-9]*\).*/\1/p')
 
-    printf "  %-6s up=%s beats=%-5s corrupt=%-3s gaps=%-3s self-frames-ignored=%s\n" \
-           "$n" "$up" "$beats" "$corrupt" "$gaps" "${self:-0}"
+    printf "  %-6s up=%s beats=%-5s corrupt=%-3s gaps=%-3s self-ignored=%-4s foreign-ignored=%s\n" \
+           "$n" "$up" "$beats" "$corrupt" "$gaps" "${self:-0}" "${foreign:-0}"
 
     [ "$up" -ge 1 ]     || { echo "    FAIL: never came up";                fail=1; }
     [ "$beats" -ge 20 ] || { echo "    FAIL: never saw BOTH peers, re-armed"; fail=1; }
     # CORRUPTION IS THE ASSERTION.
     [ "$corrupt" -eq 0 ] || { echo "    FAIL: $corrupt corrupt frame(s):";   fail=1
         grep -a 'ENET-LAB3 CORRUPT:' "$WORK/$n.log" | head -3 | sed 's/^/      /'; }
+    #
+    # ⭐ A NEGATIVE RESULT IS ONLY A RESULT IF THE CONDITION WAS PRESENT.
+    #
+    # holobench, from the first REAL 4-node run: mcx rejected 0x86DD five times, rt1180
+    # twelve.  0x86DD is IPv6 -- the Linux nodes' kernels doing NDP/MLD on the shared
+    # segment.  Both were body-checking traffic THAT IS NOT THEIR PROTOCOL and calling it
+    # CORRUPT.  "A corruption detector that cries foul at traffic that was never its
+    # protocol will be turned off by the people it protects."
+    #
+    # This node is structurally immune -- it only inspects an ethertype matching a DECLARED
+    # peer.  But "we never flagged IPv6" is worth NOTHING as an absence: it is the same log
+    # as "there was no IPv6".  So the node COUNTS foreign frames, and this asserts BOTH
+    # halves: the traffic WAS THERE, and we did not touch it.  Without the >0 check this
+    # assertion could quietly become vacuous the day the segment goes quiet.
+    #
+    [ "${foreign:-0}" -ge 1 ] || { echo "    FAIL: no foreign (non-beacon) traffic seen at all --"
+        echo "          the 'we ignore IPv6' claim is VACUOUS on this run, not proven."; fail=1; }
 done
 
 # ---------------------------------------------------------------------------
@@ -382,7 +401,10 @@ if [ "$fail" -eq 0 ]; then
       not NEW.  Freshness, not validity: assert on a number going up.
       AND a PURE REPEATER -- a peer whose seq never advances -- is caught AND
       reclassified as LOST: freshness and liveness compose, so a node saying
-      nothing NEW is saying nothing."
+      nothing NEW is saying nothing.
+      AND foreign traffic (IPv6 NDP/MLD from three real Linux kernels) WAS on the
+      wire and was NOT body-checked, NOT reported -- asserted as a MEASUREMENT,
+      not inferred from an absence."
 else
     echo "FAIL: see above."
 fi

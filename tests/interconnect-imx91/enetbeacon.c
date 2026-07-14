@@ -169,6 +169,7 @@ int main(int argc, char **argv)
     uint32_t seq = 0;
     int64_t  next_tx, next_hb;
     uint64_t rx_self = 0, rx_other = 0, beats = 0;
+    uint64_t rx_foreign = 0;        /* not my protocol -- MUST NOT be body-checked */
     int      was_passing = 0;
     int      strict;
     int64_t  legacy_after_ms = 0, t0;
@@ -384,6 +385,44 @@ int main(int argc, char **argv)
                 if (et == my_et || memcmp(rx + 6, my_mac, 6) == 0) {
                     rx_self++;
                 } else {
+                    /*
+                     * ⭐ NEVER BODY-CHECK TRAFFIC THAT WAS NEVER YOUR PROTOCOL.
+                     *
+                     * holobench, from the first real 4-node run: mcx rejected 0x86DD five
+                     * times and rt1180 twelve.  0x86DD is IPv6 -- the Linux nodes' kernels
+                     * doing multicast NDP/MLD on the shared segment.  Both nodes were
+                     * body-checking frames that are not beacons at all and reporting them
+                     * as CORRUPT.
+                     *
+                     *   "A CORRUPTION DETECTOR THAT CRIES FOUL AT TRAFFIC THAT WAS NEVER ITS
+                     *    PROTOCOL WILL BE TURNED OFF BY THE PEOPLE IT PROTECTS."
+                     *
+                     * This node has always been structurally immune -- the loop below only
+                     * inspects an ethertype that MATCHES A DECLARED PEER, so a foreign frame
+                     * falls through untouched.  But "we never flagged IPv6" is worth nothing
+                     * as an ABSENCE:
+                     *
+                     *   ⭐ A NEGATIVE RESULT IS ONLY A RESULT IF THE CONDITION WAS PRESENT.
+                     *     "We never fired on IPv6" and "there was no IPv6" are the same log.
+                     *
+                     * So count it.  rx_foreign turns the null into a MEASUREMENT: the suite
+                     * asserts that foreign traffic WAS on the wire (>0) AND that we did not
+                     * flag a single frame of it.  An absence you can point at is evidence;
+                     * an absence you infer is a guess.
+                     */
+                    int is_peer = 0;
+
+                    for (i = 0; i < npeers; i++) {
+                        if (peers[i].ethertype == et) {
+                            is_peer = 1;
+                            break;
+                        }
+                    }
+                    if (!is_peer) {
+                        rx_foreign++;       /* not ours.  Not checked.  Not reported. */
+                        continue;
+                    }
+
                     for (i = 0; i < npeers; i++) {
                         if (peers[i].ethertype != et) {
                             continue;
@@ -598,10 +637,11 @@ int main(int argc, char **argv)
                  */
                 beats++;
                 printf("ENET-LAB3 PASS: t=%lld.%03llds peers=%d/%d beat=%llu "
-                       "rx_peer=%llu rx_self_ignored=%llu\n",
+                       "rx_peer=%llu rx_self_ignored=%llu rx_foreign_ignored=%llu\n",
                        (long long)(t / 1000), (long long)(t % 1000),
                        live, npeers, (unsigned long long)beats,
-                       (unsigned long long)rx_other, (unsigned long long)rx_self);
+                       (unsigned long long)rx_other, (unsigned long long)rx_self,
+                       (unsigned long long)rx_foreign);
                 fflush(stdout);
                 was_passing = 1;
             } else if (was_passing) {
