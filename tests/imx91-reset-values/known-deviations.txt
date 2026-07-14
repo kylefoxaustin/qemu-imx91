@@ -54,7 +54,6 @@ ADC1                     THRHLR4                                        UNTRIAGE
 ADC1                     THRHLR5                                        UNTRIAGED
 ADC1                     THRHLR6                                        UNTRIAGED
 ADC1                     THRHLR7                                        UNTRIAGED
-ANA_OSC                  DIGPROG_DEVICE_ID                              UNTRIAGED
 BBNSM                    BBNSM_CTRL                                     UNTRIAGED
 BBNSM                    BBNSM_EVENTS                                   UNTRIAGED
 BBNSM                    BBNSM_FEATURES                                 UNTRIAGED
@@ -100,16 +99,6 @@ BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2AON                               UNMODELL
 BLK_CTRL_WAKEUPMIX1      SSI_MST_WKUP2NIC                               UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 BLK_CTRL_WAKEUPMIX1      SSI_SLV_AON2WKUP                               UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 BLK_CTRL_WAKEUPMIX1      SSI_SLV_NIC2WKUP                               UNMODELLED: block 'wakeupmix-blk' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-CAN_FD1                  CTRL2                                          UNTRIAGED
-CAN_FD1                  ESR2                                           UNTRIAGED
-CAN_FD1                  FDCTRL                                         UNTRIAGED
-CAN_FD1                  MCR                                            UNTRIAGED
-CAN_FD1                  MECR                                           UNTRIAGED
-CAN_FD2                  CTRL2                                          UNTRIAGED
-CAN_FD2                  ESR2                                           UNTRIAGED
-CAN_FD2                  FDCTRL                                         UNTRIAGED
-CAN_FD2                  MCR                                            UNTRIAGED
-CAN_FD2                  MECR                                           UNTRIAGED
 CCM_CTRL                 CLOCK_ROOT0_AUTHEN                             DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 CLOCK_ROOT0_AUTHEN_CLR                         DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
 CCM_CTRL                 CLOCK_ROOT0_AUTHEN_SET                         DECISION: TZ_NS set. -kernel skips TF-A, which sets it on silicon; without it clk-composite-93 marks EVERY clock read-only.
@@ -1002,38 +991,22 @@ LPIT2                    CVAL2                                          UNMODELL
 LPIT2                    CVAL3                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT2                    PARAM                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 LPIT2                    VERID                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-LPUART1                  DATARO                                         UNTRIAGED
 LPUART1                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART1                  PARAM                                          UNTRIAGED
-LPUART1                  TOSR                                           UNTRIAGED
-LPUART2                  DATARO                                         UNTRIAGED
+LPUART1                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART2                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART2                  PARAM                                          UNTRIAGED
-LPUART2                  TOSR                                           UNTRIAGED
-LPUART3                  DATARO                                         UNTRIAGED
+LPUART2                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART3                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART3                  PARAM                                          UNTRIAGED
-LPUART3                  TOSR                                           UNTRIAGED
-LPUART4                  DATARO                                         UNTRIAGED
+LPUART3                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART4                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART4                  PARAM                                          UNTRIAGED
-LPUART4                  TOSR                                           UNTRIAGED
-LPUART5                  DATARO                                         UNTRIAGED
+LPUART4                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART5                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART5                  PARAM                                          UNTRIAGED
-LPUART5                  TOSR                                           UNTRIAGED
-LPUART6                  DATARO                                         UNTRIAGED
+LPUART5                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART6                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART6                  PARAM                                          UNTRIAGED
-LPUART6                  TOSR                                           UNTRIAGED
-LPUART7                  DATARO                                         UNTRIAGED
+LPUART6                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART7                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART7                  PARAM                                          UNTRIAGED
-LPUART7                  TOSR                                           UNTRIAGED
-LPUART8                  DATARO                                         UNTRIAGED
+LPUART7                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 LPUART8                  FIFO                                           DECISION: FIFO depth reported as 1: this model has no FIFO.
-LPUART8                  PARAM                                          UNTRIAGED
-LPUART8                  TOSR                                           UNTRIAGED
+LPUART8                  PARAM                                          DECISION: PARAM must agree with FIFO. This model has no FIFO, so FIFO reports depth 1 and PARAM must say the same. Answering the RM 0x0404 (16 deep) here while FIFO still reports 1 would model a chip whose two FIFO-size registers contradict each other -- greener gate, worse model.
 MICFIL                   FIFO_CTRL                                      UNTRIAGED
 MICFIL                   PARAM                                          UNTRIAGED
 MICFIL                   VAD0_CTRL_2                                    UNTRIAGED
@@ -1042,12 +1015,6 @@ MICFIL                   VAD0_STAT                                      UNTRIAGE
 MICFIL                   VAD0_ZCD                                       UNTRIAGED
 MICFIL                   VERID                                          UNTRIAGED
 OCRAM_CTRL1              RAMMAXA                                        UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-SAI1                     TCSR                                           UNTRIAGED
-SAI1                     VERID                                          UNTRIAGED
-SAI2                     TCSR                                           UNTRIAGED
-SAI2                     VERID                                          UNTRIAGED
-SAI3                     TCSR                                           UNTRIAGED
-SAI3                     VERID                                          UNTRIAGED
 SRC.src_a55_scu_mem      MEMLP_CTRL_0                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_a55_scu_mem      MEMLP_CTRL_1                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_a55_scu_mem      MEMLP_CTRL_2                                   UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1204,9 +1171,6 @@ SRC.src_wkup_slice       PSW_ACK_CTRL_0                                 UNMODELL
 SRC.src_wkup_slice       PSW_ACK_CTRL_1                                 UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_wkup_slice       SINGLE_RESET_SW_CTRL                           UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 SRC.src_wkup_slice       SSAR_ACK_CTRL                                  UNMODELLED: block 'src' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID0                                        UNTRIAGED
-SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTFID1                                        UNTRIAGED
-SYS_CTR_CTLBASE1.SYS_CTR_CONTROL CNTSR                                          UNTRIAGED
 TRDC_AONMIX              MBC0_MEM0_GLBCFG                               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 TRDC_AONMIX              MBC0_MEM1_GLBCFG                               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 TRDC_AONMIX              MBC0_MEM2_GLBCFG                               UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
@@ -1315,48 +1279,45 @@ gpio1                    PARAM                                          DECISION
 gpio2                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 gpio3                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
 gpio4                    PARAM                                          DECISION: we UNDER-report a capability we do not implement. On a CAPABILITY register under-reporting is the SAFE error direction; over-reporting is a promise the emulator makes on the chip's behalf -- it works here and FAILS ON HARDWARE.
-uSDHC1                   BLK_ATT                                        UNTRIAGED
+uSDHC1                   BLK_ATT                                        DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
 uSDHC1                   CQCAP                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC1                   CQRMEM                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC1                   CQSSC1                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC1                   CQVER                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-uSDHC1                   DLL_STATUS                                     UNTRIAGED
-uSDHC1                   HOST_CTRL_CAP                                  UNTRIAGED
-uSDHC1                   MIX_CTRL                                       UNTRIAGED
-uSDHC1                   PROT_CTRL                                      UNTRIAGED
-uSDHC1                   STROBE_DLL_STATUS                              UNTRIAGED
-uSDHC1                   SYS_CTRL                                       UNTRIAGED
-uSDHC1                   TUNING_CTRL                                    UNTRIAGED
-uSDHC1                   VEND_SPEC                                      UNTRIAGED
-uSDHC1                   VEND_SPEC2                                     UNTRIAGED
-uSDHC1                   WTMK_LVL                                       UNTRIAGED
-uSDHC2                   BLK_ATT                                        UNTRIAGED
+uSDHC1                   DLL_STATUS                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC1                   HOST_CTRL_CAP                                  DECISION: capability register = a CONTRACT, and QEMU enforces it. The RM value 0x07f3b407 advertises a 4096-byte max block length (plus SDR104/SDR50 tuning) that QEMU's SDHCI core does not implement. PROVEN: forcing capareg to the RM value makes QEMU abort at startup -- 'block size can be 512, 1024 or 2048 only' -- from its own sdhci_check_capareg() validator. Under-reporting a capability is the safe direction; over-reporting is a promise the emulator makes on the chip's behalf.
+uSDHC1                   MIX_CTRL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC1                   PROT_CTRL                                      DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC1                   STROBE_DLL_STATUS                              UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC1                   SYS_CTRL                                       DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC1                   TUNING_CTRL                                    UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC1                   VEND_SPEC2                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC1                   WTMK_LVL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   BLK_ATT                                        DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
 uSDHC2                   CQCAP                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC2                   CQRMEM                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC2                   CQSSC1                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC2                   CQVER                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-uSDHC2                   DLL_STATUS                                     UNTRIAGED
-uSDHC2                   HOST_CTRL_CAP                                  UNTRIAGED
-uSDHC2                   MIX_CTRL                                       UNTRIAGED
-uSDHC2                   PROT_CTRL                                      UNTRIAGED
-uSDHC2                   STROBE_DLL_STATUS                              UNTRIAGED
-uSDHC2                   SYS_CTRL                                       UNTRIAGED
-uSDHC2                   TUNING_CTRL                                    UNTRIAGED
-uSDHC2                   VEND_SPEC                                      UNTRIAGED
-uSDHC2                   VEND_SPEC2                                     UNTRIAGED
-uSDHC2                   WTMK_LVL                                       UNTRIAGED
-uSDHC3                   BLK_ATT                                        UNTRIAGED
+uSDHC2                   DLL_STATUS                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   HOST_CTRL_CAP                                  DECISION: capability register = a CONTRACT, and QEMU enforces it. The RM value 0x07f3b407 advertises a 4096-byte max block length (plus SDR104/SDR50 tuning) that QEMU's SDHCI core does not implement. PROVEN: forcing capareg to the RM value makes QEMU abort at startup -- 'block size can be 512, 1024 or 2048 only' -- from its own sdhci_check_capareg() validator. Under-reporting a capability is the safe direction; over-reporting is a promise the emulator makes on the chip's behalf.
+uSDHC2                   MIX_CTRL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   PROT_CTRL                                      DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC2                   STROBE_DLL_STATUS                              UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   SYS_CTRL                                       DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC2                   TUNING_CTRL                                    UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   VEND_SPEC2                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC2                   WTMK_LVL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   BLK_ATT                                        DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
 uSDHC3                   CQCAP                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC3                   CQRMEM                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC3                   CQSSC1                                         UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 uSDHC3                   CQVER                                          UNMODELLED: block 'imx91-periph-unimplemented' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
-uSDHC3                   DLL_STATUS                                     UNTRIAGED
-uSDHC3                   HOST_CTRL_CAP                                  UNTRIAGED
-uSDHC3                   MIX_CTRL                                       UNTRIAGED
-uSDHC3                   PROT_CTRL                                      UNTRIAGED
-uSDHC3                   STROBE_DLL_STATUS                              UNTRIAGED
-uSDHC3                   SYS_CTRL                                       UNTRIAGED
-uSDHC3                   TUNING_CTRL                                    UNTRIAGED
-uSDHC3                   VEND_SPEC                                      UNTRIAGED
-uSDHC3                   VEND_SPEC2                                     UNTRIAGED
-uSDHC3                   WTMK_LVL                                       UNTRIAGED
+uSDHC3                   DLL_STATUS                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   HOST_CTRL_CAP                                  DECISION: capability register = a CONTRACT, and QEMU enforces it. The RM value 0x07f3b407 advertises a 4096-byte max block length (plus SDR104/SDR50 tuning) that QEMU's SDHCI core does not implement. PROVEN: forcing capareg to the RM value makes QEMU abort at startup -- 'block size can be 512, 1024 or 2048 only' -- from its own sdhci_check_capareg() validator. Under-reporting a capability is the safe direction; over-reporting is a promise the emulator makes on the chip's behalf.
+uSDHC3                   MIX_CTRL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   PROT_CTRL                                      DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC3                   STROBE_DLL_STATUS                              UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   SYS_CTRL                                       DECISION: QEMU models a standard SDHCI v3 core here, not the i.MX vendor register. The SDHCI spec and the i.MX RM define DIFFERENT registers at this same offset (0x04 BLKSIZE vs BLK_ATT, 0x28 HOSTCTL vs PROT_CTRL, 0x2c CLKCON vs SYS_CTRL); QEMU implements the SDHCI one, whose reset is 0. Card enumerates and does real ext2 read/write over ADMA, so the behaviour is right even though the layout is not.
+uSDHC3                   TUNING_CTRL                                    UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   VEND_SPEC2                                     UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
+uSDHC3                   WTMK_LVL                                       UNMODELLED: i.MX uSDHC vendor register file. QEMU's imx-usdhc is a standard SDHCI core with a thin shim (esdhc_read/esdhc_write); the DLL, strobe, tuning, watermark and VEND_SPEC2 registers are stubbed to 0. A GAP -- no tuning or DLL behaviour is modelled at all, so there is no behaviour for the reset value to be wrong about.
