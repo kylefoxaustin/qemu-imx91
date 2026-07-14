@@ -38,15 +38,27 @@ QEMU=${QEMU:-$REPO/build/qemu-system-aarch64}
 DEPLOY=${DEPLOY:-$HOME/Documents/nxp/linux/imx-yocto-bsp/build-imx91/tmp/deploy/images/imx91evk}
 KERNEL=${KERNEL:-$DEPLOY/Image}
 DTB=${DTB:-$DEPLOY/imx91-11x11-evk.dtb}
-CROSS=${CROSS:-aarch64-linux-gnu-gcc}
+ARTIFACT=${ARTIFACT:-$HERE/enet-lab3-imx91.cpio.gz}
 MCAST=${MCAST:-230.0.0.1:11891}          # the segment
 RUNTIME=${RUNTIME:-25}                   # seconds
 WORK=$(mktemp -d)
 
 skip() { echo "SKIP: $*"; exit 0; }
 for f in "$QEMU" "$KERNEL" "$DTB"; do [ -e "$f" ] || skip "$f not found"; done
-[ -e "$REPO/tests/busybox-imx91/busybox-imx91.cpio.gz" ] || skip "no busybox rootfs"
-command -v "$CROSS" >/dev/null || skip "no cross compiler ($CROSS)"
+#
+# ⭐ THE TEST CONSUMES THE COMMITTED ARTIFACT.  IT DOES NOT BUILD ONE.
+#
+# It used to cross-compile enetbeacon.c on the fly -- which meant (a) a lab host without
+# aarch64-linux-gnu-gcc could not run the i.MX 91 node AT ALL (I handed holobench a launch
+# line for a binary that did not exist on their machine), and (b), worse, THE TEST WAS
+# GREEN ON A BINARY NOBODY ELSE HAD.
+#
+#     IF THE TEST BUILDS ITS OWN ARTIFACT, THE TEST IS NOT TESTING THE ARTIFACT YOU SHIPPED.
+#
+# Regenerate with ./mkbeacon-initrd.sh (needs a cross-compiler).  RUNNING it needs nothing
+# but QEMU, the kernel, the DTB, and the committed image -- verified under `env -i PATH=`.
+#
+[ -e "$ARTIFACT" ] || skip "artifact not found: $ARTIFACT (run ./mkbeacon-initrd.sh)"
 
 PIDS=()
 KEEP=${KEEP:-}
@@ -59,42 +71,26 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$CROSS" -O2 -static -Wall -o "$WORK/enetbeacon" "$HERE/enetbeacon.c" || {
-    echo "FAIL: enetbeacon build failed"; exit 1; }
-echo "built enetbeacon (static aarch64)"
+echo "artifact: $ARTIFACT"
+echo "  md5:    $(md5sum "$ARTIFACT" | cut -d' ' -f1)"
 
-# One node: ethertype $1, peers $2.. ; each gets its own MAC on the shared segment.
+# One node.  The image is a CONSTANT; the topology rides on the kernel command line, so
+# every node in the segment boots the SAME committed cpio.gz.
 mknode() {                          # $1=name $2=my-et $3=mac-suffix  $4..=peer-ets
     local name=$1 myet=$2 suffix=$3; shift 3
-    local root="$WORK/$name"
+    local peers; peers=$(echo "$*" | tr ' ' ',')
+    local evil=""
 
-    mkdir -p "$root"
-    (cd "$root" && zcat "$REPO/tests/busybox-imx91/busybox-imx91.cpio.gz" | cpio -idm 2>/dev/null)
-    cp "$WORK/enetbeacon" "$root/enetbeacon"
-    chmod +x "$root/enetbeacon"
-    cat > "$root/init" <<EOF
-#!/bin/busybox sh
-/bin/busybox mount -t proc proc /proc
-/bin/busybox mount -t sysfs sysfs /sys
-/bin/busybox mount -t devtmpfs devtmpfs /dev
-/bin/busybox --install -s /bin 2>/dev/null
-ip link set eth0 up
-# RULE 2: NEVER EXIT.  No poweroff here -- a node that leaves when satisfied makes
-# "left" and "crashed" the same observation.
-export BEACON_CORRUPT="${EVIL:-}"
-exec /enetbeacon eth0 $myet $*
-EOF
-    chmod +x "$root/init"
-    (cd "$root" && find . | cpio -o -H newc 2>/dev/null | gzip > "$WORK/$name.cpio.gz")
+    [ -n "${EVIL:-}" ] && evil="beacon.corrupt=$EVIL"
 
     "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
-        -kernel "$KERNEL" -dtb "$DTB" -initrd "$WORK/$name.cpio.gz" \
+        -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
         -nic socket,mcast="$MCAST",model=imx.enet,mac=52:54:00:12:34:$suffix \
         -nic user \
-        -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init" \
+        -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init beacon.et=$myet beacon.peers=$peers $evil" \
         -serial mon:stdio -serial null > "$WORK/$name.log" 2>&1 &
     PIDS+=($!)
-    echo "  node $name: ethertype $myet  peers: $*  (pid ${PIDS[-1]})"
+    echo "  node $name: ethertype $myet  peers: $peers  (pid ${PIDS[-1]})"
 }
 
 echo "== ENET-LAB3: three i.MX 91 nodes on one broadcast segment ($MCAST) =="
