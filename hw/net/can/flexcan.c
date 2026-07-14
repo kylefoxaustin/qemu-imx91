@@ -47,7 +47,40 @@
 #define MCR_FRZ_ACK   (1u << 24)
 #define MCR_LPM_ACK   (1u << 20)
 #define MCR_FDEN      (1u << 11)
-#define MCR_MAXMB     0x7f
+#define MCR_SUPV      (1u << 23)
+#define MCR_MAXMB     0x7f      /* field MASK -- NOT the reset value.  See below. */
+
+/*
+ * ⭐ RESET VALUES, FROM THE RM.  THE OLD ONES WERE INVENTED, AND TWO OF THEM LIED
+ *    IN THE DIRECTION THAT COSTS YOU SOMETHING.
+ *
+ * MCR (5980_040Fh):
+ *   - We came up MDIS=1 -- module DISABLED, in low-power mode.  Silicon comes up
+ *     MDIS=0: ENABLED and FROZEN.  (Note the RM's value is exactly what our own
+ *     handshake logic below would produce: MDIS=0 -> LPM_ACK=0; FRZ&HALT ->
+ *     FRZ_ACK=1 -> NOT_RDY=1.  Our old reset state was one this device could not
+ *     have reached by any write.)
+ *   - MAXMB: we advertised 0x7f -- 128 mailboxes.  Silicon resets to 0x0f: 16.
+ *     Nothing in this model READS MAXMB, which is exactly what makes it dangerous:
+ *     it is a pure capability claim, and OVER-reporting a capability is a promise
+ *     the emulator makes on the chip's behalf.
+ *   - SUPV: silicon sets it (supervisor-only access).  We cleared it -- and the
+ *     driver READ-MODIFY-WRITES MCR, so it would write our zero straight back and
+ *     the block would quietly lose the protection bit it is supposed to boot with.
+ *
+ * MECR (800C_0080h): bit 31 is ECRWRDIS -- the memory-error-config WRITE LOCK.
+ *   Silicon comes up LOCKED.  We reported 0: unlocked, no key needed.  (Same shape
+ *   as the FlexSPI LUTKEY bug in this tree -- a lock whose reset value said "open".)
+ */
+#define MCR_RESET     0x5980040fu
+#define CTRL2_RESET   0x0060001cu
+#define ESR2_RESET    0x00001000u
+#define MECR_RESET    0x800c0080u
+#define FDCTRL_RESET  0x80000100u
+
+#define FLEXCAN_ESR2       0x38
+#define FLEXCAN_MECR       0xae0
+#define FLEXCAN_FDCTRL     0xc00
 
 /* Message-buffer control/status (CS) word */
 #define MB_CODE_MASK    (0xfu << 24)
@@ -410,9 +443,12 @@ static void flexcan_reset_hold(Object *obj, ResetType type)
     FlexCanState *s = FLEXCAN(obj);
 
     memset(s->regs, 0, sizeof(s->regs));
-    /* Post-reset: disabled + frozen, acks asserted, max mailboxes. */
-    s->regs[FLEXCAN_MCR / 4] = MCR_MDIS | MCR_FRZ | MCR_HALT | MCR_NOT_RDY |
-                               MCR_FRZ_ACK | MCR_LPM_ACK | MCR_MAXMB;
+    /* Post-reset: ENABLED and frozen, per the RM.  Not disabled -- see MCR_RESET. */
+    s->regs[FLEXCAN_MCR / 4]    = MCR_RESET;
+    s->regs[FLEXCAN_CTRL2 / 4]  = CTRL2_RESET;
+    s->regs[FLEXCAN_ESR2 / 4]   = ESR2_RESET;
+    s->regs[FLEXCAN_MECR / 4]   = MECR_RESET;
+    s->regs[FLEXCAN_FDCTRL / 4] = FDCTRL_RESET;
     flexcan_update_irq(s);
 }
 
