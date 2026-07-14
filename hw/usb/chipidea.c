@@ -103,8 +103,25 @@ static void chipidea_write(void *opaque, hwaddr offset,
  * So the endpoint window keeps its own (empty) ops, and the ID switch cannot leak
  * into it -- by construction, not by remembering.
  */
+/*
+ * ⭐ ENDPOINT 0 IS THE CONTROL ENDPOINT.  IT CANNOT BE DISABLED ON SILICON.
+ *
+ * ENDPTCTRL0 resets to 0080_0080h -- RXE | TXE -- and those two bits are read-only
+ * ONE, because endpoint 0 is how a device is spoken to at all.  We answered ZERO,
+ * so a driver asking "is the control endpoint enabled?" was told NO, BY THE ONE
+ * ENDPOINT THAT CANNOT BE OFF.                              (mcxn947qemu found the
+ * identical register on the MCX the same evening.)
+ *
+ * The region starts at 0x1A4, so ENDPTCTRL0 (0x1C0) is at +0x1C here.
+ */
+#define CHIPIDEA_ENDPTCTRL0     0x1c        /* MMIO 0x1C0 - region base 0x1A4 */
+#define CHIPIDEA_ENDPTCTRL0_RST 0x00800080  /* RXE | TXE: read-only one */
+
 static uint64_t chipidea_ep_read(void *opaque, hwaddr offset, unsigned size)
 {
+    if (offset == CHIPIDEA_ENDPTCTRL0) {
+        return CHIPIDEA_ENDPTCTRL0_RST;
+    }
     return 0;
 }
 

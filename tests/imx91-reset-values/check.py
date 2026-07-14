@@ -47,7 +47,7 @@ So it is built to SHRINK, and it fights back in BOTH directions:
   decision; a deviation without one is a bug you have agreed not to look at.
                                                        -- rt1180emulator
 """
-import collections, json, os, subprocess, sys, threading
+import collections, json, os, re, subprocess, sys, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QEMU = os.environ.get("QEMU", os.path.join(HERE, "..", "..", "build",
@@ -129,14 +129,78 @@ if len(golden) != TOTAL or drift:
         print("        ... and %d more instances" % (len(drift) - 20))
     sys.exit(2)
 
-allow = {}
+#
+# ⭐ A COLUMN THE TOOL DOES NOT READ IS A COLUMN THE TOOL CANNOT ENFORCE -- AND IT
+#    FILLS UP WITH WHATEVER IS EASIEST TO TYPE.                  -- mcxn947qemu
+#
+# mcxn audited how a LIVE, guest-visible lie got into their allowlist and found
+# something worse than a script: they had typed it themselves, by hand, as a
+# "decision", and the reason they gave was
+#
+#     USBPHY   CTRL   # model=0x00000000 RM=0xc0000000
+#
+#     ⭐ THAT IS NOT A REASON.  THAT IS THE DIFF.  It records THAT the model
+#        disagrees with the manual -- the very thing being excused -- and calls
+#        that a justification.  194 of 194 of their entries were the same.
+#
+#     ⭐ AN ALLOWLIST WITHOUT REASONS IS NOT A TO-DO LIST AND NOT A CERTIFICATE.
+#        IT IS A LIST OF BUGS, SORTED ALPHABETICALLY.
+#
+# My reasons were all present -- and only because a script wrote them.  NOTHING
+# ENFORCED IT.  So now the gate does, and it refuses two things:
+#
+#   * a DECISION or UNMODELLED with no reason at all;
+#   * a "reason" that is just the DIFF -- hex, model=, RM= and nothing a human said.
+#
+# A deviation with a reason is a decision.  A deviation with the diff pasted next to
+# it is a bug you have agreed not to look at, with extra steps.
+#
+KINDS = ("DECISION", "UNMODELLED", "UNTRIAGED")
+# "Is this a reason, or is it the diff?"  Strip the hex, strip the words that only
+# RESTATE the disagreement, and count what a human actually said.  A justification
+# that survives this has at least three words of its own.
+DIFF_WORDS = re.compile(r'0x[0-9a-fA-F_]+|\b(model|RM|reset|value|register|vs|is|was|not|and|the|a|to)\b|[^A-Za-z ]', re.I)
+
+
+def says_something(reason):
+    return len(DIFF_WORDS.sub(" ", reason).split()) >= 3
+
+allow, census, bad = {}, collections.Counter(), []
 with open(os.path.join(HERE, "known-deviations.txt")) as f:
-    for line in f:
-        line = line.split("#", 1)[0].strip()
-        if not line:
+    for lineno, line in enumerate(f, 1):
+        body = line.split("#", 1)[0].strip()
+        if not body:
             continue
-        inst, reg, reason = (line.split(None, 2) + [""])[:3]
-        allow[(inst, reg)] = reason
+        parts = body.split(None, 2)
+        if len(parts) < 3:
+            bad.append((lineno, body, "no kind"))
+            continue
+        inst, reg, rest = parts
+        kind = rest.split(":", 1)[0].strip()
+        reason = rest.split(":", 1)[1].strip() if ":" in rest else ""
+
+        if kind not in KINDS:
+            bad.append((lineno, body, "kind must be one of %s" % (KINDS,)))
+        elif kind in ("DECISION", "UNMODELLED"):
+            if len(reason) < 15:
+                bad.append((lineno, "%s %s" % (inst, reg),
+                            "%s with NO REASON" % kind))
+            elif not says_something(reason):
+                bad.append((lineno, "%s %s" % (inst, reg),
+                            "the 'reason' is just THE DIFF: %r" % reason[:44]))
+
+        census[kind] += 1
+        allow[(inst, reg)] = kind
+
+if bad:
+    print("FAIL: known-deviations.txt is not a to-do list, it is a list of bugs")
+    print("      sorted alphabetically.  A COLUMN THE TOOL DOES NOT READ IS A COLUMN")
+    print("      THE TOOL CANNOT ENFORCE.")
+    for lineno, what, why in bad[:20]:
+        print("        line %-5d %-42s %s" % (lineno, what, why))
+    if len(bad) > 20:
+        print("        ... and %d more" % (len(bad) - 20))
+    sys.exit(2)
 
 
 def probe(regs):
@@ -247,6 +311,17 @@ print("probed %d registers against the RM (golden = IMX91RM.pdf rev 5)  [asserte
 print("  matching        : %d" % (len(golden) - len(mismatched)))
 print("  known deviations: %d   <-- THIS NUMBER MUST GO DOWN"
       % (len(mismatched) - len(new)))
+#
+# The census, every run.  UNTRIAGED is not a status.  It is an admission: a real
+# device model answering something the silicon would never produce, that nobody has
+# looked at.  Every one of them could be the next dead peripheral.
+#
+print("      DECISION   : %4d   deliberate, defended, WITH A STATED REASON"
+      % census["DECISION"])
+print("      UNMODELLED : %4d   no model for the block -- a GAP, not a lie"
+      % census["UNMODELLED"])
+print("      UNTRIAGED  : %4d   ⚠ IN BLOCKS WE MODEL.  NOT YET LOOKED AT."
+      % census["UNTRIAGED"])
 
 rc = 0
 if new:

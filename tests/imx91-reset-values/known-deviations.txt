@@ -727,7 +727,6 @@ FLEXSPI1                 AHBRXBUF5CR0                                   UNTRIAGE
 FLEXSPI1                 AHBRXBUF6CR0                                   UNTRIAGED
 FLEXSPI1                 AHBRXBUF7CR0                                   UNTRIAGED
 FLEXSPI1                 INTR                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them makes the driver's per-chunk poll TIME OUT.
-FLEXSPI1                 MCR1                                           UNTRIAGED
 FLEXSPI1                 MCR2                                           UNTRIAGED
 FLEXSPI1                 STS0                                           DECISION: commands complete inline: we always report TX-watermark-empty / sequencer-idle. Clearing them makes the driver's per-chunk poll TIME OUT.
 FLEXSPI1                 STS2                                           UNTRIAGED
@@ -1293,16 +1292,14 @@ USB.USBNC_OTG2           HSIC_DLL_CFG4                                  UNMODELL
 USB.USBNC_OTG2           UTMIPHY_CFG1                                   UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 USB.USBNC_OTG2           UTMIPHY_CFG2                                   UNMODELLED: block 'usbmisc2' is a stub / catch-all: reads 0, writes swallowed. An ABSENT model, not a lying one.
 USB.USB_OTG1             CONFIGFLAG                                     UNTRIAGED
-USB.USB_OTG1             DCCPARAMS                                      UNTRIAGED
-USB.USB_OTG1             ENDPTCTRL0                                     UNTRIAGED
+USB.USB_OTG1             DCCPARAMS                                      DECISION: we do not emulate device mode. Silicon reports DC plus 8 endpoints; we report HOST-ONLY, consistently with HWDEVICE. Advertising a gadget we cannot service would make the driver bring one up.
 USB.USB_OTG1             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HCSPARAMS                                      UNTRIAGED
 USB.USB_OTG1             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.
 USB.USB_OTG1             PORTSC1                                        UNTRIAGED
 USB.USB_OTG1             TXFILLTUNING                                   UNTRIAGED
 USB.USB_OTG2             CONFIGFLAG                                     UNTRIAGED
-USB.USB_OTG2             DCCPARAMS                                      UNTRIAGED
-USB.USB_OTG2             ENDPTCTRL0                                     UNTRIAGED
+USB.USB_OTG2             DCCPARAMS                                      DECISION: we do not emulate device mode. Silicon reports DC plus 8 endpoints; we report HOST-ONLY, consistently with HWDEVICE. Advertising a gadget we cannot service would make the driver bring one up.
 USB.USB_OTG2             HCCPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HCSPARAMS                                      UNTRIAGED
 USB.USB_OTG2             HWDEVICE                                       DECISION: we do not emulate device mode, and DCCPARAMS already reports HOST-ONLY. Advertising 8 endpoints here would leave two registers CONTRADICTING EACH OTHER.

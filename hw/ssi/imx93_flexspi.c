@@ -49,6 +49,21 @@
  * All read-what-you-write config; the guest read ZERO from every one of them.
  */
 #define FSPI_MCR0_RESET     0xffff80c2
+/*
+ * ⭐ MCR1 IS ALL-ONES AT RESET, AND IT IS NOT A DECORATION.
+ *
+ * MCR1 holds SEQWAIT and AHBBUSWAIT -- the sequencer and AHB bus TIMEOUTS -- and the
+ * silicon comes up with both at their MAXIMUM (FFFF each).  We reset them to ZERO,
+ * which on a timeout register does not mean "unset":
+ *
+ *     ZERO IS A LEGAL, MEANINGFUL VALUE.  IT MEANS TIME OUT IMMEDIATELY.
+ *                                                    -- rt1180emulator's rule
+ *
+ * And the driver read-modify-writes MCR1 around its own settings, so it laundered
+ * our zero back as if it had chosen a zero timeout.
+ */
+#define FSPI_MCR1           0x04
+#define FSPI_MCR1_RESET     0xffffffff
 #define FSPI_AHBCR_RESET    0x00000018
 #define FSPI_LUTCR_RESET    0x00000002
 #define FSPI_AHBRX_RESET    0x80000020    /* AHBRXBUFnCR0, n = 0..7 */
@@ -333,6 +348,7 @@ static void flexspi_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
 
     s->regs[FSPI_MCR0 >> 2]   = FSPI_MCR0_RESET;
+    s->regs[FSPI_MCR1 >> 2]   = FSPI_MCR1_RESET;
     s->regs[FSPI_AHBCR >> 2]  = FSPI_AHBCR_RESET;
     s->regs[FSPI_LUTKEY >> 2] = FSPI_LUTKEY_VAL;
     s->regs[FSPI_LCKCR >> 2]  = FSPI_LUTCR_RESET;   /* the RM calls 0x1c LUTCR */
