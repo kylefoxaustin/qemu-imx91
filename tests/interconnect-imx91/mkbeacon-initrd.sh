@@ -100,8 +100,33 @@ INIT
 chmod +x "$WORK/root/init"
 
 (cd "$WORK/root" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > "$OUT")
+
+#
+# ⭐ A PIN MEANS NOTHING WITHOUT A GATE THAT CHECKS IT -- AND *TWO* GATES, NOT ONE.
+#
+# mcxn947qemu: stopping run.sh from overwriting the committed ELF lets that ELF go SILENTLY
+# STALE AGAINST main.c instead.  "THE SAME BUG IN THE OTHER COAT."
+#
+# I shipped only the CONSUMER half: does the image match the md5 I published?  Nothing tied
+# the image to the SOURCE it was built from.  So: edit enetbeacon.c, forget to run this
+# script, and run-enet-lab.sh happily runs the STALE image, matches its own pin, and passes
+# GREEN AGAINST CODE THAT WAS NEVER COMPILED.
+#
+# (I nearly did exactly that tonight adding the rx_foreign counter.  I escaped only because
+#  the old binary could not print the field -- luck, not a gate.)
+#
+# So the pin records BOTH: the artifact, and the source it came from.  The suite refuses to
+# launch unless BOTH match.  rt1180 credited me on the bus with this gate a day before I had
+# it; this is me earning the credit rather than keeping it.
+#
+{
+    echo "artifact $(md5sum "$OUT"        | cut -d' ' -f1)"
+    echo "source   $(md5sum "$HERE/enetbeacon.c" | cut -d' ' -f1)"
+} > "$HERE/enet-lab3-imx91.md5"
+
 echo "built $OUT"
 echo "  size: $(stat -c%s "$OUT") bytes"
 echo "  md5:  $(md5sum "$OUT" | cut -d' ' -f1)"
+echo "  pin:  artifact + source hash written to enet-lab3-imx91.md5"
 echo
 echo "Consumers need NO toolchain.  Pin it by commit SHA, not by this path."

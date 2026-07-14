@@ -100,12 +100,37 @@ PIN="$HERE/enet-lab3-imx91.md5"
 [ -e "$PIN" ] || die "no hash pin beside the artifact -- refusing to run a lab against an
       artifact whose hash I cannot verify."
 have=$(md5sum "$ARTIFACT" | cut -d' ' -f1)
-want=$(cat "$PIN")
+want=$(awk '$1=="artifact"{print $2}' "$PIN")
+[ -n "$want" ] || die "pin file has no 'artifact' line -- a check that silently guards
+      nothing is precisely the bug it was added to prevent.  (./mkbeacon-initrd.sh)"
 [ "$have" = "$want" ] || die "ARTIFACT HASH MISMATCH -- refusing to launch.
       pinned : $want
       on disk: $have
       The image is not the one published to the lab.  Either commit the regenerated
       artifact AND its .md5, or restore it: git checkout -- $ARTIFACT"
+
+#
+# ⭐ AND THE PRODUCER HALF: WAS THE IMAGE BUILT FROM *THIS* SOURCE?
+#
+# The hash above only says "this is the image I published".  It says NOTHING about whether
+# that image was compiled from the enetbeacon.c sitting next to it.  Edit the source, forget
+# ./mkbeacon-initrd.sh, and this suite runs the STALE image, matches its own pin, and passes
+# GREEN AGAINST CODE THAT WAS NEVER COMPILED.  mcxn's "same bug in the other coat".
+#
+# (A comment-only edit will also trip this, and that is correct, not a false positive: the
+#  gate's claim is "the artifact was not built from this source", and that claim is TRUE.
+#  Conservative is the safe direction for a staleness gate.)
+#
+src_have=$(md5sum "$HERE/enetbeacon.c" | cut -d' ' -f1)
+src_want=$(awk '$1=="source"{print $2}' "$PIN")
+[ -n "$src_want" ] || die "pin file has no 'source' line -- regenerate it (./mkbeacon-initrd.sh).
+      A pin that does not tie the artifact to its source is half a gate."
+[ "$src_have" = "$src_want" ] || die "SOURCE HAS CHANGED SINCE THE ARTIFACT WAS BUILT.
+      pinned source : $src_want
+      enetbeacon.c  : $src_have
+      The committed image was NOT compiled from the source in this tree.  Running it would
+      test code that was never compiled.  Rebuild and commit both:
+          ./mkbeacon-initrd.sh && git add enetbeacon.c enet-lab3-imx91.cpio.gz enet-lab3-imx91.md5"
 
 PIDS=()
 KEEP=${KEEP:-}
@@ -119,7 +144,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "artifact: $ARTIFACT"
-echo "  md5:    $have  (VERIFIED against the committed pin)"
+echo "  md5:    $have  (artifact AND source hash VERIFIED against the committed pin)"
 
 # One node.  The image is a CONSTANT; the topology rides on the kernel command line, so
 # every node in the segment boots the SAME committed cpio.gz.
