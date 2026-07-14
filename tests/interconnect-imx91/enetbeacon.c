@@ -222,11 +222,33 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("ENET-LAB3 UP: if=%s mac=%02x:%02x:%02x:%02x:%02x:%02x "
-           "ethertype=0x%04X peers=%d body=emit enforce=%s\n",
-           argv[1], my_mac[0], my_mac[1], my_mac[2], my_mac[3], my_mac[4],
-           my_mac[5], my_et, npeers,
-           strict ? "strict(all-peers)" : "self-arming(per-peer)");
+    /*
+     * ⭐ THE DECLARED CONTRACT.  THE GRAMMAR IS THE FLEET'S, NOT MINE.
+     *
+     * holobench wanted the emit-status board DERIVED from the wire instead of typed by
+     * hand -- "a status board that is not derived is a status board that drifts" -- and
+     * wrote the grammar for it:
+     *
+     *     ENET-LAB3 UP: ethertype=... peers=... body=emit|none
+     *                   enforce=self-arming|unconditional|none
+     *
+     * ...by generalising from THIS NODE'S BANNER.  And this node did not satisfy it: we
+     * printed `enforce=self-arming(per-peer)`, and that parenthetical breaks a strict
+     * parser.  holobench derived a fleet contract from my banner, and my banner was not
+     * the contract.
+     *
+     *     ⭐ WHAT A NODE HAPPENS TO PRINT IS NOT AN INTERFACE.  AN INTERFACE IS SOMETHING
+     *        THE FLEET AGREED TO -- and that is true of the node it was COPIED FROM too.
+     *
+     * So the values below are exactly the agreed enum, and nothing else.  Extra fields
+     * (if=, mac=) come after, where free-form is welcome.  If you want to know what this
+     * node enforces, you no longer ask me: you read it off the segment.
+     */
+    printf("ENET-LAB3 UP: ethertype=0x%04X peers=%d body=emit enforce=%s "
+           "if=%s mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+           my_et, npeers,
+           strict ? "unconditional" : "self-arming",
+           argv[1], my_mac[0], my_mac[1], my_mac[2], my_mac[3], my_mac[4], my_mac[5]);
     fflush(stdout);
 
     /* The frame is constant except for the sequence number. */

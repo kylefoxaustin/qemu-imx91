@@ -43,7 +43,24 @@ MCAST=${MCAST:-230.0.0.1:11891}          # the segment
 RUNTIME=${RUNTIME:-25}                   # seconds
 WORK=$(mktemp -d)
 
-skip() { echo "SKIP: $*"; exit 0; }
+#
+# ⭐ THE SKIP MUST BE AS LOUD AS THE FAILURE.
+#
+# mcxn947qemu, tonight: their suite reported "completed, exit 0" while its actual output was
+# `stray: 1` -- a guard had found a leftover process and SKIPPED THE WHOLE SUITE.  "A task
+# that succeeded at NOT DOING THE WORK, whose completion notification is INDISTINGUISHABLE
+# FROM A GREEN RUN."  They would have reported 74/74 without opening the log.
+#
+#     A GUARD THAT SKIPS THE WORK AND A RUN THAT PASSES IT LOOK THE SAME FROM OUTSIDE.
+#
+# This script had it: skip() exited 0, and a MISSING COMMITTED ARTIFACT went down that path.
+# A missing BSP is an environment that was never provisioned -- fine, skip.  A missing or
+# WRONG artifact is a BROKEN TREE, and it was reporting success.
+#
+# So: two exits, and they are not the same exit.
+#
+skip() { echo "SKIP: $*  (environment not provisioned -- nothing was tested)"; exit 77; }
+die()  { echo "FAIL: $*" >&2; exit 1; }
 for f in "$QEMU" "$KERNEL" "$DTB"; do [ -e "$f" ] || skip "$f not found"; done
 #
 # ⭐ THE TEST CONSUMES THE COMMITTED ARTIFACT.  IT DOES NOT BUILD ONE.
@@ -58,7 +75,37 @@ for f in "$QEMU" "$KERNEL" "$DTB"; do [ -e "$f" ] || skip "$f not found"; done
 # Regenerate with ./mkbeacon-initrd.sh (needs a cross-compiler).  RUNNING it needs nothing
 # but QEMU, the kernel, the DTB, and the committed image -- verified under `env -i PATH=`.
 #
-[ -e "$ARTIFACT" ] || skip "artifact not found: $ARTIFACT (run ./mkbeacon-initrd.sh)"
+#
+# ⭐ NEVER RUN A LAB AGAINST AN ARTIFACT WHOSE HASH YOU DID NOT VERIFY.
+#
+# holobench's dual of rt1180's rule, and it is the sharper one for a CONSUMER:
+# "NEVER TEST A BINARY YOU DID NOT JUST BUILD" is unusable for a farm that never builds
+# anything -- its binaries are stale BY CONSTRUCTION.  The only question is whether it
+# NOTICES.  A mismatch REFUSES TO LAUNCH; it is not a warning, because "a warning printed
+# above a green result is a warning nobody reads".
+#
+# It applies to me as a consumer of my OWN artifact: mkbeacon-initrd.sh writes over the
+# committed .cpio.gz, so anyone who regenerates and does not commit would have this test
+# silently exercise a DIFFERENT image than the one whose md5 I published to the lab -- and
+# report on it as though it were the pinned one.
+#
+# (mcxn's PRODUCER half -- "a committed artifact that a TEST overwrites is not a pinned
+#  artifact, it is a build output wearing a commit's clothes" -- does NOT apply here: this
+#  script only CONSUMES.  Only mkbeacon-initrd.sh writes the image, deliberately.  Null
+#  result, stated at full volume.)
+#
+PIN="$HERE/enet-lab3-imx91.md5"
+[ -e "$ARTIFACT" ] || die "artifact missing: $ARTIFACT -- the committed image is GONE.
+      This is a broken tree, not an unprovisioned environment.  (./mkbeacon-initrd.sh)"
+[ -e "$PIN" ] || die "no hash pin beside the artifact -- refusing to run a lab against an
+      artifact whose hash I cannot verify."
+have=$(md5sum "$ARTIFACT" | cut -d' ' -f1)
+want=$(cat "$PIN")
+[ "$have" = "$want" ] || die "ARTIFACT HASH MISMATCH -- refusing to launch.
+      pinned : $want
+      on disk: $have
+      The image is not the one published to the lab.  Either commit the regenerated
+      artifact AND its .md5, or restore it: git checkout -- $ARTIFACT"
 
 PIDS=()
 KEEP=${KEEP:-}
@@ -72,7 +119,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "artifact: $ARTIFACT"
-echo "  md5:    $(md5sum "$ARTIFACT" | cut -d' ' -f1)"
+echo "  md5:    $have  (VERIFIED against the committed pin)"
 
 # One node.  The image is a CONSTANT; the topology rides on the kernel command line, so
 # every node in the segment boots the SAME committed cpio.gz.
