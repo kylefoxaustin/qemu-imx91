@@ -57,6 +57,18 @@
 #define PLL_CTRL_POWERUP    (1u << 0)
 #define PLL_LOCK_STATUS     (1u << 0)
 
+/*
+ * ⭐ DIGPROG IS THE CHIP ID.  THE GUEST ASKS "WHAT AM I" AND WE ANSWERED ZERO.
+ *
+ * ANADIG_DIGPROG (anatop + 0x800) is how the SoC identifies itself -- drivers/soc/imx
+ * reads exactly this register to derive the SoC revision.  We returned 0, which is not
+ * "no answer": it is an answer, and it names no chip that exists.
+ *
+ *     A ZERO RESET VALUE IS NOT THE ABSENCE OF A CLAIM.  IT IS A CLAIM.
+ */
+#define ANATOP_DIGPROG      0x0800
+#define ANATOP_DIGPROG_RST  0x00901010      /* i.MX 91, per IMX91RM.pdf rev 5 */
+
 /* Reset values, from the RM. */
 #define PLL_DIV_RESET       0x00c80000    /* MFI = 200 */
 #define PLL_DENOM_RESET     0x00000001    /* it is a DENOMINATOR: never zero */
@@ -272,6 +284,8 @@ static void imx93_anatop_reset(DeviceState *dev)
      * synthesise (its PFDs are fixed) but whose registers a guest can still read.
      * A register we do not consume is still a register we can lie through.
      */
+    s->regs[ANATOP_DIGPROG / 4] = ANATOP_DIGPROG_RST;
+
     for (i = 0; i < ARRAY_SIZE(imx93_pll_block); i++) {
         hwaddr base = imx93_pll_block[i];
 

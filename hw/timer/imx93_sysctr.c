@@ -20,6 +20,23 @@
 #include "qemu/timer.h"
 #include "qemu/host-utils.h"
 
+/*
+ * ⭐ CNTFID0 IS THE COUNTER'S OWN FREQUENCY, AND WE REPORTED ZERO.
+ *
+ * The system counter runs at 24 MHz in this model, and CNTFID0 is the register a
+ * guest reads to find that out (016E_3600h = 24,000,000).  We answered 0 -- and on a
+ * FREQUENCY register zero is not "unset", it is a divisor of zero in whatever
+ * timekeeping arithmetic reads it.  Reporting the real rate is also the only answer
+ * CONSISTENT with the counter we actually tick.
+ */
+#define CNTSR       0x00004
+#define CNTFID0     0x00020
+#define CNTFID1     0x00024
+
+#define CNTSR_RESET     0x00000100
+#define CNTFID0_RESET   0x016e3600      /* 24,000,000 -- the rate we really run at */
+#define CNTFID1_RESET   0x00000200
+
 #define CNTCV_LO    0x00008
 #define CNTCV_HI    0x0000c
 #define CMP_OFFSET  0x10000
@@ -73,6 +90,12 @@ static uint64_t sysctr_read(void *opaque, hwaddr offset, unsigned size)
     uint64_t cnt = sysctr_count();
 
     switch (offset) {
+    case CNTSR:
+        return CNTSR_RESET;
+    case CNTFID0:
+        return CNTFID0_RESET;    /* the frequency we actually tick at */
+    case CNTFID1:
+        return CNTFID1_RESET;
     case CNTCV_LO:
         return cnt & 0xffffffff;
     case CNTCV_HI:
