@@ -37,6 +37,7 @@
 #define SAI_PARAM       0x04    /* Parameter   (read-only)           */
 #define SAI_TCSR        0x08    /* Transmit Control/Status           */
 #define SAI_TCR1        0x0c    /* Transmit Config 1 (watermark)     */
+#define SAI_TCR3        0x14    /* Transmit Config 3 (channel enable) */
 #define SAI_TDR0        0x20    /* Transmit Data 0 (FIFO push)       */
 #define SAI_TFR0        0x40    /* Transmit FIFO 0 (R/W pointers)    */
 #define SAI_RCSR        0x88    /* Receive Control/Status            */
@@ -68,10 +69,32 @@
 #define R(s, off)       ((s)->regs[(off) / 4])
 
 /*
- * VERID: major 3, minor 3, feature 0. A zero feature word keeps the timestamp
- * (TSTMP_EN) path out of the driver's probe, which is all we need here.
+ * ⭐ VERID: 0302_0002h -- THE VALUE IN THE RM.  THE OLD ONE WAS CHOSEN TO STEER THE
+ *    DRIVER, AND THE COMMENT THAT USED TO SIT HERE SAID SO OUT LOUD:
+ *
+ *        "major 3, minor 3, feature 0.  A zero feature word keeps the timestamp
+ *         (TSTMP_EN) path out of the driver's probe, WHICH IS ALL WE NEED HERE."
+ *
+ *    That is not a version register.  That is a lever we installed inside the chip
+ *    to reach into Linux and switch off a branch we did not want to implement --
+ *
+ *        IMPLEMENTING ONLY WHAT THE DRIVER TOUCHES IS HOW YOU WRITE A MODEL OF THE
+ *        DRIVER INSTEAD OF A MODEL OF THE CHIP.
+ *
+ *    and it lied in BOTH directions at once:
+ *
+ *      - MINOR: we invented 3.3.  Silicon is 3.2.  fsl_sai.c gates a real capability
+ *        on this number -- `support_1_1_ratio = sai->verid.version >= 0x0301` -- so we
+ *        were OVER-reporting the revision of a chip into a driver's >= comparison.  It
+ *        happens to land on the same side of that particular bar.  That is luck, not
+ *        design; the next comparison need not be so kind.
+ *      - FEATURE: silicon sets bit 1 (TSTMP_EN).  We cleared it, so the driver never
+ *        registers the SAI's timestamp sysfs group and the guest cannot see a feature
+ *        the hardware has.
+ *
+ *    We now report what the chip reports, and let the driver do what it does.
  */
-#define SAI_VERID_VALUE 0x03030000
+#define SAI_VERID_VALUE 0x03020002
 /*
  * PARAM: SPF (max slots/frame) = 5 -> 32 slots, WPF (FIFO depth) = 7 -> 128
  * words, DLN (datalines) = 4. Matches the imx93 soc_data the driver assumes.
@@ -81,18 +104,38 @@
 /* One word of a 48 kHz stereo stream: 96000 words/s. */
 #define SAI_TX_WORD_NS  (NANOSECONDS_PER_SECOND / 96000)
 
+/*
+ * ⭐ FRF/FWF DESCRIBE AN *ENABLED* FIFO.  WE USED TO RAISE THEM UNCONDITIONALLY.
+ *
+ * The RM resets TCSR to 0 -- and we answered 0003_0000h: FIFO-request and
+ * FIFO-warning both asserted, on a transmitter that is switched off, before anyone
+ * has enabled a single channel.  The model said "the FIFO is starving, feed me" out
+ * of a block that cannot consume a byte.
+ *
+ * The RM says why in the field description itself: FWF is "ENABLED transmit FIFO is
+ * empty", FRF is the watermark condition on an ENABLED FIFO -- and "enabled" means
+ * TCR3.TCE, which resets to 0.  So the flags are gated, and the RM's reset value of 0
+ * is not a separate fact to memorise; it FALLS OUT of the gate.  Getting the reset
+ * value right and getting the behaviour right are the same repair.
+ *
+ *     A ZERO RESET VALUE IS NOT THE ABSENCE OF A CLAIM.  IT IS A CLAIM -- and here it
+ *     was the claim that told us our flag logic was missing its precondition.
+ */
 static void imx93_sai_tx_update_flags(IMX93SaiState *s)
 {
     uint32_t tcsr = R(s, SAI_TCSR) & ~TCSR_RO;
     uint32_t watermark = R(s, SAI_TCR1) & 0xff;
+    bool fifo_enabled = (R(s, SAI_TCR3) >> 16) & 0xf;   /* TCE: per-dataline enable */
 
-    /* FRF: FIFO level at or below the watermark - hardware wants more data. */
-    if (s->tx_count <= watermark) {
-        tcsr |= TCSR_FRF;
-    }
-    /* FWF: FIFO empty - one step from underrun. */
-    if (s->tx_count == 0) {
-        tcsr |= TCSR_FWF;
+    if (fifo_enabled) {
+        /* FRF: FIFO level at or below the watermark - hardware wants more data. */
+        if (s->tx_count <= watermark) {
+            tcsr |= TCSR_FRF;
+        }
+        /* FWF: FIFO empty - one step from underrun. */
+        if (s->tx_count == 0) {
+            tcsr |= TCSR_FWF;
+        }
     }
     R(s, SAI_TCSR) = tcsr;
 }
