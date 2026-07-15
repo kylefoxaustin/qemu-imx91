@@ -893,10 +893,19 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
         i2c_slave_realize_and_unref(I2C_SLAVE(ddc), s->lpi2c1.bus,
                                     &error_abort);
 
-        /* WM8962 audio codec @ 0x1a (the SAI3 speaker/headphone/mic card). */
-        i2c_slave_realize_and_unref(
-            i2c_slave_new(TYPE_WM8962, FSL_IMX93_WM8962_ADDR),
-            s->lpi2c1.bus, &error_abort);
+        /*
+         * WM8962 audio codec @ 0x1a (the SAI3 speaker/headphone/mic card).  The codec
+         * is the bit-clock master, so it -- not the SAI -- knows the sample rate: it
+         * decodes R27 and publishes it on a "rate" clock wired into SAI3's "codec-rate"
+         * input.  Without this the SAI would pace every rate at a fixed 48 kHz.  SAI3
+         * (&s->sai[2]) is created but not yet realized here, so the clock-in connect is
+         * legal.
+         */
+        DeviceState *codec = DEVICE(i2c_slave_new(TYPE_WM8962,
+                                                  FSL_IMX93_WM8962_ADDR));
+        i2c_slave_realize_and_unref(I2C_SLAVE(codec), s->lpi2c1.bus, &error_abort);
+        qdev_connect_clock_in(DEVICE(&s->sai[2]), "codec-rate",
+                              qdev_get_clock_out(codec, "rate"));
     }
 
     /*
