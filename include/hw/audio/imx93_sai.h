@@ -19,6 +19,7 @@
 #define IMX93_SAI_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 #include "qemu/timer.h"
 #include "qemu/audio.h"
@@ -45,6 +46,21 @@ struct IMX93SaiState {
 
     MemoryRegion iomem;
     qemu_irq irq;
+
+    /*
+     * The SAI's master clock -- the CCM SAI root, wired from the (now real)
+     * anatop AUDIO_PLL -> CCM chain.  The bit clock, and therefore the sample
+     * rate, is derived from THIS plus the guest's TCR2 divider and frame
+     * geometry.  Before this was wired the model paced everything at a hardcoded
+     * 48 kHz, so a 16 kHz stream played 3x too fast (436 Hz / 0.33 s instead of
+     * 145 Hz / 1.0 s) -- a default that equalled the answer at 48 kHz only.
+     */
+    Clock *codec_rate;      /* sample rate published by the codec (wm8962 R27) */
+    uint32_t tx_rate;           /* computed TX sample rate, 0 = not configured */
+    uint32_t rx_rate;           /* computed RX sample rate */
+    uint32_t voice_rate;        /* rate the backend voice is currently open at */
+    int64_t  tx_word_ns;        /* ns per TX word (per-channel), from tx_rate    */
+    int64_t  rx_word_ns;        /* ns per RX word, from rx_rate                  */
     qemu_irq dma_req_tx;        /* TX FIFO-needs-data request to the eDMA */
     qemu_irq dma_req_rx;        /* RX FIFO-has-data request to the eDMA */
     uint32_t regs[IMX93_SAI_REGS];

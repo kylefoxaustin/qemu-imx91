@@ -21,11 +21,52 @@
 #include "qemu/osdep.h"
 #include "hw/audio/wm8962.h"
 #include "hw/i2c/i2c.h"
+#include "hw/core/clock.h"
+#include "hw/core/qdev-clock.h"
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "qom/object.h"
 
 #define WM8962_SOFTWARE_RESET   0x0f
+/*
+ * ⭐ THE CODEC IS THE BIT-CLOCK MASTER OF THE SAI3 CARD, SO THE SAMPLE RATE LIVES HERE.
+ *
+ * On this board the SAI is the bit-clock CONSUMER (TCR2.BCD_MSTR clear) -- the wm8962
+ * generates BCLK/LRCLK -- so the rate the guest is playing is NOT recoverable from the
+ * SAI's own divider registers.  It is programmed into R27 (ADDITIONAL_CONTROL_3) here,
+ * SR field [2:0] plus INT_MODE [4], per fsl wm8962.c sr_vals[].  This model decodes it
+ * and emits it on a Clock the SAI paces from.  Without this the SAI paced at a fixed
+ * 48 kHz and a 16 kHz stream played 3x too fast.  (Credit 93emulator, who found and
+ * fixed exactly this on the identical codec.)
+ */
+#define WM8962_ADDITIONAL_CONTROL_3  0x1b
+#define WM8962_ADCTL3_SR_MASK        0x0007
+#define WM8962_ADCTL3_INT_MODE       0x0010
+/* Silicon reset default: SR=0 + INT_MODE => 48 kHz.  NOT 0 -- 0 would be 44.1 kHz. */
+#define WM8962_ADCTL3_RESET          0x0010
+
+static uint32_t wm8962_decode_rate(uint16_t adctl3)
+{
+    int sr = adctl3 & WM8962_ADCTL3_SR_MASK;
+    int intm = !!(adctl3 & WM8962_ADCTL3_INT_MODE);
+
+    switch (sr) {
+    case 0: return intm ? 48000 : 44100;
+    case 1: return 32000;
+    case 2: return intm ? 24000 : 22050;
+    case 3: return 16000;
+    /*
+     * SR=4 is {11025, 12000} and NEITHER is divisible by 8000, so INT_MODE cannot
+     * disambiguate them (93's observation).  We DECLARE the ambiguity by picking the
+     * common member rather than inventing a false certainty; the SAI3 test rates
+     * (48000, 16000) are both unambiguous.
+     */
+    case 4: return 12000;
+    case 5: return 8000;
+    case 6: return intm ? 96000 : 88200;
+    default: return 0;
+    }
+}
 #define WM8962_DEVICE_ID        0x6243
 #define WM8962_NUM_REGS         0x5294  /* WM8962_MAX_REGISTER + 1 */
 
@@ -40,7 +81,18 @@ struct Wm8962State {
     int      rphase;        /* 0: next read byte is value high, 1: low */
     uint8_t  addr_hi;       /* first address byte (pending) */
     uint8_t  val_hi;        /* first value byte (pending) */
+
+    /* Sample rate decoded from R27, published for the SAI to pace from. */
+    Clock   *rate_out;
 };
+
+static void wm8962_publish_rate(Wm8962State *s)
+{
+    uint32_t fs = wm8962_decode_rate(s->regs[WM8962_ADDITIONAL_CONTROL_3]);
+
+    clock_set_hz(s->rate_out, fs);
+    clock_propagate(s->rate_out);
+}
 
 static int wm8962_event(I2CSlave *i2c, enum i2c_event event)
 {
@@ -72,6 +124,9 @@ static int wm8962_send(I2CSlave *i2c, uint8_t data)
     } else {
         if (s->ptr < WM8962_NUM_REGS) {
             s->regs[s->ptr] = (s->val_hi << 8) | data;
+            if (s->ptr == WM8962_ADDITIONAL_CONTROL_3) {
+                wm8962_publish_rate(s);   /* the guest just set the sample rate */
+            }
         }
         s->ptr++;
     }
@@ -99,9 +154,20 @@ static void wm8962_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[WM8962_SOFTWARE_RESET] = WM8962_DEVICE_ID;
+    /*
+     * R27 comes up at its silicon default (48 kHz), and the rate is PUBLISHED at reset.
+     * This is load-bearing: at 48 kHz the driver's regmap_update_bits writes the reset
+     * value, sees no change, and issues NO I2C write -- so if the rate were only
+     * published on write, the SAI would never learn it.  93emulator's finding, on this
+     * codec: a default that equals the answer is a green light with no witness behind it.
+     */
+    s->regs[WM8962_ADDITIONAL_CONTROL_3] = WM8962_ADCTL3_RESET;
     s->ptr = 0;
     s->wphase = 0;
     s->rphase = 0;
+    if (s->rate_out) {
+        wm8962_publish_rate(s);
+    }
 }
 
 static const VMStateDescription vmstate_wm8962 = {
@@ -119,6 +185,13 @@ static const VMStateDescription vmstate_wm8962 = {
         VMSTATE_END_OF_LIST()
     },
 };
+
+static void wm8962_init(Object *obj)
+{
+    Wm8962State *s = WM8962(obj);
+
+    s->rate_out = qdev_init_clock_out(DEVICE(obj), "rate");
+}
 
 static void wm8962_class_init(ObjectClass *oc, const void *data)
 {
@@ -138,6 +211,7 @@ static const TypeInfo wm8962_types[] = {
         .name          = TYPE_WM8962,
         .parent        = TYPE_I2C_SLAVE,
         .instance_size = sizeof(Wm8962State),
+        .instance_init = wm8962_init,
         .class_init    = wm8962_class_init,
     },
 };

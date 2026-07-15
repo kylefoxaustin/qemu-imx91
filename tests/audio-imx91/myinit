@@ -3,6 +3,8 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
 /bin/mount -t proc proc /proc 2>/dev/null
 /bin/mount -t sysfs sysfs /sys 2>/dev/null
 /bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+PCM_RATE=$(sed -n 's/.*pcm.rate=\([0-9]*\).*/\1/p' /proc/cmdline)
+: ${PCM_RATE:=48000}; export PCM_RATE
 echo "=== AUDIO: loading SAI/codec drivers ==="
 for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-micfil imx-pcm-dma \
          snd-soc-dmic snd-soc-wm8962 snd-soc-fsl-asoc-card \
@@ -18,7 +20,7 @@ CARD=$(awk '/wm8962|imx-audio-wm8962/{print $1}' /proc/asound/cards 2>/dev/null 
 echo "wm8962 card index = ${CARD:-NONE}"
 if [ -x /pcm_play ] && [ -n "$CARD" ]; then
     echo "=== PLAYBACK on wm8962/SAI3 (hw:$CARD,0) ==="
-    /pcm_play hw:$CARD,0 1
+    /pcm_play hw:$CARD,0 1 ${PCM_RATE:-48000}
 fi
 echo "=== AUDIO TEST DONE ==="
 sleep 3

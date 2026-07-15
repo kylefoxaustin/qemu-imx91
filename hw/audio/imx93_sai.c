@@ -27,6 +27,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/audio/imx93_sai.h"
+#include "hw/core/qdev-clock.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
 #include "qemu/timer.h"
@@ -123,8 +124,41 @@ QEMU_BUILD_BUG_ON((1u << ((SAI_PARAM_VALUE >> 8) & 0xf)) !=
 QEMU_BUILD_BUG_ON(ARRAY_SIZE(((IMX93SaiState *)0)->rx_fifo) !=
                   ARRAY_SIZE(((IMX93SaiState *)0)->tx_fifo));
 
-/* One word of a 48 kHz stereo stream: 96000 words/s. */
-#define SAI_TX_WORD_NS  (NANOSECONDS_PER_SECOND / 96000)
+/*
+ * ⭐ THE WORD RATE IS DERIVED FROM THE GUEST'S CLOCK CONFIG, NOT HARDCODED.
+ *
+ * fsl_sai_hw_params sets the bit clock to
+ *     bclk = fs * slots * slot_width
+ * and fsl_sai_set_bclk picks TCR2.DIV to divide the SAI master clock down to it:
+ *     bclk = mclk / (2 * (DIV + 1))
+ * so the sample rate the guest actually programmed is
+ *     fs = mclk / (2*(DIV+1)) / ((FRSZ+1) * (W0W+1))
+ * with mclk read from the wired CCM SAI root, and DIV/FRSZ/W0W read straight out of
+ * the registers the guest wrote.  The old fixed 96000 (48 kHz stereo) was a default
+ * that equalled the answer at 48 kHz and lied at every other rate.
+ *
+ * rt1180's corollary is honoured: if the block is not configured to MASTER the bit
+ * clock (TCR2.BCD_MSTR clear) or the arithmetic yields no sane rate, we do NOT invent
+ * one -- word_ns stays 0 and the caller clocks nothing, which is what silicon does.
+ */
+/*
+ * The sample rate comes from the CODEC, not from the SAI's own registers.
+ *
+ * On the SAI3/wm8962 card the SAI is the bit-clock CONSUMER (TCR2.BCD_MSTR clear) --
+ * the codec masters BCLK/LRCLK -- so the SAI divider registers do NOT encode the rate
+ * (I tried; TCR2.DIV read 0 for a 16 kHz stream).  The wm8962 model decodes its R27
+ * sample-rate field and publishes it on this clock; we pace from it.  If nothing is
+ * wired/published (SAI1/SAI2 have no wm8962, or a codec that never set R27), the clock
+ * reads 0 and we fall back to the historical 48 kHz stereo pacing.
+ */
+static uint32_t imx93_sai_codec_rate(IMX93SaiState *s)
+{
+    return s->codec_rate ? clock_get_hz(s->codec_rate) : 0;
+}
+
+/* Fallback pacing when no codec rate is published (keeps timers from wedging). */
+#define SAI_TX_WORD_NS  (s->tx_word_ns ? s->tx_word_ns : (NANOSECONDS_PER_SECOND / 96000))
+#define SAI_RX_WORD_NS  (s->rx_word_ns ? s->rx_word_ns : (NANOSECONDS_PER_SECOND / 96000))
 
 /*
  * ⭐ FRF/FWF DESCRIBE AN *ENABLED* FIFO.  WE USED TO RAISE THEM UNCONDITIONALLY.
@@ -326,7 +360,7 @@ static void imx93_sai_rx_tick(void *opaque)
     }
 
     timer_mod(s->rx_timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_RX_WORD_NS);
 }
 
 /* Queue the exact bytes the DMA wrote to TDR0 for the audio backend. */
@@ -368,6 +402,40 @@ static void imx93_sai_voice_set(IMX93SaiState *s, bool on)
         audio_be_set_active_out(s->audio_be, s->voice, on);
         s->voice_active = on;
     }
+}
+
+/*
+ * Recompute the TX sample rate from the guest's clock config and re-open the
+ * backend voice at it if it changed.  Called when the transmitter is enabled,
+ * by which point the driver has already programmed TCR2/4/5 and the SAI root
+ * clock.  There are 2 words per audio frame (the driver uses 2 slots even for
+ * mono), so the FIFO drains at fs*2 words/s -- which is exactly the old 96000
+ * at 48 kHz, the rate this used to assume unconditionally.
+ */
+static void imx93_sai_set_tx_rate(IMX93SaiState *s)
+{
+    uint32_t fs = imx93_sai_codec_rate(s);
+
+    s->tx_rate = fs;
+    s->tx_word_ns = fs ? (NANOSECONDS_PER_SECOND / (2 * (int64_t)fs)) : 0;
+
+    if (fs && fs != s->voice_rate && s->audio_be) {
+        struct audsettings as = {
+            .freq = fs, .nchannels = 2,
+            .fmt = AUDIO_FORMAT_S16, .big_endian = false,
+        };
+        s->voice = audio_be_open_out(s->audio_be, s->voice, "imx93-sai-tx", s,
+                                     imx93_sai_audio_cb, &as);
+        s->voice_rate = fs;
+    }
+}
+
+static void imx93_sai_set_rx_rate(IMX93SaiState *s)
+{
+    uint32_t fs = imx93_sai_codec_rate(s);
+
+    s->rx_rate = fs;
+    s->rx_word_ns = fs ? (NANOSECONDS_PER_SECOND / (2 * (int64_t)fs)) : 0;
 }
 
 static uint64_t imx93_sai_read(void *opaque, hwaddr offset, unsigned size)
@@ -427,7 +495,8 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
         R(s, SAI_TCSR) = v;
 
         if ((v & TCSR_TE) && !(old & TCSR_TE)) {
-            /* Transmitter enabled: start clocking words out. */
+            /* Transmitter enabled: derive the rate the guest configured, then clock. */
+            imx93_sai_set_tx_rate(s);
             imx93_sai_tx_update_flags(s);
             imx93_sai_voice_set(s, true);
             timer_mod(s->tx_timer,
@@ -456,7 +525,8 @@ static void imx93_sai_write(void *opaque, hwaddr offset, uint64_t value,
         R(s, SAI_RCSR) = v;
 
         if ((v & RCSR_RE) && !(old & RCSR_RE)) {
-            /* Receiver enabled: start filling the FIFO with samples. */
+            /* Receiver enabled: derive the rate, then start filling the FIFO. */
+            imx93_sai_set_rx_rate(s);
             imx93_sai_rx_update_flags(s);
             timer_mod(s->rx_timer,
                       qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SAI_TX_WORD_NS);
@@ -503,6 +573,29 @@ static void imx93_sai_reset(DeviceState *dev)
     qemu_set_irq(s->irq, 0);
 }
 
+static void imx93_sai_codec_rate_update(void *opaque, ClockEvent event)
+{
+    IMX93SaiState *s = opaque;
+
+    /* A codec may program its rate AFTER the SAI is already enabled: re-pace live. */
+    if (s->regs[SAI_TCSR >> 2] & TCSR_TE) {
+        imx93_sai_set_tx_rate(s);
+    }
+    if (s->regs[SAI_RCSR >> 2] & RCSR_RE) {
+        imx93_sai_set_rx_rate(s);
+    }
+}
+
+static void imx93_sai_instance_init(Object *obj)
+{
+    IMX93SaiState *s = IMX93_SAI(obj);
+
+    /* The clock input must exist before the board wires it (pre-realize). */
+    s->codec_rate = qdev_init_clock_in(DEVICE(obj), "codec-rate",
+                                       imx93_sai_codec_rate_update, s,
+                                       ClockUpdate);
+}
+
 static void imx93_sai_realize(DeviceState *dev, Error **errp)
 {
     IMX93SaiState *s = IMX93_SAI(dev);
@@ -532,6 +625,7 @@ static void imx93_sai_realize(DeviceState *dev, Error **errp)
     if (audio_be_check(&s->audio_be, NULL)) {
         s->voice = audio_be_open_out(s->audio_be, NULL, "imx93-sai-tx", s,
                                      imx93_sai_audio_cb, &as);
+        s->voice_rate = as.freq;   /* the default; set_tx_rate reopens on mismatch */
     }
 }
 
@@ -571,6 +665,7 @@ static const TypeInfo imx93_sai_types[] = {
         .name = TYPE_IMX93_SAI,
         .parent = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(IMX93SaiState),
+        .instance_init = imx93_sai_instance_init,
         .class_init = imx93_sai_class_init,
     },
 };

@@ -81,44 +81,60 @@ fakeroot bash -c "
   [ -e dev/console ] || mknod -m 600 dev/console c 5 1
   find . | cpio -o -H newc 2>/dev/null | gzip -1 > '$TMP/initrd.cpio.gz'
 "
-# ALWAYS capture to a wav -- it is BOTH the mute (the host backend is never touched) AND the
-# evidence (we assert on the samples).  WAV=<path> just keeps the capture afterwards.
-CAP=${WAV:-$TMP/capture.wav}
-timeout -s KILL 300 "$QEMU" -M imx91-11x11-evk -m 4G -display none \
-    -audio "driver=wav,path=$CAP" \
-    -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \
-    -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel" \
-    -serial mon:stdio -serial null "$@" > "$TMP/console.log" 2>&1
-
+# ⭐ ASSERT THE PITCH AND DURATION, AT MORE THAN ONE RATE.
+#
+# pcm_play toggles the square wave every 55 frames, so the tone is rate/110 Hz and the
+# clip is 1 second long AT THE RATE THAT IS ACTUALLY CLOCKED.  A model that pms at a
+# fixed 48 kHz plays a 16 kHz stream 3x too fast: 436 Hz and 0.33 s instead of 145 Hz
+# and 1.0 s.  So we play at BOTH 48000 and 16000 and check the pitch and length of each.
+#
+#   A DEFAULT THAT EQUALS THE ANSWER IS NOT AN ANSWER.  The old test only played 48 kHz
+#   and only checked "non-silent", so it was green on a model that could not track a rate.
+#
 fail=0
-grep -aqE '^PLAY\[.*\]: PASS' "$TMP/console.log" \
-    && echo "  ok    the guest's ALSA oracle reports PASS" \
-    || { echo "  FAIL  pcm_play never reported PASS:"; fail=1
-         grep -aE '^PLAY\[|^=== AUDIO|snd_pcm|error' "$TMP/console.log" | head -5 | sed 's/^/          /'; }
+for want_rate in 48000 16000; do
+    cap="$TMP/cap-$want_rate.wav"
+    timeout -s KILL 300 "$QEMU" -M imx91-11x11-evk -m 4G -display none \
+        -audio "driver=wav,path=$cap" \
+        -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \
+        -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel pcm.rate=$want_rate ${QEMU_APPEND:-}" \
+        -serial mon:stdio -serial null "$@" > "$TMP/console-$want_rate.log" 2>&1
+    [ -n "${SAVE_CONSOLE:-}" ] && cp "$TMP/console-$want_rate.log" "$SAVE_CONSOLE.$want_rate"
 
-# ⭐ AND THE BYTES, because a guest that prints PASS while clocking SILENCE is exactly the
-#    regression this exists to catch.  The oracle's word is not the oracle.
-python3 - "$CAP" <<'EOF' || fail=1
+    grep -aqE '^PLAY\[.*\]: PASS' "$TMP/console-$want_rate.log" \
+        || { echo "  FAIL  ${want_rate}Hz: pcm_play never reported PASS"; fail=1; continue; }
+
+    # tone = rate/110, duration ~= 1.0s -- measured from the captured PCM, model-independent.
+    python3 - "$cap" "$want_rate" <<'EOF' || fail=1
 import struct, sys
-try:
-    d = open(sys.argv[1], "rb").read()
-except OSError:
-    print("  FAIL  no wav was captured at all"); sys.exit(1)
+cap, want = sys.argv[1], int(sys.argv[2])
+d = open(cap, "rb").read()
+wr = struct.unpack("<I", d[24:28])[0] if d[:4] == b"RIFF" else 0
 pcm = d[44:]
-s = struct.unpack("<%dh" % (len(pcm) // 2), pcm[:len(pcm) // 2 * 2])
-nz = [x for x in s if x]
-peak = max(map(abs, s)) if s else 0
-print("  %s  captured PCM: %d samples, %d non-zero, peak %d"
-      % ("ok  " if len(nz) > 1000 and peak > 100 else "FAIL", len(s), len(nz), peak))
-sys.exit(0 if len(nz) > 1000 and peak > 100 else 1)
+s = struct.unpack("<%dh" % (len(pcm)//2), pcm[:len(pcm)//2*2])
+mono = s[0::2]
+if wr == 0 or len(mono) < 1000:
+    print("  FAIL  %dHz: no usable capture" % want); sys.exit(1)
+xz = sum(1 for i in range(1, len(mono)) if (mono[i-1] < 0) != (mono[i] < 0))
+dur = len(mono) / wr
+tone = xz / 2 / dur
+want_tone = want / 110.0
+tone_ok = abs(tone - want_tone) < want_tone * 0.15
+dur_ok = abs(dur - 1.0) < 0.2
+print("  %s  %dHz -> tone %.0fHz (want ~%.0f), duration %.2fs (want ~1.0)"
+      % ("ok  " if tone_ok and dur_ok else "FAIL", want, tone, want_tone, dur))
+sys.exit(0 if tone_ok and dur_ok else 1)
 EOF
+done
 
 echo
 if [ "$fail" -eq 0 ]; then
-    echo "PASS: Linux binds the WM8962/SAI3 card, pcm_play clocks a real square wave through"
-    echo "      the SAI TX FIFO over cyclic eDMA, and the captured PCM is non-silent."
+    echo "PASS: the SAI/wm8962 card plays a real square wave at the CONFIGURED rate -- pitch"
+    echo "      and duration correct at BOTH 48 kHz and 16 kHz.  The rate is taken from the"
+    echo "      codec (wm8962 R27), not assumed: a fixed-48kHz model plays 16 kHz 3x too fast"
+    echo "      and fails the 16 kHz pitch/duration check."
 else
-    echo "FAIL: see above.  (Before this commit the script exec'd QEMU and asserted NOTHING --"
-    echo "      the verdict was whatever a human happened to read off the console.)"
+    echo "FAIL: see above.  (A model that hardcodes 48 kHz fails the 16 kHz case:"
+    echo "      436 Hz / 0.33 s instead of 145 Hz / 1.0 s.)"
 fi
 exit $fail
