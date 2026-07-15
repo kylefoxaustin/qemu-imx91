@@ -1091,9 +1091,17 @@ static void fsl_imx93_realize(DeviceState *dev, Error **errp)
          * SAI3 TX FIFO requests are serviced by eDMA2 (the wm8962 playback
          * path): wire its DMA-request line so the cyclic channel advances as
          * the FIFO drains, pacing PCM playback at the audio word rate.
+         *
+         * The SAI's DMA-request gpio-out was split into "dma-req-tx"/"dma-req-rx"
+         * (per-direction, matching the eDMA CH_MUX source ids); the i.MX 91 board
+         * was updated, this one was not, so imx93-evk ABORTED at realize with
+         * "Property 'imx93.sai.dma-req[0]' not found". The i.MX 91 is a chop-down
+         * of this SoC and shares the eDMA2 layout, so SAI3 TX is source id 0x3c.
          */
-        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req", 0,
-            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req-tx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0x3c));
+        qdev_connect_gpio_out_named(DEVICE(&s->sai[2]), "dma-req-rx", 0,
+            qdev_get_gpio_in_named(DEVICE(&s->edma2), "dma-req", 0x3d));
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
