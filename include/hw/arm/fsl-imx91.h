@@ -109,10 +109,17 @@ enum FslImx91Configuration {
 /* SAI audio interfaces (sai1, sai2, sai3). */
 #define FSL_IMX91_NUM_SAIS            3
 
+/*
+ * The board crystal.  ONE constant, so the two places that must agree on the
+ * timekeeping reference -- the CPU's CNTFRQ and the osc_24m Clock that feeds the
+ * system counter (whose CNTFID0 the guest divides by) -- cannot drift apart.
+ */
+#define FSL_IMX91_OSC_HZ  24000000
+
 struct FslImx91State {
     SysBusDevice    parent_obj;
 
-    Clock           *osc_24m;             /* the board's 24 MHz crystal      */
+    Clock           *osc_24m;             /* the board's 24 MHz crystal (FSL_IMX91_OSC_HZ) */
     ARMCPU          cpu[FSL_IMX91_NUM_A55_CPUS];
     GICv3State      gic;
 

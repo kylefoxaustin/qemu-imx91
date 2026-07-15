@@ -323,7 +323,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
                                 (uint64_t)i << 8, &error_abort);
 
         /* i.MX 91 system counter runs at 24 MHz. */
-        object_property_set_int(OBJECT(&s->cpu[i]), "cntfrq", 24000000,
+        object_property_set_int(OBJECT(&s->cpu[i]), "cntfrq", FSL_IMX91_OSC_HZ,
                                 &error_abort);
 
         if (object_property_find(OBJECT(&s->cpu[i]), "has_el2")) {
@@ -466,7 +466,7 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
      * frequency and nothing falls back to one: a root with no source produces no
      * clock, and a consumer with no clock DOES NOT TICK.
      */
-    clock_set_hz(s->osc_24m, 24000000);
+    clock_set_hz(s->osc_24m, FSL_IMX91_OSC_HZ);
 
     qdev_connect_clock_in(DEVICE(&s->anatop), "osc_in", s->osc_24m);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->anatop), errp)) {
