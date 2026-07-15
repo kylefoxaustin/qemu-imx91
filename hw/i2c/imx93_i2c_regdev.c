@@ -77,48 +77,48 @@ static void imx93_i2c_regdev_reset(DeviceState *dev)
      * ⭐ memset-0 IS NOT A PHYSICAL POWER-ON STATE.  This whole register file comes up
      *    zero and then four selectors are overwritten -- so every OTHER PMIC register
      *    reads back 0, which the PCA9451A does not do (it powers up from OTP).  The four
-     *    presets below are the ONLY registers that even try to be right, and they are
-     *    SCAFFOLDING, not silicon.  See below.
+     *    presets below are the ONLY registers modelled; the rest of the file is still
+     *    zero, which is not a physical POR.  A full OTP map would seed more.
      */
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[0] = s->reg0;
     if (s->pca9450) {
         /*
-         * ⭐ THESE ARE BRING-UP SCAFFOLDING, NOT THE CHIP'S OTP DEFAULTS.  DO NOT "CORRECT"
-         *    THEM TO OTHER GUESSED SELECTORS.
+         * ⭐ THESE ARE THE CHIP'S REAL OTP DEFAULTS -- unblocked, and here is the paper trail.
          *
-         * 93emulator found this exact class on their PCA9451A and named the rule: an
-         * RM-golden reset-value audit is STRUCTURALLY BLIND to an off-SoC part, because
-         * "the SoC RM doesn't mention it" and "it's correct" produce the same empty grep --
-         * so my audit marked this file "not applicable" and moved on, and the gap sat here
-         * unrecorded.  (docs/validation/fidelity-audit.md now carries it.)
+         * They started life as bring-up SCAFFOLDING (the lowest selector inside each rail's
+         * DT range, chosen only so the pca9450 driver would not bail -- "Failed to register
+         * regulator(buck4): -22").  93emulator found the class first and named the rule: an
+         * RM-golden reset-value audit is STRUCTURALLY BLIND to an off-SoC part, because "the
+         * SoC RM doesn't mention it" and "it's correct" produce the same empty grep.  I
+         * flagged this file (docs/validation/fidelity-audit.md) and REFUSED to guess better
+         * numbers, because A PLAUSIBLE WRONG NUMBER IS WORSE THAN AN HONEST SCAFFOLD -- it
+         * reads as measured.  The fix was BLOCKED on the datasheet, not on effort.
          *
-         * What these values ACTUALLY are: the LOWEST selector inside each rail's
-         * DT-constrained range, chosen so the pca9450 driver does not bail registering a
-         * rail whose DT minimum sits above the power-on 0 ("Failed to register
-         * regulator(buck4): -22").  They satisfy the DRIVER.  They are not what the silicon
-         * latches from OTP.  BUCK4 is the EVK's 3.3 V SD supply (per the PCA9451A fact
-         * sheet) and this makes it read ~1.625 V -- off by ~2x, on the rail uSDHC voltage
-         * switching cares about.
+         * It is now unblocked, sourced two ways that agree:
+         *   - rail voltages: PCA9451A fact sheet -- BUCK4 3.3 V (the EVK SD supply),
+         *     BUCK5 1.8 V, BUCK6 1.1 V, LDO1 1.8 V.
+         *   - vsel encoding: mainline drivers/regulator/pca9450-regulator.c +
+         *     include/linux/regulator/pca9450.h --
+         *       BUCKnOUT[6:0] = (V - 0.6) / 0.025 ;  LDO1 vsel[2:0] = (V - 1.6) / 0.1.
+         * 93 then graded the derivation against the actual PCA9451A datasheet: 3 of 4
+         * bit-exact, the datasheet correcting only LDO1CTRL's ENMODE bits [7:6] (=11,
+         * always-on) which the vsel encoding cannot reach.  So:
          *
-         * I did NOT replace them with "the right 3.3 V selector", and that refusal is the
-         * point: 91_docs/ has no PCA9451A register/OTP map (only on-SoC RMs), so the
-         * correct selectors are not in hand.  ⭐ A PLAUSIBLE WRONG NUMBER IS WORSE THAN AN
-         * HONEST SCAFFOLD, BECAUSE IT READS AS MEASURED.  The fix is BLOCKED on the
-         * datasheet, not on effort.
+         *   BUCK4 = (3.3-0.6)/0.025 = 0x6C   (was 0x29 = 1.625 V -- WRONG BY 2x, the SD rail)
+         *   BUCK5 = (1.8-0.6)/0.025 = 0x30   (was 0x29)
+         *   BUCK6 = (1.1-0.6)/0.025 = 0x14   (was already right)
+         *   LDO1  = ENMODE(11)<<6 | vsel(2)  = 0xC2   (was 0x01)
          *
-         * Severity, re-derived from MY BSP's driver rather than inherited: pca9450-regulator
-         * uses REGCACHE_MAPLE with NO reg_defaults table, so the regmap cache starts EMPTY
-         * and is filled by live reads.  There is no stale datasheet value for
-         * regmap_update_bits to match and skip -- so this fabrication is VISIBLE (the driver
-         * reads our value straight via get_voltage_sel), NOT laundered.  Exposure is narrow:
-         * a guest that reads a rail's voltage BEFORE its consumer sets it.  The machine
-         * boots (soak-proven); uSDHC works because its consumer drives the switch itself.
+         * All four remain inside their DT-constrained ranges, so the driver still registers
+         * every rail; the difference is that a guest reading a rail before its consumer sets
+         * it now reads the SILICON voltage, not a driver-appeasing minimum.  Credit
+         * 93emulator for the class, the encoding, and the datasheet grade.
          */
-        s->regs[0x1A] = 0x29;   /* BUCK4OUT  selector -- SCAFFOLD, not OTP (see above) */
-        s->regs[0x1C] = 0x29;   /* BUCK5OUT  selector -- SCAFFOLD, not OTP */
-        s->regs[0x1E] = 0x14;   /* BUCK6OUT  selector -- SCAFFOLD, not OTP */
-        s->regs[0x21] = 0x01;   /* LDO1CTRL  selector -- SCAFFOLD, not OTP */
+        s->regs[0x1A] = 0x6C;   /* BUCK4OUT: 3.3 V  (EVK SD supply) -- PCA9451A OTP */
+        s->regs[0x1C] = 0x30;   /* BUCK5OUT: 1.8 V                  -- PCA9451A OTP */
+        s->regs[0x1E] = 0x14;   /* BUCK6OUT: 1.1 V                  -- PCA9451A OTP */
+        s->regs[0x21] = 0xC2;   /* LDO1CTRL: ENMODE=always-on + 1.8 V -- PCA9451A OTP */
     }
     if (s->pcal6524) {
         /*

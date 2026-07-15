@@ -89,17 +89,19 @@ correct" produce the **same empty grep**. Credit 93emulator for naming the class
 datasheet, not the SoC RM — and judged individually, not lumped:
 
 - **PCA9451A PMIC** (`hw/i2c/imx93_i2c_regdev.c`, `pca9450=true`, @0x25) —
-  **SCAFFOLD, NOT SILICON. Fix BLOCKED on the datasheet.** BUCK4/5/6 + LDO1 vsel
-  regs are preset to the *lowest legal DT-range selector* so the pca9450 driver
-  registers the rails; they are **not** the chip's OTP power-on values, and the
-  rest of the register file `memset`s to 0 (also not a physical POR). BUCK4 (the
-  EVK 3.3 V SD rail) reads ~1.625 V. **Not corrected**: `91_docs/` has no PCA9451A
-  register/OTP map, and *a plausible wrong number is worse than an honest scaffold
-  because it reads as measured.* Severity is **narrow, re-derived from the BSP
-  driver**: pca9450-regulator uses `REGCACHE_MAPLE` with **no `reg_defaults`**, so
-  the cache starts empty and our value is **visible, not laundered** — the
-  regmap-skip amplifier does not apply. Exposure: a guest reading a rail before its
-  consumer sets it. Boots (soak-proven); uSDHC unaffected.
+  **FIXED (2026-07-14): real OTP defaults, datasheet-sourced.** Was SCAFFOLD (the
+  lowest legal DT-range selector per rail, so the pca9450 driver would register the
+  rails); BUCK4 — the EVK 3.3 V SD rail — read ~1.625 V, off by 2×. Left flagged and
+  *blocked on the datasheet* rather than guessed, because a plausible wrong number
+  reads as measured. Unblocked via 93emulator's PCA9451A datasheet + the mainline
+  vsel encoding (`pca9450-regulator.c`, `BUCKnOUT[6:0]=(V−0.6)/0.025`): BUCK4=`0x6C`
+  (3.3 V), BUCK5=`0x30` (1.8 V), BUCK6=`0x14` (1.1 V, already right), LDO1=`0xC2`
+  (ENMODE always-on + 1.8 V). The derivation graded 3/4 bit-exact, the datasheet
+  correcting only LDO1's ENMODE bits. All four stay inside their DT ranges, so every
+  rail still registers. **Verified guest-visible**: `/sys/class/regulator` reads
+  BUCK4=3300000 µV, BUCK5=1800000, BUCK6=1100000, LDO1=1800000; SD card does
+  byte-exact ext2 read/write over the 3.3 V rail. (The rest of the register file is
+  still 0 — a fuller OTP map would seed more, but no 91 consumer reads those.)
 - **PCAL6524 expander** (same file, `pcal6524=true`) — **REAL POR, correctly
   sourced.** Direction regs = 0xFF (all-input) is the genuine pca953x power-on
   default. Not all off-SoC values are wrong; this one is right.
