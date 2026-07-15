@@ -73,23 +73,60 @@ static void imx93_i2c_regdev_reset(DeviceState *dev)
 {
     IMX93I2CRegdevState *s = IMX93_I2C_REGDEV(dev);
 
+    /*
+     * ⭐ memset-0 IS NOT A PHYSICAL POWER-ON STATE.  This whole register file comes up
+     *    zero and then four selectors are overwritten -- so every OTHER PMIC register
+     *    reads back 0, which the PCA9451A does not do (it powers up from OTP).  The four
+     *    presets below are the ONLY registers that even try to be right, and they are
+     *    SCAFFOLDING, not silicon.  See below.
+     */
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[0] = s->reg0;
     if (s->pca9450) {
         /*
-         * Preset the BUCK/LDO voltage-select registers to selectors inside
-         * each rail's DT-constrained range. With the power-on default of 0
-         * (lowest voltage) the pca9450 driver fails to register the rails
-         * whose DT minimum is well above that (it returns on the first such
-         * failure), e.g. "Failed to register regulator(buck4): -22".
+         * ⭐ THESE ARE BRING-UP SCAFFOLDING, NOT THE CHIP'S OTP DEFAULTS.  DO NOT "CORRECT"
+         *    THEM TO OTHER GUESSED SELECTORS.
+         *
+         * 93emulator found this exact class on their PCA9451A and named the rule: an
+         * RM-golden reset-value audit is STRUCTURALLY BLIND to an off-SoC part, because
+         * "the SoC RM doesn't mention it" and "it's correct" produce the same empty grep --
+         * so my audit marked this file "not applicable" and moved on, and the gap sat here
+         * unrecorded.  (docs/validation/fidelity-audit.md now carries it.)
+         *
+         * What these values ACTUALLY are: the LOWEST selector inside each rail's
+         * DT-constrained range, chosen so the pca9450 driver does not bail registering a
+         * rail whose DT minimum sits above the power-on 0 ("Failed to register
+         * regulator(buck4): -22").  They satisfy the DRIVER.  They are not what the silicon
+         * latches from OTP.  BUCK4 is the EVK's 3.3 V SD supply (per the PCA9451A fact
+         * sheet) and this makes it read ~1.625 V -- off by ~2x, on the rail uSDHC voltage
+         * switching cares about.
+         *
+         * I did NOT replace them with "the right 3.3 V selector", and that refusal is the
+         * point: 91_docs/ has no PCA9451A register/OTP map (only on-SoC RMs), so the
+         * correct selectors are not in hand.  ⭐ A PLAUSIBLE WRONG NUMBER IS WORSE THAN AN
+         * HONEST SCAFFOLD, BECAUSE IT READS AS MEASURED.  The fix is BLOCKED on the
+         * datasheet, not on effort.
+         *
+         * Severity, re-derived from MY BSP's driver rather than inherited: pca9450-regulator
+         * uses REGCACHE_MAPLE with NO reg_defaults table, so the regmap cache starts EMPTY
+         * and is filled by live reads.  There is no stale datasheet value for
+         * regmap_update_bits to match and skip -- so this fabrication is VISIBLE (the driver
+         * reads our value straight via get_voltage_sel), NOT laundered.  Exposure is narrow:
+         * a guest that reads a rail's voltage BEFORE its consumer sets it.  The machine
+         * boots (soak-proven); uSDHC works because its consumer drives the switch itself.
          */
-        s->regs[0x1A] = 0x29;   /* BUCK4OUT: 1.625V  (DT 1.62-3.40V) */
-        s->regs[0x1C] = 0x29;   /* BUCK5OUT: 1.625V  (DT 1.62V+)     */
-        s->regs[0x1E] = 0x14;   /* BUCK6OUT: 1.100V  (DT 1.06-1.14V) */
-        s->regs[0x21] = 0x01;   /* LDO1CTRL vsel: 1.7V (DT 1.62-1.98V) */
+        s->regs[0x1A] = 0x29;   /* BUCK4OUT  selector -- SCAFFOLD, not OTP (see above) */
+        s->regs[0x1C] = 0x29;   /* BUCK5OUT  selector -- SCAFFOLD, not OTP */
+        s->regs[0x1E] = 0x14;   /* BUCK6OUT  selector -- SCAFFOLD, not OTP */
+        s->regs[0x21] = 0x01;   /* LDO1CTRL  selector -- SCAFFOLD, not OTP */
     }
     if (s->pcal6524) {
         /*
+         * ⭐ CONTRAST WITH THE PCA9450 BLOCK ABOVE: THIS ONE IS A REAL DATASHEET POR.
+         *    Not all off-SoC defaults are fabricated -- each must be judged against ITS
+         *    OWN part's datasheet, not lumped together.  One file, one genuine POR, four
+         *    scaffolds.
+         *
          * PCAL6524 powers up with all pins configured as inputs (the
          * pca953x DIRECTION registers default to 0xFF). Without this the
          * pins read back as outputs and the pca953x driver refuses to use

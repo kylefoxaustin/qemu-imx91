@@ -78,6 +78,36 @@ data engines (eDMA / SAI / MICFIL / FlexSPI / ISI / ENET / USDHC) are verified b
 integrity oracles (audio/camera/boot e2e, qtest round-trips), not just "done"
 flags.
 
+## Off-SoC parts — the blind spot of an RM-golden audit (2026-07-14)
+
+⭐ **An audit's blind spot is its golden's blind spot.** The reset-value gate
+(`tests/imx91-reset-values`) is golden against the i.MX 91 RM, which describes
+**on-SoC** blocks only. It is therefore *structurally* silent on every off-SoC
+chip the board attaches over I2C/SPI — and "the RM doesn't mention it" and "it's
+correct" produce the **same empty grep**. Credit 93emulator for naming the class
+(their PCA9451A finding). Each such part must be re-audited against **its own**
+datasheet, not the SoC RM — and judged individually, not lumped:
+
+- **PCA9451A PMIC** (`hw/i2c/imx93_i2c_regdev.c`, `pca9450=true`, @0x25) —
+  **SCAFFOLD, NOT SILICON. Fix BLOCKED on the datasheet.** BUCK4/5/6 + LDO1 vsel
+  regs are preset to the *lowest legal DT-range selector* so the pca9450 driver
+  registers the rails; they are **not** the chip's OTP power-on values, and the
+  rest of the register file `memset`s to 0 (also not a physical POR). BUCK4 (the
+  EVK 3.3 V SD rail) reads ~1.625 V. **Not corrected**: `91_docs/` has no PCA9451A
+  register/OTP map, and *a plausible wrong number is worse than an honest scaffold
+  because it reads as measured.* Severity is **narrow, re-derived from the BSP
+  driver**: pca9450-regulator uses `REGCACHE_MAPLE` with **no `reg_defaults`**, so
+  the cache starts empty and our value is **visible, not laundered** — the
+  regmap-skip amplifier does not apply. Exposure: a guest reading a rail before its
+  consumer sets it. Boots (soak-proven); uSDHC unaffected.
+- **PCAL6524 expander** (same file, `pcal6524=true`) — **REAL POR, correctly
+  sourced.** Direction regs = 0xFF (all-input) is the genuine pca953x power-on
+  default. Not all off-SoC values are wrong; this one is right.
+- **WM8962 codec** (`hw/audio/wm8962.c`, @0x1a) — a full device model, not a
+  regdev scaffold; exercised by the audio e2e oracle. *(Its sample-rate handling is
+  tracked separately: the SAI hardcodes the word rate — see the SAI note / bus
+  2026-07-14; a default that equals the answer is not yet a witnessed answer.)*
+
 ## Fixing vs flagging
 
 Per the standard, each silent-wrong block must either be made to **compute /
