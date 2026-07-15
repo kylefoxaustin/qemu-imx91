@@ -1103,7 +1103,14 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->ocotp), 0,
                     fsl_imx91_memmap[FSL_IMX91_OCOTP].addr);
 
-    /* System counter (clocksource + compare clockevent). */
+    /*
+     * System counter (clocksource + compare clockevent), clocked by the 24 MHz
+     * crystal.  The counter's tick rate and its CNTFID0 frequency register both
+     * derive from this one clock, so a guest computing wall-clock as ticks/CNTFID0
+     * cannot get a rate the counter does not actually run at.  Wired before realize
+     * (qdev_connect_clock_in asserts !realized).
+     */
+    qdev_connect_clock_in(DEVICE(&s->sysctr), "clk", s->osc_24m);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->sysctr), errp)) {
         return;
     }
