@@ -40,7 +40,23 @@
 #define UNLOCK      0xd928c520u
 #define REFRESH     0xb480a602u
 
-#define WDOG_HZ     1000        /* LPO clock */
+/*
+ * ⭐ THE COUNTER TICKS AT 32 kHz, AND THE PRESCALED RATE MUST BE EXACTLY 125 Hz.
+ *
+ * The i.MX 91/93 WDOG counts off a 32 kHz LPO, and the driver claims this block
+ * with fsl,imx93-wdt -- whose imx7ulp_wdt.c hw-feature has prescaler_enable=true
+ * and wdog_clock_rate=125.  So Linux ALWAYS sets CS.PRES (the /256 prescaler) and
+ * programs TOVAL = 125 * timeout_seconds, expecting the counter to tick at 125 Hz
+ * (32000 / 256 = 125, exactly).  This model must fire after that same wall-clock
+ * time or the watchdog is a lie.
+ *
+ * It used to base off WDOG_HZ = 1000 (the imx7ulp variant's value -- that chip has
+ * NO prescaler and counts at 1 kHz directly).  With the prescaler the guest sets,
+ * 1000 / 256 = 3 Hz (integer-truncated), so a 60 s watchdog fired after ~42 MINUTES
+ * -- ~42x too late, in the one block whose entire job is to be prompt.  The base is
+ * the chip's real LPO now, so 32000 / 256 lands on the 125 Hz the driver assumes.
+ */
+#define WDOG_HZ     32000       /* 32 kHz LPO; /256 prescaler -> 125 Hz (driver contract) */
 
 static uint32_t wdog_rate(IMX93WdogState *s)
 {
