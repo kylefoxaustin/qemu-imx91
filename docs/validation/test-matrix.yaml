@@ -22,7 +22,7 @@ present:
   - { block: "Cortex-A55 (single core)",        tier: A, test: boot,                       evidence: "Boots Linux to shell; runs all qtests" }
   - { block: "GICv3 (dist + redist)",           tier: A, test: boot,                       evidence: "Underpins boot + every qtest IRQ path" }
   - { block: "eDMA1/2 (i.MX9)",                 tier: A, test: boot,                       evidence: "Real src->dst move; audio-capture DADDR-persist e2e" }
-  - { block: "SAI1/2/3",                        tier: A, test: "qtest:imx91-sai-test",     evidence: "samples to userspace (audio e2e)" }
+  - { block: "SAI1/2/3",                        tier: A, test: "qtest:imx91-sai-test",     evidence: "samples to userspace (audio e2e); sample rate tracked from the wm8962 codec, pitch+duration checked at 48k & 16k" }
   - { block: "MICFIL (PDM mic)",                tier: A, test: "qtest:imx91-micfil-test",  evidence: "audio capture e2e" }
   - { block: "XCVR (audio transceiver)",        tier: A, test: "qtest:imx91-xcvr-test",    evidence: "" }
   - { block: "FlexSPI1 (NOR + SPI-NAND)",       tier: A, test: "qtest:imx91-flexspi-test", evidence: "boots from real flash contents" }
@@ -34,7 +34,7 @@ present:
   - { block: "LPSPI x8",                        tier: A, test: "qtest:imx91-lpspi-test",    evidence: "" }
   - { block: "FEC / ENET",                      tier: A, test: "harness:functest-imx91",   evidence: "boot networking (real frames)" }
   - { block: "EQOS (DWMAC)",                    tier: A, test: "harness:functest-imx91",   evidence: "boot networking" }
-  - { block: "USDHC x3",                        tier: A, test: "harness:functest-imx91",   evidence: "SDHCI ADMA real block data" }
+  - { block: "USDHC x3",                        tier: A, test: "harness:usdhc-imx91",      evidence: "SDHCI ADMA real block data; dedicated SD-card ext2 r/w + VEND_SPEC migration round-trip" }
   - { block: "LPUART x8",                       tier: A, test: boot,                       evidence: "Console I/O" }
   - { block: "SiP SoC-info SMC (id/rev/UID)",   tier: A, test: boot,                       evidence: "guest-verified /sys/devices/soc0/soc_id = i.MX91 rev A0" }
   - { block: "DDRC (i.MX9)",                    tier: B, test: "qtest:imx91-ddrc-test",    evidence: "controller config/register bring-up" }
@@ -43,7 +43,7 @@ present:
   - { block: "TPM x6",                          tier: B, test: boot,                       evidence: "clockevent/clocksource at boot" }
   - { block: "GPIO x4",                         tier: B, test: "harness:functest-imx91",   evidence: "" }
   - { block: "WDOG x5",                         tier: B, test: "harness:functest-imx91",   evidence: "" }
-  - { block: "TMU (thermal)",                   tier: B, test: boot,                       evidence: "honest-parameterizable: settable temperature prop (default 40C)", caveat: "fixed-but-settable, documented" }
+  - { block: "TMU (thermal)",                   tier: B, test: boot,                       evidence: "honest-parameterizable: settable temperature prop (default 25C); guest reads die temp incl. negative", caveat: "fixed-but-settable, documented" }
   - { block: "ADC1",                            tier: B, test: "harness:functest-imx91",   evidence: "operator-settable adc-chN QOM props (default 0x100+ch*0x111); injection verified (was silent-wrong, fixed 2026-06-28)" }
   - { block: "OCOTP (fuses)",                   tier: B, test: boot,                       evidence: "SoC serial/UID read (configured MAC/UID)" }
   - { block: "BBNSM (RTC / secure)",            tier: B, test: boot,                       evidence: "" }
@@ -54,7 +54,7 @@ present:
   - { block: "ELE (EdgeLock Enclave, MU)",      tier: B, test: boot,                       evidence: "honest-fault rail: ele-uncomputed-cmds counter + opt-in ele-unmodelled-errcode guest fault (verified); SoC-id is via SiP, not ELE", caveat: "residual: GET_INFO/RNG DMA-payload cmds unmodelled (no 91 consumer)" }
   - { block: "WM8962 codec (I2C)",              tier: B, test: "harness:audio-imx91",      evidence: "" }
   - { block: "MT9M114 sensor (I2C)",            tier: B, test: "harness:camera-imx91",     evidence: "" }
-  - { block: "PCA9451 PMIC / PCA9538 expander (I2C)", tier: B, test: boot,                 evidence: "I2C regdev" }
+  - { block: "PCA9451 PMIC / PCA9538 expander (I2C)", tier: B, test: boot,                 evidence: "I2C regdev; PMIC reports real datasheet OTP rail voltages (BUCK4=3.3V SD rail), guest /sys/class/regulator" }
 
 absent:
   - { block: "Ethos-U65 NPU",          reason: "No NPU on i.MX 91 (93-only). The fleet's worst silent-wrong class is absent here." }
@@ -99,7 +99,7 @@ readme_groups:
       evidence: "Console I/O on ttyLP0; LPUART2 drives the UART interconnect",
       blocks: ["LPUART x8"] }
   - { label: "Audio — SAI/MICFIL/XCVR (play + capture)", tier: A,
-      evidence: "Square wave -> eDMA -> wav byte-checked; SAI/MICFIL capture real samples; concurrent multi-stream",
+      evidence: "Square wave -> eDMA -> wav byte-checked at 48k & 16k (rate from the codec, not assumed); SAI/MICFIL capture real samples; concurrent multi-stream",
       blocks: ["SAI1/2/3", "MICFIL (PDM mic)", "XCVR (audio transceiver)"] }
   - { label: "Camera — MT9M114 -> parallel-CSI -> ISI -> V4L2", tier: A,
       evidence: "5/5 byte-checked 1280x720 YUYV frames off /dev/video0; host-file frame injection",
@@ -138,7 +138,7 @@ readme_groups:
       evidence: "Driver binds; ADC carries operator-settable adc-chN props; TMU settable temperature",
       blocks: ["TMU (thermal)", "ADC1", "OCOTP (fuses)"] }
   - { label: "I2C peripherals — WM8962, MT9M114, PMIC/expanders", tier: B,
-      evidence: "Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev)",
+      evidence: "Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev); PMIC reports real OTP rail voltages, guest-verified",
       blocks: ["WM8962 codec (I2C)", "MT9M114 sensor (I2C)", "PCA9451 PMIC / PCA9538 expander (I2C)"] }
 
 readme_absent:

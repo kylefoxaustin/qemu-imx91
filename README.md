@@ -22,7 +22,8 @@ It boots stock **NXP BSP Linux to userspace** on the single Cortex-A55 — and a
 **vanilla mainline kernel** on the mainline `imx91-11x11-evk` device tree (i.MX 91
 support landed upstream in v6.18), a fully-OSS boot that doubles as the upstream CI
 functional test. Beyond booting, it passes real data between instances over six
-board buses (see [Interconnect](#interconnect--board-to-board-mission-5)). Intended
+board buses and joins a multi-node broadcast-segment lab (see
+[Interconnect](#interconnect--board-to-board-mission-5)). Intended
 use: BSP development, peripheral-driver development, multi-board lab work, and CI;
 the long-term aim is upstream-mergeability into QEMU mainline.
 
@@ -97,7 +98,7 @@ failure).
 | Storage — uSDHC x3 | A | SDHCI ADMA moves real block data; ext4 mmcblk0 r/w/sync |
 | eDMA1/2 | A | Real TCD execution - I2C transfers, audio FIFO drains, per-CH_MUX source-id routing |
 | Serial console — LPUART x8 | A | Console I/O on ttyLP0; LPUART2 drives the UART interconnect |
-| Audio — SAI/MICFIL/XCVR (play + capture) | A | Square wave -> eDMA -> wav byte-checked; SAI/MICFIL capture real samples; concurrent multi-stream |
+| Audio — SAI/MICFIL/XCVR (play + capture) | A | Square wave -> eDMA -> wav byte-checked at 48k & 16k (rate from the codec, not assumed); SAI/MICFIL capture real samples; concurrent multi-stream |
 | Camera — MT9M114 -> parallel-CSI -> ISI -> V4L2 | A | 5/5 byte-checked 1280x720 YUYV frames off /dev/video0; host-file frame injection |
 | FlexSPI1 (NOR + SPI-NAND) | A | Boots from real flash contents; JEDEC + read verified |
 | FlexCAN x2 | A | can0 up; frame round-trip; board-to-board (see Interconnect) |
@@ -110,7 +111,7 @@ failure).
 | ELE (EdgeLock Enclave, MU) | B | Driver binds; honest-fault rail (ele-uncomputed-cmds counter + opt-in guest fault) |
 | Timers + control — TPM, SYSCTR, WDOG, SEMA42, MU1/2, GPIO, BBNSM, DDRC | B | Drivers bind; registers/IRQ/timing correct |
 | Sensors/analog — TMU, ADC1, OCOTP | B | Driver binds; ADC carries operator-settable adc-chN props; TMU settable temperature |
-| I2C peripherals — WM8962, MT9M114, PMIC/expanders | B | Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev) |
+| I2C peripherals — WM8962, MT9M114, PMIC/expanders | B | Codec/sensor/PMIC answer on their LPI2C buses (I2C regdev); PMIC reports real OTP rail voltages, guest-verified |
 
 **Absent on i.MX 91 silicon — N/A (never a failure):**
 
@@ -163,9 +164,23 @@ into the emulated 91 over `/dev/ttyACM`**, and the board is otherwise reachable
 exactly like a real EVK: `serial-getty` login on `ttyLP0` and `ssh` over eQOS
 ([`tests/putty-imx91/`](tests/putty-imx91/)).
 
+**Multi-node segment lab (ENET-LAB3).** Beyond point-to-point, the 91 stands up as a
+Linux peer on holobench's **broadcast-segment** lab, where N nodes share one
+multicast wire and each PASSes only while it can see all the others
+([`tests/interconnect-imx91/run-enet-lab.sh`](tests/interconnect-imx91/) + a pinned,
+config-free `enet-lab3` FEC-beacon artifact). Each frame carries a **checkable
+body** — magic, a self-consistent ethertype, a monotonic sequence, a **per-boot
+incarnation nonce**, and a fill pattern — and the receiver verifies it, so the lab
+finds bugs an ethertype count cannot: a replayed stale ring buffer (freshness, not
+validity), a node reboot vs. a replay (the nonce), an over-long or self-contradicting
+frame. The node re-arms its heartbeat (a departure is a *gap*, not a silence),
+ignores non-beacon traffic (IPv6 NDP on a real mixed segment), and never exits so a
+coordinator-scheduled departure is distinguishable from a crash. Interoperates with
+the fleet's MCX / RT1180 / i.MX 95 beacon nodes on a shared v2 wire.
+
 ## Validation
 
-Correctness rests on **five independent gates**, not one:
+Correctness rests on **six independent gates**, not one:
 
 1. **Kernel-free qtests** on the `imx91-11x11-evk` machine (FlexCAN, LPSPI, SAI
    TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C — async
@@ -173,17 +188,33 @@ Correctness rests on **five independent gates**, not one:
    assembled by [`tests/gen-test-matrix.py`](tests/gen-test-matrix.py), which
    reads Tier from `test-matrix.yaml` and fills the result from the run — it
    gates on any qtest regression.
-2. **AddressSanitizer + UBSan** sweep of the shared device models (zero findings).
-3. **24-hour concurrent soak** across the variant-DTB matrix (1423 boots, zero
+2. **Reset-value oracle** — [`tests/imx91-reset-values/`](tests/imx91-reset-values/)
+   probes every register at reset over qtest and diffs against a golden extracted
+   from the i.MX 91 Reference Manual PDF (9,308 registers, 127/127 instances,
+   width-aware). It is the **only gate whose expectations the model did not
+   author**: every other check can be satisfied by the model agreeing with itself
+   (a mirror), so it cannot see a value the model was written to produce — this one
+   can, because the golden comes from the RM. Every deviation is either matching, a
+   **decision with a stated reason**, or a declared **gap**; a shrink-only ratchet
+   (`triage.py`) forbids the allowlist from growing itself. It drove out the bulk of
+   the reset-value fixes (CCM `STATUS` at the wrong offset, the TMU that never
+   worked, fabricated version/PARAM registers, `VEND_SPEC` truncation) and stands at
+   zero un-triaged deviations.
+3. **AddressSanitizer + UBSan** sweep of the shared device models (zero findings).
+4. **24-hour concurrent soak** across the variant-DTB matrix (1423 boots, zero
    function failures, flat RSS) as the release gate.
-4. **Vanilla-mainline boot** — a stock upstream kernel + mainline dts to userspace,
+5. **Vanilla-mainline boot** — a stock upstream kernel + mainline dts to userspace,
    confirming the model matches upstream (the QEMU-CI functional test).
-5. **Interconnect + cross-SoC** — byte-exact board-to-board over all five
-   transports, cross-validated against the i.MX 93 / 95 / MCXN947 nodes.
+6. **Interconnect + cross-SoC** — byte-exact board-to-board over all seven
+   transports plus the multi-node segment lab, cross-validated against the i.MX 93 /
+   95 / MCXN947 nodes.
 
 The recurring lesson: a green deterministic qtest is *not* validation for a model
 with no live workload — the FlexIO IRQ-storm fix and the LPSPI PARAM/FCF fixes only
-proved out (or surfaced) against a real-driver repro. Fidelity judgments live in
+proved out (or surfaced) against a real-driver repro; and a hand-written qtest that
+asserts the value the model was written to return is a mirror, not an oracle (the
+RM-golden reset gate exists precisely because such mirrors cannot see a fabrication).
+Fidelity judgments live in
 [`docs/validation/fidelity-audit.md`](docs/validation/fidelity-audit.md); the
 model can also **compile and run real code in-guest on the A55**
 ([`tests/in-guest-build-imx91/`](tests/in-guest-build-imx91/), three levels green)
@@ -250,8 +281,10 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
 | `hw/ssi/spi_link.c`, `net/can/can_host_chardev.c` | the board-to-board **interconnect** transports (SPI + CAN chardev bridges) |
 | (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk,flexio}.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec,imx93_dwmac}.c`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,imx93_xcvr,wm8962}.c`, `hw/net/can/flexcan.c`, ChipIdea USB |
 | `tests/boot-imx91/`, `tests/functest-imx91/` | boot to console; end-to-end smoke (uSDHC r/w, I²C, both Ethernets) |
-| `tests/display-imx91/`, `tests/camera-imx91/`, `tests/audio-imx91/` | LCDIF scanout, V4L2 capture, and ALSA play/capture oracles |
-| `tests/interconnect-imx91/` | board-to-board links: `run-{eth,uart,spi,can,usb,usb-cdc}.sh` + `run-spi-stress.sh` |
+| `tests/display-imx91/`, `tests/camera-imx91/`, `tests/audio-imx91/` | LCDIF scanout, V4L2 capture, and ALSA play/capture oracles (audio checks pitch+duration at 48k & 16k) |
+| `tests/usdhc-imx91/`, `tests/thermal-imx91/`, `tests/clock-tree-imx91/`, `tests/flexspi-lut-imx91/` | dedicated block oracles: SD-card r/w + VEND_SPEC migration, die-temperature sweep, CCM mux/divider/gate math, FlexSPI LUT-lock |
+| `tests/interconnect-imx91/` | board-to-board links: `run-{eth,uart,spi,can,usb,usb-cdc,i2c}.sh` + `run-spi-stress.sh`; the multi-node segment lab `run-enet-lab.sh` + the pinned `enet-lab3` beacon artifact |
+| `tests/imx91-reset-values/` | the RM-golden reset-value oracle: `extract-rm-golden.py`, `check.py` (the gate), shrink-only `triage.py`, `known-deviations.txt` |
 | `tests/putty-imx91/`, `tests/in-guest-build-imx91/`, `tests/sweep-imx91/` | developer access (serial + SSH), in-guest build (3 levels), third-party code sweep |
 | `tests/qtest/imx91-*-test.c` | kernel-free qtests on the imx91-11x11-evk machine |
 | `tests/soak-imx91/` | long-run soak over the variant-DTB matrix, VmRSS leak tracking, periodic qtests |
@@ -279,7 +312,8 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
 
 The current release is **`imx91-v1.1`** — the complete, soak-validated model plus
 upstream readiness — extended this cycle with the **board-to-board interconnect**
-(six transports, cross-SoC validated). What remains is **upstream submission**
+(seven transports plus the multi-node segment lab, cross-SoC validated) and a
+**reset-value audit** taken to zero un-triaged deviations. What remains is **upstream submission**
 (the machine + board + the three 91-only device models — DDR controller, SPI-NAND,
 Silvaco I3C — as a follow-on to the i.MX 93 series). Inert RM blocks
 (LPTMR/LPIT/TRGMUX/GPC/CoreSight/boot-ROM/USB-PHY) stay unmodeled until a use case
@@ -307,6 +341,18 @@ Milestones, in order:
   serial) board-to-board, byte-exact; the new `spi-link` device (contributed to
   the fleet) and carried `can-host-chardev`; cross-validated across i.MX 91/93/95
   and MCXN947; a back-pressure hardening pass so continuous clocking can't hang.
+- **Reset-value audit + fidelity hardening** — the RM-golden reset-value oracle
+  ([`tests/imx91-reset-values/`](tests/imx91-reset-values/)) taken to zero
+  un-triaged deviations across 9,308 registers, driving out a run of silent
+  fabrications the mirror-style gates could not see: the CCM `STATUS` register at
+  the wrong offset, a TMU that never worked, invented version/PARAM/capability
+  values, `VEND_SPEC` truncated to 16 bits with a zero reset, a watchdog that
+  wouldn't arm. Capability registers made **computed-from** the block they describe
+  (a drift is now a compile error); the SAI sample rate taken from the wm8962 codec
+  instead of a hardcoded 48 kHz; the PCA9451A PMIC given its real datasheet OTP rail
+  voltages; SDHCI `VEND_SPEC` width/reset/migration fixed upstream-side; the
+  segment-lab beacon carried to a v2 per-boot incarnation nonce; and the broken
+  `imx93-evk` sibling machine un-blocked.
 
 ## License & credits
 
