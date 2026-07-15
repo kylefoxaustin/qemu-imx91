@@ -51,8 +51,8 @@ static void test_pdm_capture(void)
     int i, nonzero = 0, varied = 0;
 
     /* Identification must read back so the driver would probe. */
-    g_assert_cmphex(rd(qts, MICFIL_VERID), ==, 0x01000000);
-    g_assert_cmphex(rd(qts, MICFIL_PARAM), ==, 0x00000034);
+    g_assert_cmphex(rd(qts, MICFIL_VERID), ==, 0x020f0000);  /* RM: was fabricated 0x01000000 */
+    g_assert_cmphex(rd(qts, MICFIL_PARAM), ==, 0x00000154);  /* RM: FIFO 32 + FIL_OUT_WIDTH; was 0x34 (FIFO 8) */
 
     /* Program a watermark, then enable channel 0, DMA, and the module. */
     wr(qts, MICFIL_FIFO_CTRL, WATERMARK);

@@ -20,7 +20,7 @@
 #define LPI2C_MCR       0x10
 #define MCR_MEN         (1u << 0)
 
-#define PARAM_VALUE     0x0404
+#define PARAM_VALUE     0x0303  /* RM: 8-deep; was inventing 0x0404 = 16 */
 
 static const struct {
     const char *name;

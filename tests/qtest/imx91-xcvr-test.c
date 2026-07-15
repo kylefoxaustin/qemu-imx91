@@ -28,7 +28,7 @@
 #define AI_TOG_PLL      (1u << 24)
 #define AI_DONE_PLL     (1u << 25)
 
-#define VERSION_VALUE   0x00010000
+#define VERSION_VALUE   0x00000000  /* RM: was fabricated 0x00010000 */
 
 static uint32_t rd(QTestState *q, uint64_t off)
 {

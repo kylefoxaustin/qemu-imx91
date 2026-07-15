@@ -67,7 +67,7 @@ static void test_tx_fifo(void)
     int i;
 
     /* Identification must read back so the driver would probe. */
-    g_assert_cmphex(rd(qts, SAI_VERID), ==, 0x03030000);
+    g_assert_cmphex(rd(qts, SAI_VERID), ==, 0x03020002);  /* RM: was fabricated 0x03030000 */
     g_assert_cmphex(rd(qts, SAI_PARAM), ==, 0x00050704);
 
     /* Program a watermark and enable the data line. */
