@@ -532,6 +532,72 @@ grep -a 'BAD-LENGTH' "$WORK/ovgood.log" 2>/dev/null | head -1 | sed 's/^/    /'
 [ "${o_dup:-1}" -eq 0 ] || { echo "    FAIL: counted a peer every other node is rejecting"; fail=1; }
 [ "${o_leg:-1}" -eq 0 ] || { echo "    FAIL: filed a BROKEN emitter as a phase-1 peer"; fail=1; }
 
+# ---------------------------------------------------------------------------
+# ⭐ v2: THE INCARNATION NONCE MUST BE PROVABLY PER-BOOT.
+#
+# rt1180, 95 and mcx each shipped -- then caught -- a CONSTANT nonce that no single-boot
+# test could see. The entropy is the whole point: a per-boot nonce is what tells a REBOOT
+# (new incarnation, seq restarts) from a REPLAY (same incarnation, seq backwards). A
+# constant nonce silently collapses the two back together, and the segment looks fine on
+# any one boot. So: boot the node TWICE and require the incarnations to DIFFER.
+# ---------------------------------------------------------------------------
+echo
+echo "== v2 PER-BOOT ENTROPY: two boots of one node must have different incarnations =="
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
+wait 2>/dev/null
+PIDS=()
+inc_of() {   # boot once on a private group, print the incarnation from the UP banner
+    local port=$1
+    timeout -s KILL 40 "$QEMU" -M imx91-11x11-evk -smp 1 -m 1G -display none -audio driver=none \
+        -kernel "$KERNEL" -dtb "$DTB" -initrd "$ARTIFACT" \
+        -nic socket,mcast="230.0.0.30:$port",model=imx.enet,mac=52:54:00:12:34:d0 -nic user \
+        -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/init beacon.et=0x88B8 beacon.peers=0x88B9" \
+        -serial mon:stdio -serial null 2>/dev/null | grep -aoE 'incarnation=0x[0-9a-f]+' | head -1
+}
+inc1=$(inc_of 12030)
+inc2=$(inc_of 12031)
+echo "  boot 1: ${inc1:-<none>}"
+echo "  boot 2: ${inc2:-<none>}"
+if [ -n "$inc1" ] && [ -n "$inc2" ] && [ "$inc1" != "$inc2" ]; then
+    echo "  ok    per-boot -- a constant nonce would fail this"
+else
+    echo "  FAIL  incarnation is NOT provably per-boot (a constant nonce is the fleet's bug)"
+    fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# ⭐ v2: A REBOOT IS NARRATED, NOT CONDEMNED.
+#
+# A peer that crashes and restarts comes back with its seq reset low -- to a pure freshness
+# check that is INDISTINGUISHABLE from a replay (seq went backwards). A v1 node condemns it
+# (PAYLOAD-REPLAY flood); a v2 node reads the changed incarnation and NARRATES the reboot.
+# So: run a peer, KILL it, restart it (new incarnation, seq from 0), and require the honest
+# node to print REBOOT and NOT PAYLOAD-REPLAY.
+# ---------------------------------------------------------------------------
+echo
+echo "== v2 REBOOT: a restarted peer is narrated (REBOOT), not condemned (REPLAY) =="
+for p in "${PIDS[@]}"; do kill_tree "$p"; done
+wait 2>/dev/null
+PIDS=()
+MCAST="230.0.0.31:12130"
+mknode rbhonest 0x88B8 d1 0x88B9        # honest node, watches 0x88B9
+mknode rbpeer1  0x88B9 d2 0x88B8        # peer, first incarnation
+sleep 20
+# kill ONLY the peer (its wrapper child too), leave the honest node running
+kill_tree "${PIDS[1]}"
+PIDS=("${PIDS[0]}")
+sleep 3
+mknode rbpeer2  0x88B9 d2 0x88B8        # SAME peer restarts: new incarnation, seq from 0
+sleep 18
+
+r_reboot=$(grep -ac 'ENET-LAB3 REBOOT'   "$WORK/rbhonest.log" 2>/dev/null) || true
+r_replay=$(grep -ac 'PAYLOAD-REPLAY'     "$WORK/rbhonest.log" 2>/dev/null) || true
+echo "  REBOOT narrated : $r_reboot   (must be >=1 -- the restart must be seen)"
+echo "  PAYLOAD-REPLAY  : $r_replay   (must be 0 -- a reboot is NOT a replay)"
+grep -a 'ENET-LAB3 REBOOT' "$WORK/rbhonest.log" 2>/dev/null | head -1 | sed 's/^/    /'
+[ "${r_reboot:-0}" -ge 1 ] || { echo "    FAIL: the peer's restart was not narrated as a REBOOT"; fail=1; }
+[ "${r_replay:-1}" -eq 0 ] || { echo "    FAIL: condemned a rebooted peer as a replay (v1 behaviour)"; fail=1; }
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "PASS: three i.MX 91 FEC nodes hold a broadcast segment -- every frame's BODY"
@@ -549,6 +615,8 @@ if [ "$fail" -eq 0 ]; then
       AND a PURE REPEATER -- a peer whose seq never advances -- is caught AND
       reclassified as LOST: freshness and liveness compose, so a node saying
       nothing NEW is saying nothing.
+      AND a per-boot incarnation nonce distinguishes a REBOOT (narrated) from a
+      REPLAY (condemned), and its entropy is proven per-boot across two boots.
       AND an OVER-LONG frame with a valid 64-byte prefix is REFUSED (the length is a
       term of the contract, not a floor) and is NOT excused as an un-upgraded peer.
       AND foreign traffic (IPv6 NDP/MLD from three real Linux kernels) WAS on the

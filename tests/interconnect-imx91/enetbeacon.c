@@ -30,7 +30,8 @@
  *      bytes 14..17   magic 0xB5B6B7C0
  *      bytes 18..19   the SENDER'S OWN ETHERTYPE, echoed inside the payload
  *      bytes 20..23   monotonic per-sender sequence number
- *      bytes 24..63   0x5A, repeated
+ *      bytes 24..27   per-boot incarnation nonce (v2: reboot != replay)
+ *      bytes 28..63   0x5A, repeated
  *
  *    The embedded ethertype is the sharp one: A FRAME THAT DISAGREES WITH ITSELF IS A
  *    STALE OR CLOBBERED BUFFER -- which is exactly what rt1180's NETC writeback bug
@@ -73,13 +74,14 @@
  *   !is_beacon_et(et) -> BAD_OK (ignore)        foreign ethertype -> rx_foreign++, ignored
  *   magic BE [14..17] != 0xB5B6B7C0 -> BAD_MAGIC   same, same offsets, same endianness
  *   self_et BE [18..19] != et -> BAD_SELF_ET    same ("the frame contradicts itself")
- *   fill 0x5A for i in [24, FRAME_LEN)          same (PATTERN_OFF 24 .. FRAME_LEN 64)
+ *   incarnation [24..27] (v2)                   same -- reboot narrated, not condemned
+ *   fill 0x5A for i in [28, FRAME_LEN)          same (PATTERN_OFF 28 .. FRAME_LEN 64)
  *   seq BE [20..23]; have && seq <= last        same -> PAYLOAD-REPLAY, NOT a sighting
  *       -> BAD_REPLAY, and *last NOT updated        and last_seq NOT updated (identical
  *                                                   reasoning: a stale frame must not drag
  *                                                   our own baseline backwards)
  *   have && seq > last+1 -> gaps++ (statistic)  same -> GAP, logged, never a failure
- *   FRAME_LEN 64, MAGIC 0xB5B6B7C0, FILL 0x5A   identical constants
+ *   FRAME_LEN 64, MAGIC 0xB5B6B7C0, FILL 0x5A   identical constants; v2 body [24..27]=nonce
  *
  * They agree.  That is a NULL RESULT, and it is reported at full volume -- but note WHAT IT
  * IS: it says my CHECKER is the same checker.  It does NOT say my BODY has been validated by
@@ -120,13 +122,30 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #define MAGIC            0xB5B6B7C0u
 #define PATTERN_BYTE     0x5A
 #define FRAME_LEN        64
-#define PATTERN_OFF      24
-#define PATTERN_LEN      (FRAME_LEN - PATTERN_OFF)   /* 40 */
+/*
+ * ⭐ v2: A PER-BOOT INCARNATION NONCE AT [24..27] TELLS A REBOOT FROM A REPLAY.
+ *
+ * Freshness (the sequence number) catches a STALE buffer replayed on one boot.  But a
+ * peer that CRASHES AND RESTARTS comes back with its seq reset to a low number -- which,
+ * to a pure seq check, is INDISTINGUISHABLE FROM A REPLAY (seq went backwards).  A v1
+ * node CONDEMNS that reboot as corruption; a v2 node NARRATES it.  The incarnation is a
+ * random word chosen ONCE PER BOOT: same incarnation + seq backwards = replay (a stale
+ * buffer); NEW incarnation + seq low = a reboot (a peer that legitimately restarted).
+ *
+ * The fill therefore moves to [28..63].  rt1180/95/mcx converged on this layout after
+ * three of them shipped -- then caught -- a CONSTANT nonce that no single-boot test could
+ * see: the entropy MUST be provably per-boot, which run-enet-lab.sh asserts by booting a
+ * node twice and requiring different incarnations.
+ */
+#define INCARN_OFF       24
+#define PATTERN_OFF      28
+#define PATTERN_LEN      (FRAME_LEN - PATTERN_OFF)   /* 36 */
 
 #define BEACON_MS        100      /* transmit interval                        */
 #define HEARTBEAT_MS     100      /* how often PASS is re-evaluated           */
@@ -174,6 +193,9 @@ struct peer {
     int64_t  last_seen_ms;        /* 0 = never */
     uint32_t last_seq;
     int      have_seq;
+    uint32_t incarnation;         /* the peer's per-boot nonce, [24..27] */
+    int      have_incarnation;
+    uint64_t reboots;             /* times this peer restarted (narrated, not condemned) */
     int      emits;               /* LATCH: has ever shown a valid body */
     int      warned_legacy;       /* the "does not emit" note is printed once */
     uint64_t frames;
@@ -181,6 +203,28 @@ struct peer {
     uint64_t corrupt;
     uint64_t replays;
 };
+
+/*
+ * A per-BOOT incarnation nonce.  /dev/urandom XOR the wall-clock microseconds: two sources
+ * that each differ per boot, so a constant value cannot slip through even if one is weak
+ * (a QEMU guest's early RNG can be low-entropy; the clock reflects host time and always
+ * moves).  NOT a compile-time constant, NOT a fixed seed -- the exact bug the fleet caught.
+ */
+static uint32_t make_incarnation(void)
+{
+    uint32_t r = 0;
+    struct timeval tv;
+    int fd = open("/dev/urandom", O_RDONLY);
+
+    if (fd >= 0) {
+        if (read(fd, &r, sizeof(r)) != (ssize_t)sizeof(r)) {
+            r = 0;
+        }
+        close(fd);
+    }
+    gettimeofday(&tv, NULL);
+    return r ^ (uint32_t)tv.tv_usec ^ ((uint32_t)tv.tv_sec << 20);
+}
 
 static int64_t now_ms(void)
 {
@@ -215,6 +259,7 @@ int main(int argc, char **argv)
     int      fd, ifindex, npeers = 0, i;
     uint16_t my_et;
     uint32_t seq = 0;
+    uint32_t incarnation = make_incarnation();  /* per-boot nonce */
     int64_t  next_tx, next_hb;
     uint64_t rx_self = 0, rx_other = 0, beats = 0;
     uint64_t rx_foreign = 0;        /* not my protocol -- MUST NOT be body-checked */
@@ -295,9 +340,10 @@ int main(int argc, char **argv)
      * node enforces, you no longer ask me: you read it off the segment.
      */
     printf("ENET-LAB3 UP: ethertype=0x%04X peers=%d body=emit enforce=%s "
-           "if=%s mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+           "incarnation=0x%08x if=%s mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
            my_et, npeers,
            strict ? "unconditional" : "self-arming",
+           incarnation,
            argv[1], my_mac[0], my_mac[1], my_mac[2], my_mac[3], my_mac[4], my_mac[5]);
     fflush(stdout);
 
@@ -308,6 +354,7 @@ int main(int argc, char **argv)
     put32(tx + 14, MAGIC);
     tx[18] = my_et >> 8; tx[19] = my_et; /* ethertype (payload) -- must agree */
     put32(tx + 20, 0);
+    put32(tx + INCARN_OFF, incarnation); /* v2: per-boot nonce, [24..27]      */
     memset(tx + PATTERN_OFF, PATTERN_BYTE, PATTERN_LEN);
 
     /*
@@ -660,6 +707,31 @@ int main(int argc, char **argv)
                          */
                         {
                             uint32_t s = get32(rx + 20);
+                            uint32_t inc = get32(rx + INCARN_OFF);
+
+                            /*
+                             * ⭐ A REBOOT IS NARRATED, NOT CONDEMNED.
+                             *
+                             * A peer that restarted comes back with a NEW incarnation and
+                             * its seq reset low.  Without the incarnation that low seq looks
+                             * exactly like a replay (seq went backwards) and a v1 node
+                             * CONDEMNS it.  A changed incarnation says "this peer is alive
+                             * again", so we reset the freshness baseline and take the frame:
+                             * a reboot is a departure-and-return, which the lab measures, not
+                             * a stale buffer, which it fails on.
+                             */
+                            if (peers[i].have_incarnation &&
+                                inc != peers[i].incarnation) {
+                                peers[i].reboots++;
+                                peers[i].have_seq = 0;   /* fresh start: seq baseline clears */
+                                printf("ENET-LAB3 REBOOT: et=0x%04X incarnation 0x%08x -> "
+                                       "0x%08x, seq restarts at %u -- A PEER THAT RESTARTED "
+                                       "IS NOT A PEER THAT REPLAYED\n",
+                                       et, peers[i].incarnation, inc, s);
+                                fflush(stdout);
+                            }
+                            peers[i].incarnation = inc;
+                            peers[i].have_incarnation = 1;
 
                             if (peers[i].have_seq &&
                                 s <= peers[i].last_seq &&
