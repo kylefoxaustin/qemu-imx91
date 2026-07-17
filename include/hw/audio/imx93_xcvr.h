@@ -19,6 +19,7 @@
 #define HW_AUDIO_IMX93_XCVR_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 #include "qemu/timer.h"
 #include "qemu/audio.h"
@@ -44,6 +45,7 @@ struct IMX93XcvrState {
     uint32_t ai_sub[256];   /* PHY/PLL sub-registers via the AI interface */
 
     /* Transmit FIFO (SPDIF playback). */
+    Clock    *phy_clk;          /* SPDIF root clock; sets the TX word rate */
     QEMUTimer *tx_timer;
     uint32_t tx_fifo[IMX93_XCVR_FIFO_DEPTH];
     uint32_t tx_rptr;

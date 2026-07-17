@@ -1200,6 +1200,17 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     }
 
     /* XCVR SPDIF audio transceiver. */
+    {
+        /* TX word rate is phy_clk/64 (spdif_only); wire the SPDIF root or a
+         * non-48kHz SPDIF stream would clock out at 48kHz. */
+        int slice = fsl_imx91_root_slice("spdif_root");
+
+        if (slice < 0) {
+            error_setg(errp, "imx91: no CCM clock root named 'spdif_root'");
+            return;
+        }
+        qdev_connect_clock_in(DEVICE(&s->xcvr), "phy", s->ccm.root_out[slice]);
+    }
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->xcvr), errp)) {
         return;
     }

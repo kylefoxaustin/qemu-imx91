@@ -17,6 +17,7 @@
 #include "qemu/osdep.h"
 #include "hw/audio/imx93_xcvr.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 #include "qemu/module.h"
 
@@ -80,8 +81,28 @@
 #define EXT_CTRL_SPDIF_MODE     (1u << 23)  /* SPDIF mode selected         */
 #define EXT_CTRL_TX_FWM_MASK    0x7f        /* TX FIFO watermark [6:0]     */
 
-/* SPDIF stereo: 2 ch x 48 kHz = 96000 words/s. */
-#define XCVR_TX_WORD_NS (NANOSECONDS_PER_SECOND / 96000)
+/*
+ * ⭐ THE TX WORD RATE COMES FROM THE SPDIF ROOT CLOCK, NOT A HARDCODED 96 kHz.
+ *
+ * This used to clock one word out every 1/96000 s (48 kHz stereo) whatever rate the
+ * guest asked for, so SPDIF at any other rate mistimed -- the MICFIL/SAI fixed-rate bug,
+ * a third block over.  The fsl_xcvr driver (spdif_only i.MX93 XCVR) programs the PHY
+ * clock to fout/5 = 64 * rate * ch (fout = 32*rate*ch*10), so the FIFO word rate
+ * (rate*ch words/s) is exactly phy_clk / 64 -- independent of channel count.  Wire the
+ * SPDIF root and invert it: words/s = clock_get_hz(phy_clk) / 64.
+ */
+#define XCVR_WORD_PER_PHY   64
+#define XCVR_TX_WORD_NS_48K (NANOSECONDS_PER_SECOND / 96000)
+
+static int64_t xcvr_tx_word_ns(IMX93XcvrState *s)
+{
+    uint64_t phy = s->phy_clk ? clock_get_hz(s->phy_clk) : 0;
+    uint64_t words_hz = phy / XCVR_WORD_PER_PHY;
+
+    /* Unclocked (board always wires it) -> 48 kHz stereo, so TX still drains. */
+    return words_hz ? (int64_t)(NANOSECONDS_PER_SECOND / words_hz)
+                    : XCVR_TX_WORD_NS_48K;
+}
 
 /* TX clocks once SPDIF mode is on, the datapath released and DMA enabled. */
 static bool xcvr_tx_active(IMX93XcvrState *s)
@@ -160,7 +181,7 @@ static void xcvr_tx_tick(void *opaque)
         qemu_irq_pulse(s->dma_req);
     }
     timer_mod(s->tx_timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + XCVR_TX_WORD_NS);
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + xcvr_tx_word_ns(s));
 }
 
 /* Perform the indirect PHY/PLL access and acknowledge it via the DONE bits. */
@@ -284,7 +305,7 @@ static void xcvr_write(void *opaque, hwaddr offset, uint64_t value,
         if (active && !timer_pending(s->tx_timer)) {
             xcvr_voice_set(s, true);
             timer_mod(s->tx_timer,
-                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + XCVR_TX_WORD_NS);
+                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + xcvr_tx_word_ns(s));
         } else if (!active && timer_pending(s->tx_timer)) {
             timer_del(s->tx_timer);
             xcvr_voice_set(s, false);
@@ -320,6 +341,14 @@ static void xcvr_reset(DeviceState *dev)
     xcvr_voice_set(s, false);
 }
 
+static void xcvr_init(Object *obj)
+{
+    IMX93XcvrState *s = IMX93_XCVR(obj);
+
+    /* Created here (not realize) so the board can wire it pre-realize. */
+    s->phy_clk = qdev_init_clock_in(DEVICE(obj), "phy", NULL, NULL, 0);
+}
+
 static void xcvr_realize(DeviceState *dev, Error **errp)
 {
     IMX93XcvrState *s = IMX93_XCVR(dev);
@@ -346,9 +375,10 @@ static void xcvr_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_xcvr = {
     .name = TYPE_IMX93_XCVR,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
+        VMSTATE_CLOCK(phy_clk, IMX93XcvrState),
         VMSTATE_UINT32_ARRAY(regs, IMX93XcvrState, IMX93_XCVR_NUM_REGS),
         VMSTATE_UINT8_ARRAY(ram, IMX93XcvrState, IMX93_XCVR_RAM_SIZE),
         VMSTATE_UINT32_ARRAY(ai_sub, IMX93XcvrState, 256),
@@ -376,6 +406,7 @@ static const TypeInfo xcvr_types[] = {
         .name = TYPE_IMX93_XCVR,
         .parent = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(IMX93XcvrState),
+        .instance_init = xcvr_init,
         .class_init = xcvr_class_init,
     },
 };

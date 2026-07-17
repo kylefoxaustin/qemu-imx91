@@ -1,0 +1,35 @@
+#!/bin/sh
+# In-guest init for the XCVR/SPDIF playback-RATE test (run-spdif-play.sh).
+# Loads the ASoC stack incl. snd-soc-fsl-xcvr, finds the SPDIF card, and plays
+# 1s of audio at 48k and 96k so the harness can time it: the TX word rate is
+# taken from the SPDIF root clock, so a 96k stream drains in ~1.0s -- a model
+# that feeds a fixed 48kHz would take ~2.0s.  Needs the aud-hat DTB (which
+# enables the xcvr node) and the deploy modules injected.
+PATH=/sbin:/usr/sbin:/bin:/usr/bin; export PATH
+/bin/mount -t proc proc /proc 2>/dev/null
+/bin/mount -t sysfs sysfs /sys 2>/dev/null
+/bin/mount -t devtmpfs devtmpfs /dev 2>/dev/null
+echo "=== SPDIF: depmod + load XCVR/SAI/codec drivers ==="
+/sbin/depmod -a 2>/dev/null
+for m in snd-soc-fsl-utils snd-soc-fsl-sai snd-soc-fsl-xcvr snd-soc-fsl-micfil \
+         imx-pcm-dma snd-soc-dmic snd-soc-wm8962 snd-soc-fsl-asoc-card \
+         snd-soc-imx-card snd-soc-simple-card snd-soc-simple-card-utils; do
+    /sbin/modprobe "$m" 2>&1 | sed "s/^/modprobe $m: /"
+done
+sleep 4
+echo "=== /proc/asound/cards ==="
+cat /proc/asound/cards 2>/dev/null
+XCARD=$(awk 'tolower($0) ~ /spdif|xcvr/ {print $1; exit}' /proc/asound/cards 2>/dev/null)
+echo "spdif/xcvr card index = ${XCARD:-NONE}"
+if [ -x /pcm_play ] && [ -n "$XCARD" ]; then
+    # SPDIF needs IEC958 (32-bit) and standard rates (16k invalid; use 48k/96k).
+    for rate in 48000 96000; do
+        echo "=== SPDIF play hw:$XCARD,0 1s @ ${rate}Hz IEC958 ==="
+        /pcm_play hw:$XCARD,0 1 $rate IEC958
+    done
+fi
+echo "=== SPDIF TEST DONE ==="
+sync
+/bin/poweroff -f 2>/dev/null
+echo o > /proc/sysrq-trigger 2>/dev/null
+sleep 10
