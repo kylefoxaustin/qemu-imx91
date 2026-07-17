@@ -308,12 +308,6 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
   multiple slaves on one bus** — fine for the usual one-slave-per-controller case
   (and the board-to-board link), a gap only if a board muxes several SPI devices
   on one LPSPI.
-- **XCVR/SPDIF transmit runs at a fixed 48 kHz feed rate.** The model clocks samples
-  through the TX FIFO at 48 kHz regardless of the rate the guest programs, so SPDIF at
-  another rate mistimes. Lower-impact than it sounds (audio is muted in tests, so it
-  only warps a captured wav's pitch); the fix is to derive the feed rate from the CCM
-  SPDIF root clock, the way MICFIL capture already takes its rate from `pdm_root` and
-  the SAI takes its playback rate from the codec.
 - Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
 
 ## Roadmap & milestone history
@@ -364,10 +358,11 @@ Milestones, in order:
   the reset gate is structurally blind to — *behavioral* constants, checked against
   each block's Linux driver rather than the RM: the watchdog's prescaled countdown
   ran at 3 Hz where `fsl,imx93-wdt` assumes 125 Hz, so it fired ~42× too late (fixed,
-  qtest-bracketed); and MICFIL capture fed a fixed 48 kHz regardless of the programmed
-  rate, now taken from the `pdm_root` clock (guest-verified at 48 k and 16 k) — which in
-  turn surfaced a per-channel feed bug the fixed rate had masked. XCVR/SPDIF is the
-  remaining twin.
+  qtest-bracketed); and all three audio blocks that fed a fixed 48 kHz regardless of the
+  programmed rate now take it from a clock — SAI from the codec, MICFIL from `pdm_root`
+  (guest-verified at 48 k/16 k, which surfaced a per-channel feed bug the fixed rate had
+  masked), and XCVR/SPDIF from `spdif_root` (guest-verified at 48 k/96 k). Each rate fix
+  is guarded by an asserting, mutation-proven playback/capture-duration test.
 
 ## License & credits
 
