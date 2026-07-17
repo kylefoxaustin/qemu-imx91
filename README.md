@@ -308,12 +308,13 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
   multiple slaves on one bus** — fine for the usual one-slave-per-controller case
   (and the board-to-board link), a gap only if a board muxes several SPI devices
   on one LPSPI.
-- **MICFIL capture runs at a fixed 48 kHz feed rate.** The model clocks synthesized
-  samples into the FIFO at 48 kHz regardless of the rate the guest programs, so a
-  capture at another rate (e.g. 16 kHz voice) mistimes — the FIFO fills too fast and
-  the capture is short. Benign at 48 kHz (the common case and the shipped capture
-  oracle); the fix is to derive the feed rate from the CCM `pdm_root` clock the way
-  the SAI already takes its playback rate from the codec.
+- **MICFIL capture and XCVR/SPDIF transmit run at a fixed 48 kHz feed rate.** Both
+  models clock samples through the FIFO at 48 kHz regardless of the rate the guest
+  programs, so audio at another rate (e.g. 16 kHz voice capture) mistimes — the FIFO
+  fills too fast and the stream is short. Benign at 48 kHz (the common case and the
+  shipped oracle); the fix is to derive each feed rate from its CCM root clock
+  (`pdm_root` / the SPDIF root) the way the SAI already takes its playback rate from
+  the codec.
 - Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
 
 ## Roadmap & milestone history
