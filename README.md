@@ -183,8 +183,10 @@ the fleet's MCX / RT1180 / i.MX 95 beacon nodes on a shared v2 wire.
 Correctness rests on **six independent gates**, not one:
 
 1. **Kernel-free qtests** on the `imx91-11x11-evk` machine (FlexCAN, LPSPI, SAI
-   TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C — async
-   timer races use `clock_step` to pin the ordering). CI-runnable; the matrix is
+   TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C, WDOG —
+   async timer races use `clock_step` to pin the ordering; the WDOG test brackets
+   the watchdog deadline to prove the prescaled countdown lands on the driver's
+   assumed rate). CI-runnable; the matrix is
    assembled by [`tests/gen-test-matrix.py`](tests/gen-test-matrix.py), which
    reads Tier from `test-matrix.yaml` and fills the result from the run — it
    gates on any qtest regression.
@@ -306,6 +308,12 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
   multiple slaves on one bus** — fine for the usual one-slave-per-controller case
   (and the board-to-board link), a gap only if a board muxes several SPI devices
   on one LPSPI.
+- **MICFIL capture runs at a fixed 48 kHz feed rate.** The model clocks synthesized
+  samples into the FIFO at 48 kHz regardless of the rate the guest programs, so a
+  capture at another rate (e.g. 16 kHz voice) mistimes — the FIFO fills too fast and
+  the capture is short. Benign at 48 kHz (the common case and the shipped capture
+  oracle); the fix is to derive the feed rate from the CCM `pdm_root` clock the way
+  the SAI already takes its playback rate from the codec.
 - Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
 
 ## Roadmap & milestone history
@@ -352,7 +360,12 @@ Milestones, in order:
   instead of a hardcoded 48 kHz; the PCA9451A PMIC given its real datasheet OTP rail
   voltages; SDHCI `VEND_SPEC` width/reset/migration fixed upstream-side; the
   segment-lab beacon carried to a v2 per-boot incarnation nonce; and the broken
-  `imx93-evk` sibling machine un-blocked.
+  `imx93-evk` sibling machine un-blocked. A follow-on pass then went after the class
+  the reset gate is structurally blind to — *behavioral* constants, checked against
+  each block's Linux driver rather than the RM: the watchdog's prescaled countdown
+  ran at 3 Hz where `fsl,imx93-wdt` assumes 125 Hz, so it fired ~42× too late (fixed,
+  qtest-bracketed); the MICFIL capture feed is the same class (hardcoded 48 kHz),
+  characterized and named for a clock-wired follow-on.
 
 ## License & credits
 
