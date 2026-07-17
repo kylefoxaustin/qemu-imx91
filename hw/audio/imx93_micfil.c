@@ -9,7 +9,9 @@
 #include "qemu/osdep.h"
 #include "hw/audio/imx93_micfil.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
+#include "qemu/host-utils.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
 
@@ -87,10 +89,56 @@ QEMU_BUILD_BUG_ON((1u << ((MICFIL_PARAM_VALUE >> 4) & 0xf)) !=
 /* FIFO_CTRL: watermark resets to depth-1, exactly as the driver later programs it. */
 #define MICFIL_FIFO_CTRL_RESET  0x0000001f
 
-/* MICFIL outputs ~48 kHz; one decimated sample per word period. */
-#define MICFIL_WORD_NS  (1000000000LL / 48000)
-
 #define R(s, off)   ((s)->regs[(off) >> 2])
+
+/*
+ * ⭐ THE CAPTURE RATE COMES FROM THE PDM ROOT CLOCK, NOT A HARDCODED 48 kHz.
+ *
+ * This used to clock one sample into the FIFO every 1/48000 s no matter what rate
+ * the guest asked for -- so a 16 kHz capture filled the FIFO 3x too fast and ran 3x
+ * too short (the SAI-plays-3x-too-fast bug, one block over).  The `fsl_micfil` driver
+ * keeps CTRL2.CLKDIV and the CIC oversampling ratio CONSTANT and encodes the WHOLE
+ * sample rate in the mclk it programs: mclk = fs * CLKDIV * OSR * 8.  So the rate is
+ * not in the registers -- it is in the clock -- and we invert the driver's own
+ * arithmetic against the wired PDM root: fs = mclk / (CLKDIV * OSR * 8).
+ *
+ * CTRL2 (0x04): CICOSR = [20:16] (OSR = 32 - CICOSR), CLKDIV = [7:0].
+ *
+ * ⭐ AND THE FEED IS PER-WORD, BUT THE RATE IS PER-FRAME: SCALE BY THE CHANNEL COUNT.
+ *
+ * fs = mclk/(CLKDIV*OSR*8) is the PER-CHANNEL sample rate.  But this model feeds one
+ * shared FIFO that every DATACHn read drains, so an N-channel capture pops N words per
+ * frame -- to sustain fs FRAMES/s the FIFO must deliver fs*N WORDS/s.  Without this an
+ * N-channel capture ran N times too slow (a 2-ch 48 kHz arecord took 2 s per second of
+ * audio); the fixed-48 kHz feed hid it behind a non-silence-only check.  CTRL1[7:0] is
+ * the driver's channel-enable bitmask ((1<<channels)-1), so popcount = N.
+ */
+#define MICFIL_CTRL2_CICOSR     (0x1fu << 16)
+#define MICFIL_CTRL2_CLKDIV     (0xffu << 0)
+#define MICFIL_CTRL1_CHEN       0xffu           /* [7:0]: per-channel enable */
+#define MICFIL_WORD_NS_48K      (1000000000LL / 48000)
+
+static int64_t micfil_word_ns(IMX93MicfilState *s)
+{
+    uint32_t ctrl2 = R(s, MICFIL_CTRL2);
+    uint32_t clkdiv = ctrl2 & MICFIL_CTRL2_CLKDIV;
+    uint32_t osr = 32 - ((ctrl2 & MICFIL_CTRL2_CICOSR) >> 16);   /* 1..32 */
+    uint32_t nchan = ctpop32(R(s, MICFIL_CTRL1) & MICFIL_CTRL1_CHEN);
+    uint64_t mclk = s->mclk ? clock_get_hz(s->mclk) : 0;
+    uint64_t words_hz;
+
+    /*
+     * Unconfigured (CTRL2 not yet written) or unclocked: fall back to 48 kHz so a
+     * bare capture still produces samples rather than dividing by zero.  The board
+     * always wires the clock, and the driver always writes CLKDIV before enabling.
+     */
+    if (mclk == 0 || clkdiv == 0) {
+        return MICFIL_WORD_NS_48K;
+    }
+    /* per-channel sample rate * enabled channels = the shared FIFO's word rate. */
+    words_hz = mclk / ((uint64_t)clkdiv * osr * 8) * (nchan ? nchan : 1);
+    return words_hz ? (int64_t)(1000000000LL / words_hz) : MICFIL_WORD_NS_48K;
+}
 
 /* The module clocks samples in once enabled and not disabled. */
 static bool imx93_micfil_running(IMX93MicfilState *s)
@@ -149,7 +197,7 @@ static void imx93_micfil_rx_tick(void *opaque)
     }
 
     timer_mod(s->rx_timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + MICFIL_WORD_NS);
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + micfil_word_ns(s));
 }
 
 static uint64_t imx93_micfil_read(void *opaque, hwaddr offset, unsigned size)
@@ -219,7 +267,7 @@ static void imx93_micfil_write(void *opaque, hwaddr offset, uint64_t value,
         if (now_running && !was_running) {
             imx93_micfil_rx_reset(s);
             timer_mod(s->rx_timer,
-                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + MICFIL_WORD_NS);
+                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + micfil_word_ns(s));
         } else if (!now_running && was_running) {
             timer_del(s->rx_timer);
             imx93_micfil_rx_reset(s);
@@ -253,6 +301,14 @@ static void imx93_micfil_reset(DeviceState *dev)
     s->rx_words = 0;
 }
 
+static void imx93_micfil_init(Object *obj)
+{
+    IMX93MicfilState *s = IMX93_MICFIL(obj);
+
+    /* Created here (not realize) so the board can wire it pre-realize. */
+    s->mclk = qdev_init_clock_in(DEVICE(obj), "mclk", NULL, NULL, 0);
+}
+
 static void imx93_micfil_realize(DeviceState *dev, Error **errp)
 {
     IMX93MicfilState *s = IMX93_MICFIL(dev);
@@ -270,9 +326,10 @@ static void imx93_micfil_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_imx93_micfil = {
     .name = TYPE_IMX93_MICFIL,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
+        VMSTATE_CLOCK(mclk, IMX93MicfilState),
         VMSTATE_UINT32_ARRAY(regs, IMX93MicfilState, IMX93_MICFIL_REGS),
         VMSTATE_TIMER_PTR(rx_timer, IMX93MicfilState),
         VMSTATE_UINT32_ARRAY(rx_fifo, IMX93MicfilState,
@@ -300,6 +357,7 @@ static const TypeInfo imx93_micfil_types[] = {
         .name = TYPE_IMX93_MICFIL,
         .parent = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(IMX93MicfilState),
+        .instance_init = imx93_micfil_init,
         .class_init = imx93_micfil_class_init,
     },
 };

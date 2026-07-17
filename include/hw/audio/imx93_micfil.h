@@ -19,6 +19,7 @@
 #define IMX93_MICFIL_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 #include "qemu/timer.h"
 
@@ -64,6 +65,7 @@ struct IMX93MicfilState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
+    Clock *mclk;                /* PDM root clock; sets the capture sample rate */
     qemu_irq irq[IMX93_MICFIL_IRQS];
     qemu_irq dma_req;           /* FIFO-has-data request to the eDMA */
     uint32_t regs[IMX93_MICFIL_REGS];

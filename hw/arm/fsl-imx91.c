@@ -1013,6 +1013,21 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
             }
         }
 
+        /*
+         * The capture sample rate is mclk / (CLKDIV * OSR * 8); the driver keeps
+         * CLKDIV/OSR fixed and puts the rate in the PDM root clock, so wire it
+         * (before realize) or a 16 kHz capture would run at 48 kHz.
+         */
+        {
+            int slice = fsl_imx91_root_slice("pdm_root");
+
+            if (slice < 0) {
+                error_setg(errp, "imx91: no CCM clock root named 'pdm_root'");
+                return;
+            }
+            qdev_connect_clock_in(DEVICE(&s->micfil), "mclk",
+                                  s->ccm.root_out[slice]);
+        }
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
         }

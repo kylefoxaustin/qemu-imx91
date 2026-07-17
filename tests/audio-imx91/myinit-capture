@@ -44,10 +44,20 @@ if [ -n "$MCARD" ]; then
             echo "=== CAPTURE on MICFIL (hw:$MCARD,0) ${ch}ch ==="
             /pcm_capture hw:$MCARD,0 4096 S32 $ch
         done
+        # RATE-TRACKING proof: same 16000 frames at 48k then 16k.  With the feed
+        # rate taken from the pdm_root clock, 16k takes ~0.67s LONGER than 48k;
+        # a model that feeds a fixed 48kHz makes the two equal (harness asserts).
+        for rate in 48000 16000; do
+            echo "=== MICFIL RATE hw:$MCARD,0 16000 frames @ ${rate}Hz ==="
+            /pcm_capture hw:$MCARD,0 16000 S32 2 $rate
+        done
     fi
 fi
 
 echo "=== FULL DMESG since CAPSTART ==="
 dmesg | sed -n '/CAPSTART/,$p' | tail -120
 echo "=== AUDIO-CAP TEST DONE ==="
-sleep 3
+sync
+/bin/poweroff -f 2>/dev/null
+echo o > /proc/sysrq-trigger 2>/dev/null
+sleep 10
