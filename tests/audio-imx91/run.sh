@@ -95,7 +95,7 @@ fail=0
 for want_rate in 48000 16000; do
     cap="$TMP/cap-$want_rate.wav"
     timeout -s KILL 300 "$QEMU" -M imx91-11x11-evk -m 4G -display none \
-        -audio "driver=wav,path=$cap" \
+        -audio "driver=wav,path=$cap,out.frequency=$want_rate" \
         -kernel "$KERNEL" -dtb "$DTB" -initrd "$TMP/initrd.cpio.gz" \
         -append "console=ttyLP0,115200 cpuidle.off=1 rdinit=/myinit ignore_loglevel pcm.rate=$want_rate ${QEMU_APPEND:-}" \
         -serial mon:stdio -serial null "$@" > "$TMP/console-$want_rate.log" 2>&1
@@ -105,6 +105,19 @@ for want_rate in 48000 16000; do
         || { echo "  FAIL  ${want_rate}Hz: pcm_play never reported PASS"; fail=1; continue; }
 
     # tone = rate/110, duration ~= 1.0s -- measured from the captured PCM, model-independent.
+    #
+    # ⭐ AND A STRUCTURAL CHECK THAT CATCHES SAMPLE LOSS, WHICH TONE+DURATION CANNOT.
+    #
+    # pcm_play toggles the square wave every 55 FRAMES, so with a rate-matched capture
+    # (out.frequency=want_rate above -- no resample) every interior half-period is
+    # EXACTLY 55 samples.  A dropped sample shortens a run to 54; a scattered ~0.4%
+    # loss (the fleet's SAI audio_cb bug #2) turns ~20% of the runs off-55.  This is
+    # catchable where the count is NOT: the total-frame count jitters by a whole ALSA
+    # period (+/-1024) run-to-run, burying a 176-frame loss -- but the run STRUCTURE is
+    # deterministic and host-independent.  (A statistical peak/tone/duration oracle
+    # feels a 0.4% scattered loss not at all; 93emulator's screendump-mean oracle had
+    # the same blind spot.)  Requires the non-resampled capture: on a resampled wav the
+    # runs smear to 50/51 and the check is meaningless -- which is the whole point.
     python3 - "$cap" "$want_rate" <<'EOF' || fail=1
 import struct, sys
 cap, want = sys.argv[1], int(sys.argv[2])
@@ -121,9 +134,29 @@ tone = xz / 2 / dur
 want_tone = want / 110.0
 tone_ok = abs(tone - want_tone) < want_tone * 0.15
 dur_ok = abs(dur - 1.0) < 0.2
-print("  %s  %dHz -> tone %.0fHz (want ~%.0f), duration %.2fs (want ~1.0)"
-      % ("ok  " if tone_ok and dur_ok else "FAIL", want, tone, want_tone, dur))
-sys.exit(0 if tone_ok and dur_ok else 1)
+# Run-length structure: every interior half-period must be exactly 55 frames.
+runs = []; cur = 0; sign = None
+for v in mono:
+    sg = 1 if v > 0 else (-1 if v < 0 else 0)
+    if sg == 0:
+        continue
+    if sg == sign:
+        cur += 1
+    else:
+        if sign is not None:
+            runs.append(cur)
+        cur = 1; sign = sg
+if sign is not None:
+    runs.append(cur)
+interior = runs[1:-1]            # drop the first/last partial half-periods
+off = [r for r in interior if r != 55]
+struct_ok = len(interior) > 100 and len(off) < 0.02 * len(interior)
+print("  %s  %dHz -> tone %.0fHz (want ~%.0f), duration %.2fs (want ~1.0), "
+      "%d half-periods %d off-55 (%.1f%%)"
+      % ("ok  " if tone_ok and dur_ok and struct_ok else "FAIL", want, tone,
+         want_tone, dur, len(interior), len(off),
+         100 * len(off) / max(1, len(interior))))
+sys.exit(0 if tone_ok and dur_ok and struct_ok else 1)
 EOF
 done
 
