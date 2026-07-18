@@ -48,10 +48,11 @@
  * anything did -- U-Boot, a clk_set_rate, a bare-metal guest -- the timer would
  * silently not have followed.
  *
- * ⚠ Still not modelled: LPCG GATING does not reach consumers.  Roots feed their
- * consumers directly, so a peripheral whose LPCG the guest disabled keeps
- * ticking.  That is a NAMED hole, not a papered-over one, and it is benign only
- * because Linux enables the gate for every block it uses.
+ * ✅ LPCG gating now reaches consumers: the CCM publishes a GATED output per
+ * modelled block (its root, 0 Hz when the block's own LPCG DIRECT is clear), and
+ * the board wires TPM1-6 / MICFIL / XCVR to those instead of the raw root -- so
+ * clearing a gate stops exactly that block (imx93_ccm_gated[] below).  Was a
+ * named hole; the gate used to be storage nothing acted on.
  */
 
 #include "qemu/osdep.h"

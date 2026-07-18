@@ -183,10 +183,11 @@ the fleet's MCX / RT1180 / i.MX 95 beacon nodes on a shared v2 wire.
 Correctness rests on **six independent gates**, not one:
 
 1. **Kernel-free qtests** on the `imx91-11x11-evk` machine (FlexCAN, LPSPI, SAI
-   TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C, WDOG —
-   async timer races use `clock_step` to pin the ordering; the WDOG test brackets
-   the watchdog deadline to prove the prescaled countdown lands on the driver's
-   assumed rate). CI-runnable; the matrix is
+   TX + RX-capture, MICFIL, XCVR, LPI2C, ISI, FlexSPI, FlexIO, DDRC, I3C, WDOG,
+   LPCG — async timer races use `clock_step` to pin the ordering; the WDOG test
+   brackets the watchdog deadline to prove the prescaled countdown lands on the
+   driver's assumed rate, and the LPCG test clears a block's clock gate and shows
+   its counter freeze). CI-runnable; the matrix is
    assembled by [`tests/gen-test-matrix.py`](tests/gen-test-matrix.py), which
    reads Tier from `test-matrix.yaml` and fills the result from the run — it
    gates on any qtest regression.
