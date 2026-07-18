@@ -237,12 +237,55 @@ static uint64_t imx93_ccm_root_hz(IMX93CCMState *s, unsigned slice)
     return src_hz / div;
 }
 
+/*
+ * The modelled consumers whose LPCG gate we make load-bearing: each is a root
+ * (fed to the block) plus the LPCG DIRECT offset that gates it, both taken from
+ * clk-imx93.c's ccgr_array.  The board wires these to "<name>_gated" instead of
+ * the raw root, so clearing the gate stops exactly that block and no other on
+ * the shared root (LPCG is per-peripheral, not per-root).
+ */
+static const struct {
+    const char *name;       /* clock-out name: "<name>_gated" */
+    uint16_t    gate_off;   /* LPCG DIRECT offset (MMIO) */
+    const char *root;       /* feeding CLOCK_ROOT slice, by name */
+} imx93_ccm_gated[IMX93_CCM_NUM_GATED] = {
+    { "tpm1",  0x8b00, "bus_aon_root"    },
+    { "tpm2",  0x8b40, "tpm2_root"       },
+    { "tpm3",  0x8b80, "bus_wakeup_root" },
+    { "tpm4",  0x8bc0, "tpm4_root"       },
+    { "tpm5",  0x8c00, "tpm5_root"       },
+    { "tpm6",  0x8c40, "tpm6_root"       },
+    { "pdm",   0x9ac0, "pdm_root"        },
+    { "spdif", 0x9c00, "spdif_root"      },
+};
+
+static int imx93_ccm_slice_by_name(const char *name)
+{
+    unsigned i;
+
+    for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
+        if (imx93_ccm_root_name[i] && !strcmp(imx93_ccm_root_name[i], name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static void imx93_ccm_update(IMX93CCMState *s)
 {
     unsigned i;
 
     for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
         clock_update_hz(s->root_out[i], imx93_ccm_root_hz(s, i));
+    }
+
+    /* Gated outputs: the root, but 0 Hz when the block's LPCG DIRECT is clear. */
+    for (i = 0; i < IMX93_CCM_NUM_GATED; i++) {
+        int slice = imx93_ccm_slice_by_name(imx93_ccm_gated[i].root);
+        bool on = s->regs[imx93_ccm_gated[i].gate_off / 4] & CCM_GATE_ON;
+        uint64_t hz = (on && slice >= 0) ? imx93_ccm_root_hz(s, slice) : 0;
+
+        clock_update_hz(s->gated_out[i], hz);
     }
 }
 
@@ -406,6 +449,11 @@ static void imx93_ccm_init(Object *obj)
     for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
         g_autofree char *name = g_strdup_printf("root%u", i);
         s->root_out[i] = qdev_init_clock_out(DEVICE(obj), name);
+    }
+    for (i = 0; i < IMX93_CCM_NUM_GATED; i++) {
+        g_autofree char *name = g_strdup_printf("%s_gated",
+                                                imx93_ccm_gated[i].name);
+        s->gated_out[i] = qdev_init_clock_out(DEVICE(obj), name);
     }
 }
 

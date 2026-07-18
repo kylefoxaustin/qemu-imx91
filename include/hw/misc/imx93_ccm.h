@@ -34,6 +34,9 @@ OBJECT_DECLARE_SIMPLE_TYPE(IMX93CCMState, IMX93_CCM)
 #define IMX93_CCM_REG_SIZE      (64 * KiB)
 #define IMX93_CCM_NUM_REGS      (IMX93_CCM_REG_SIZE / 4)
 
+/* Modelled consumers whose LPCG gate actually stops them (imx93_ccm_gated[]). */
+#define IMX93_CCM_NUM_GATED     8
+
 struct IMX93CCMState {
     SysBusDevice parent_obj;
 
@@ -55,6 +58,13 @@ struct IMX93CCMState {
     Clock *osc_in;
     Clock *pll_in[IMX93_PLL__COUNT];
     Clock *root_out[IMX93_CCM_NUM_SLICES];
+
+    /*
+     * Per-consumer GATED outputs: the consumer's root, gated by its own LPCG
+     * DIRECT bit.  A block whose gate the guest cleared reads 0 Hz and stops --
+     * without this the LPCG was storage the gating never reached.
+     */
+    Clock *gated_out[IMX93_CCM_NUM_GATED];
 };
 
 /* Slice index of a root, for the SoC's wiring (CONTROL lives at slice * 0x80). */

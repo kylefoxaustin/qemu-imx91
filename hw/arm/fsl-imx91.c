@@ -260,25 +260,6 @@ static bool fsl_imx91_sip_handler(uint64_t fid, uint64_t a1, uint64_t a2,
     return false;
 }
 
-/*
- * Resolve a CCM clock root BY NAME against the generated table.
- *
- * ⭐ A SLICE NUMBER COPIED BY HAND AND QUIETLY WRONG HANDS A CONSUMER SOME OTHER
- *    ROOT'S FREQUENCY -- a plausible number, which is the exact failure this whole
- *    clock-tree exercise exists to kill.  Callers treat -1 as a hard error.
- */
-static int fsl_imx91_root_slice(const char *name)
-{
-    unsigned i;
-
-    for (i = 0; i < IMX93_CCM_NUM_SLICES; i++) {
-        if (imx93_ccm_root_name[i] && !strcmp(imx93_ccm_root_name[i], name)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 static void fsl_imx91_realize(DeviceState *dev, Error **errp)
 {
     MachineState *ms = MACHINE(qdev_get_machine());
@@ -1016,18 +997,11 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
         /*
          * The capture sample rate is mclk / (CLKDIV * OSR * 8); the driver keeps
          * CLKDIV/OSR fixed and puts the rate in the PDM root clock, so wire it
-         * (before realize) or a 16 kHz capture would run at 48 kHz.
+         * (before realize) or a 16 kHz capture would run at 48 kHz.  Through the
+         * GATED output so clearing the MICFIL LPCG also stops the capture.
          */
-        {
-            int slice = fsl_imx91_root_slice("pdm_root");
-
-            if (slice < 0) {
-                error_setg(errp, "imx91: no CCM clock root named 'pdm_root'");
-                return;
-            }
-            qdev_connect_clock_in(DEVICE(&s->micfil), "mclk",
-                                  s->ccm.root_out[slice]);
-        }
+        qdev_connect_clock_in(DEVICE(&s->micfil), "mclk",
+                              qdev_get_clock_out(DEVICE(&s->ccm), "pdm_gated"));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->micfil), errp)) {
             return;
         }
@@ -1135,28 +1109,16 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
                        qdev_get_gpio_in(gicdev, FSL_IMX91_SYSCTR_IRQ));
 
     /*
-     * TPM1-6, each fed by the CCM root its LPCG hangs off (clk-imx93.c ccgr_array).
-     * Note TPM1 and TPM3 are clocked from the BUS roots, NOT from a TPM root --
-     * exactly the sort of fact a hardcoded 24 MHz constant made invisible.
+     * TPM1-6, each fed by the CCM root its LPCG hangs off (clk-imx93.c ccgr_array),
+     * but through the CCM's GATED output ("tpmN_gated") -- so clearing the TPM's
+     * LPCG DIRECT bit actually stops it, not just the STATUS register.  (The root
+     * is picked inside the CCM's gated table; TPM1/TPM3 hang off the BUS roots.)
      */
     for (i = 0; i < 6; i++) {
-        static const char *const tpm_root[6] = {
-            "bus_aon_root",     /* TPM1 */
-            "tpm2_root",        /* TPM2 */
-            "bus_wakeup_root",  /* TPM3 */
-            "tpm4_root",        /* TPM4 */
-            "tpm5_root",        /* TPM5 */
-            "tpm6_root",        /* TPM6 */
-        };
-        int slice = fsl_imx91_root_slice(tpm_root[i]);
+        g_autofree char *gated = g_strdup_printf("tpm%d_gated", i + 1);
 
-        if (slice < 0) {
-            error_setg(errp, "imx91: no CCM clock root named '%s' for TPM%d",
-                       tpm_root[i], i + 1);
-            return;
-        }
         qdev_connect_clock_in(DEVICE(&s->tpm[i]), "clk",
-                              s->ccm.root_out[slice]);
+                              qdev_get_clock_out(DEVICE(&s->ccm), gated));
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->tpm[i]), errp)) {
             return;
@@ -1200,17 +1162,13 @@ static void fsl_imx91_realize(DeviceState *dev, Error **errp)
     }
 
     /* XCVR SPDIF audio transceiver. */
-    {
-        /* TX word rate is phy_clk/64 (spdif_only); wire the SPDIF root or a
-         * non-48kHz SPDIF stream would clock out at 48kHz. */
-        int slice = fsl_imx91_root_slice("spdif_root");
-
-        if (slice < 0) {
-            error_setg(errp, "imx91: no CCM clock root named 'spdif_root'");
-            return;
-        }
-        qdev_connect_clock_in(DEVICE(&s->xcvr), "phy", s->ccm.root_out[slice]);
-    }
+    /*
+     * TX word rate is phy_clk/64 (spdif_only); wire the SPDIF root or a
+     * non-48kHz SPDIF stream would clock out at 48kHz.  Through the GATED output
+     * so clearing the SPDIF LPCG also stops the transmit.
+     */
+    qdev_connect_clock_in(DEVICE(&s->xcvr), "phy",
+                          qdev_get_clock_out(DEVICE(&s->ccm), "spdif_gated"));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->xcvr), errp)) {
         return;
     }
