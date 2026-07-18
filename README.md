@@ -284,7 +284,7 @@ BusyBox initramfs from `tests/busybox-imx91/` boot the machine to a shell with
 | `hw/ssi/spi_link.c`, `net/can/can_host_chardev.c` | the board-to-board **interconnect** transports (SPI + CAN chardev bridges) |
 | (shared with the i.MX 93, unchanged) | `hw/char/imx_lpuart.c`, `hw/misc/imx93_{ccm,anatop,ele,media_blk,flexio}.c`, `hw/i2c/imx_lpi2c.c`, `hw/ssi/imx93_lpspi.c`, `hw/gpio/imx93_gpio.c`, `hw/net/{imx_fec,imx93_dwmac}.c`, `hw/dma/imx93_edma.c`, `hw/display/{imx93_lcdif,imx93_isi}.c`, `hw/audio/{imx93_sai,imx93_micfil,imx93_xcvr,wm8962}.c`, `hw/net/can/flexcan.c`, ChipIdea USB |
 | `tests/boot-imx91/`, `tests/functest-imx91/` | boot to console; end-to-end smoke (uSDHC r/w, I²C, both Ethernets) |
-| `tests/display-imx91/`, `tests/camera-imx91/`, `tests/audio-imx91/` | LCDIF scanout, V4L2 capture, and ALSA play/capture oracles (audio checks pitch+duration at 48k & 16k) |
+| `tests/display-imx91/`, `tests/camera-imx91/`, `tests/audio-imx91/` | LCDIF scanout, V4L2 capture, and ALSA play/capture oracles (audio checks pitch, duration, and — rate-pinned — square-wave run structure at 48k & 16k, so a scattered sample loss can't hide) |
 | `tests/usdhc-imx91/`, `tests/thermal-imx91/`, `tests/clock-tree-imx91/`, `tests/flexspi-lut-imx91/` | dedicated block oracles: SD-card r/w + VEND_SPEC migration, die-temperature sweep, CCM mux/divider/gate math, FlexSPI LUT-lock |
 | `tests/interconnect-imx91/` | board-to-board links: `run-{eth,uart,spi,can,usb,usb-cdc,i2c}.sh` + `run-spi-stress.sh`; the multi-node segment lab `run-enet-lab.sh` + the pinned `enet-lab3` beacon artifact |
 | `tests/imx91-reset-values/` | the RM-golden reset-value oracle: `extract-rm-golden.py`, `check.py` (the gate), shrink-only `triage.py`, `known-deviations.txt` |
@@ -363,7 +363,15 @@ Milestones, in order:
   programmed rate now take it from a clock — SAI from the codec, MICFIL from `pdm_root`
   (guest-verified at 48 k/16 k, which surfaced a per-channel feed bug the fixed rate had
   masked), and XCVR/SPDIF from `spdif_root` (guest-verified at 48 k/96 k). Each rate fix
-  is guarded by an asserting, mutation-proven playback/capture-duration test.
+  is guarded by an asserting, mutation-proven playback/capture-duration test. The clock
+  tree's last gap closed with them: the CCM's **LPCG gates now reach their consumers** —
+  clearing a block's gate actually stops TPM/MICFIL/XCVR rather than only flipping a
+  status register while the block keeps running (qtest-proven: the counter freezes on
+  gate-clear and resumes on gate-set). And the SAI play oracle itself was **tightened
+  from statistical to structural** — with the wav rate pinned so the capture isn't
+  resampled, every square-wave half-period is asserted frame-exact, so a scattered ~0.4 %
+  sample loss that peak/tone/duration cannot feel (mutation-proven) fails the run-length
+  check hard (a technique independently adopted across the i.MX 93 / 95 / RT1180 nodes).
 
 ## License & credits
 
