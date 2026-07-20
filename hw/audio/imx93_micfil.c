@@ -128,9 +128,10 @@ static int64_t micfil_word_ns(IMX93MicfilState *s)
     uint64_t words_hz;
 
     /*
-     * Unconfigured (CTRL2 not yet written) or unclocked: fall back to 48 kHz so a
-     * bare capture still produces samples rather than dividing by zero.  The board
-     * always wires the clock, and the driver always writes CLKDIV before enabling.
+     * Div-by-zero safety only: never reached while gated, because
+     * imx93_micfil_running() already requires a live clock, and the driver writes
+     * CLKDIV before enabling.  A cut clock stops the block; it does NOT keep
+     * ticking at a fallback rate (that would defeat the LPCG gate).
      */
     if (mclk == 0 || clkdiv == 0) {
         return MICFIL_WORD_NS_48K;
@@ -140,12 +141,37 @@ static int64_t micfil_word_ns(IMX93MicfilState *s)
     return words_hz ? (int64_t)(1000000000LL / words_hz) : MICFIL_WORD_NS_48K;
 }
 
-/* The module clocks samples in once enabled and not disabled. */
+/*
+ * Clocks samples in only when ENABLED *and* CLOCKED.  Requiring the clock is what
+ * makes the LPCG gate reach the block: clear pdm_root's gate and mclk reads 0, so
+ * running() is false -- the tick stops AND the on-demand DATACH0 synth returns 0.
+ * A gate that only stopped the pacing but kept synthesising data on demand would
+ * stop the clock but not the bytes.
+ */
 static bool imx93_micfil_running(IMX93MicfilState *s)
 {
     uint32_t ctrl1 = R(s, MICFIL_CTRL1);
+    uint64_t hz = s->mclk ? clock_get_hz(s->mclk) : 0;
 
-    return (ctrl1 & MICFIL_CTRL1_PDMIEN) && !(ctrl1 & MICFIL_CTRL1_MDIS);
+    return (ctrl1 & MICFIL_CTRL1_PDMIEN) && !(ctrl1 & MICFIL_CTRL1_MDIS) &&
+           hz != 0;
+}
+
+/*
+ * The LPCG gate reaches us as mclk going nonzero<->zero (the CCM write doesn't
+ * touch our own registers).  Arm the feed when the clock returns and we're
+ * enabled; freeze it when the clock is cut.
+ */
+static void imx93_micfil_clk_update(void *opaque, ClockEvent event)
+{
+    IMX93MicfilState *s = opaque;
+
+    if (imx93_micfil_running(s)) {
+        timer_mod(s->rx_timer,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + micfil_word_ns(s));
+    } else {
+        timer_del(s->rx_timer);
+    }
 }
 
 /*
@@ -305,8 +331,11 @@ static void imx93_micfil_init(Object *obj)
 {
     IMX93MicfilState *s = IMX93_MICFIL(obj);
 
-    /* Created here (not realize) so the board can wire it pre-realize. */
-    s->mclk = qdev_init_clock_in(DEVICE(obj), "mclk", NULL, NULL, 0);
+    /* Created here (not realize) so the board can wire it pre-realize.  The
+     * ClockUpdate callback freezes/resumes the feed when the LPCG gate cuts or
+     * restores mclk. */
+    s->mclk = qdev_init_clock_in(DEVICE(obj), "mclk", imx93_micfil_clk_update, s,
+                                 ClockUpdate);
 }
 
 static void imx93_micfil_realize(DeviceState *dev, Error **errp)

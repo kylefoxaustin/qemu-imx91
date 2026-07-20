@@ -99,18 +99,42 @@ static int64_t xcvr_tx_word_ns(IMX93XcvrState *s)
     uint64_t phy = s->phy_clk ? clock_get_hz(s->phy_clk) : 0;
     uint64_t words_hz = phy / XCVR_WORD_PER_PHY;
 
-    /* Unclocked (board always wires it) -> 48 kHz stereo, so TX still drains. */
+    /* Never reached while active (xcvr_tx_active requires phy != 0); div-by-zero
+     * safety.  A cut clock stops TX -- it does NOT fall back to 48 kHz, which
+     * would defeat the SPDIF LPCG gate. */
     return words_hz ? (int64_t)(NANOSECONDS_PER_SECOND / words_hz)
                     : XCVR_TX_WORD_NS_48K;
 }
 
-/* TX clocks once SPDIF mode is on, the datapath released and DMA enabled. */
+/*
+ * TX clocks once SPDIF mode is on, the datapath released, DMA enabled -- AND the
+ * clock is live.  Requiring phy != 0 is what makes the SPDIF LPCG gate reach TX:
+ * clear spdif_root's gate and phy reads 0, so TX freezes instead of clocking out
+ * at a fallback rate.
+ */
 static bool xcvr_tx_active(IMX93XcvrState *s)
 {
     uint32_t ec = s->regs[XCVR_EXT_CTRL_REL >> 2];
+    uint64_t hz = s->phy_clk ? clock_get_hz(s->phy_clk) : 0;
 
     return (ec & EXT_CTRL_SPDIF_MODE) && !(ec & EXT_CTRL_TX_DPTH_RESET) &&
-           !(ec & EXT_CTRL_DMA_RD_DIS);
+           !(ec & EXT_CTRL_DMA_RD_DIS) && hz != 0;
+}
+
+/*
+ * The SPDIF LPCG gate reaches us as phy going nonzero<->zero.  Arm TX when the
+ * clock returns and TX is enabled; freeze it when the clock is cut.
+ */
+static void xcvr_clk_update(void *opaque, ClockEvent event)
+{
+    IMX93XcvrState *s = opaque;
+
+    if (xcvr_tx_active(s)) {
+        timer_mod(s->tx_timer,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + xcvr_tx_word_ns(s));
+    } else {
+        timer_del(s->tx_timer);
+    }
 }
 
 /* Queue clocked-out bytes for the audio backend. */
@@ -345,8 +369,11 @@ static void xcvr_init(Object *obj)
 {
     IMX93XcvrState *s = IMX93_XCVR(obj);
 
-    /* Created here (not realize) so the board can wire it pre-realize. */
-    s->phy_clk = qdev_init_clock_in(DEVICE(obj), "phy", NULL, NULL, 0);
+    /* Created here (not realize) so the board can wire it pre-realize.  The
+     * ClockUpdate callback freezes/resumes TX when the LPCG gate cuts or restores
+     * the SPDIF clock. */
+    s->phy_clk = qdev_init_clock_in(DEVICE(obj), "phy", xcvr_clk_update, s,
+                                    ClockUpdate);
 }
 
 static void xcvr_realize(DeviceState *dev, Error **errp)
