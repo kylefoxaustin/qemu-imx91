@@ -37,6 +37,8 @@ struct IMX93TpmState {
     MemoryRegion iomem;
     Clock *clk;             /* module clock from the CCM.  NO DEFAULT. */
     int64_t base_ns;        /* virtual time at which the counter last started */
+    uint64_t clk_hz;        /* last-seen clock rate, to spot the gate 1<->0 edge */
+    uint32_t held_cnt;      /* CNT frozen while the clock is gated (flip-flops hold) */
     uint32_t sc;            /* status/control (clock mode + prescaler) */
     uint32_t mod;           /* modulo (period) */
     uint32_t cnsc[IMX93_TPM_CHANNELS];

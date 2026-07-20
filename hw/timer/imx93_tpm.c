@@ -104,10 +104,14 @@ static uint32_t tpm_count(IMX93TpmState *s)
      */
     hz = clock_get_hz(s->clk);
     if (hz == 0) {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "imx93.tpm: counter enabled with no module clock; "
-                      "not ticking\n");
-        return 0;
+        /*
+         * No clock -> no edges -> the counter does not advance.  But CNT is
+         * clocked FLIP-FLOPS: removing the clock (an LPCG gate the guest cleared)
+         * HOLDS the last value; it does not zero.  Zeroing needs a reset, which a
+         * gate is not.  held_cnt is the value latched on the gate 1->0 edge (0 if
+         * the counter never ran), and the clock returning resumes from it.
+         */
+        return s->held_cnt;
     }
 
     ps = s->sc & SC_PS;
@@ -115,6 +119,31 @@ static uint32_t tpm_count(IMX93TpmState *s)
                      hz, NANOSECONDS_PER_SECOND) >> ps;
     period = (uint64_t)s->mod + 1;    /* MOD is 32-bit: PARAM.WIDTH = 32 */
     return ticks % period;
+}
+
+/*
+ * The LPCG gate, seen here as the module clock going nonzero<->zero.  On the way
+ * DOWN we latch CNT into held_cnt so the counter HOLDS while gated (flip-flops
+ * retain, silicon does not reset on a gate); on the way UP we re-anchor base_ns
+ * so it RESUMES from the held value instead of restarting from zero.
+ */
+static void tpm_clk_update(void *opaque, ClockEvent event)
+{
+    IMX93TpmState *s = opaque;
+    uint64_t new_hz = clock_get_hz(s->clk);
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    uint32_t ps = s->sc & SC_PS;
+    uint64_t period = (uint64_t)s->mod + 1;
+
+    if ((s->sc & SC_CMOD) && new_hz == 0 && s->clk_hz != 0) {
+        uint64_t ticks = muldiv64(now - s->base_ns, s->clk_hz,
+                                  NANOSECONDS_PER_SECOND) >> ps;
+        s->held_cnt = ticks % period;
+    } else if ((s->sc & SC_CMOD) && new_hz != 0 && s->clk_hz == 0) {
+        s->base_ns = now - (int64_t)muldiv64((uint64_t)s->held_cnt << ps,
+                                             NANOSECONDS_PER_SECOND, new_hz);
+    }
+    s->clk_hz = new_hz;
 }
 
 static uint64_t tpm_read(void *opaque, hwaddr offset, unsigned size)
@@ -202,14 +231,20 @@ static void tpm_reset(DeviceState *dev)
     memset(s->cnsc, 0, sizeof(s->cnsc));
     memset(s->cnv, 0, sizeof(s->cnv));
     s->base_ns = 0;
+    s->held_cnt = 0;
+    s->clk_hz = 0;
 }
 
 static void tpm_init(Object *obj)
 {
     IMX93TpmState *s = IMX93_TPM(obj);
 
-    /* Created here, not in realize, so the SoC can connect it before we realize. */
-    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+    /*
+     * Created here, not in realize, so the SoC can connect it before we realize.
+     * The ClockUpdate callback latches CNT when the gate clears (hold, not reset).
+     */
+    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", tpm_clk_update, s,
+                                ClockUpdate);
 }
 
 static void tpm_realize(DeviceState *dev, Error **errp)
@@ -223,11 +258,13 @@ static void tpm_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_tpm = {
     .name = TYPE_IMX93_TPM,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_CLOCK(clk, IMX93TpmState),
         VMSTATE_INT64(base_ns, IMX93TpmState),
+        VMSTATE_UINT64(clk_hz, IMX93TpmState),
+        VMSTATE_UINT32(held_cnt, IMX93TpmState),
         VMSTATE_UINT32(sc, IMX93TpmState),
         VMSTATE_UINT32(mod, IMX93TpmState),
         VMSTATE_UINT32_ARRAY(cnsc, IMX93TpmState, IMX93_TPM_CHANNELS),

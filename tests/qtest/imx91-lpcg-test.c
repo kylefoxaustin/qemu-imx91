@@ -10,7 +10,7 @@
  * clock root.  Now each modelled consumer is fed the root GATED by its own LPCG,
  * so clearing DIRECT stops exactly that block.  This drives TPM2 (which has a
  * readable free-running counter): with its gate on the counter advances; clear
- * the TPM2 LPCG DIRECT and the counter freezes at 0 (no clock, no tick); set it
+ * the TPM2 LPCG DIRECT and the counter HOLDS its last value (no clock, no edge); set it
  * again and the counter resumes.  A model that ignores the gate keeps counting.
  */
 
@@ -38,25 +38,35 @@ static void test_gate_stops_tpm(void)
     /* Enable TPM2's counter (MOD resets to 0xFFFF; select the module clock). */
     qtest_writel(qts, TPM2_BASE + TPM_SC, SC_CMOD_1);
 
-    /* Gate ON: the counter advances with virtual time. */
-    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000);      /* 1 ms */
+    /*
+     * Gate ON: the counter advances with virtual time.  0.5 ms steps at 24 MHz
+     * are ~12000 ticks -- kept well under the 65536 period so nothing wraps and
+     * "resumed > held" is unambiguous.
+     */
+    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 2000);      /* 0.5 ms */
     uint32_t a = qtest_readl(qts, TPM2_BASE + TPM_CNT);
-    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000);
+    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 2000);
     uint32_t b = qtest_readl(qts, TPM2_BASE + TPM_CNT);
     g_assert_cmpuint(a, >, 0);
     g_assert_cmpuint(b, >, a);          /* still ticking */
 
-    /* Clear the TPM2 LPCG DIRECT: the block loses its clock and the count freezes. */
+    /*
+     * Clear the TPM2 LPCG DIRECT: the block loses its clock.  The counter HOLDS
+     * its last value -- CNT is clocked flip-flops, so removing the clock retains
+     * the value; a gate is not a reset, so it does NOT zero (the fidelity 93 and
+     * I converged on).  Freeze-at-0 here would be a reset the gate never issued.
+     */
     qtest_writel(qts, CCM_TPM2_DIRECT, 0);
-    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000);
-    g_assert_cmpuint(qtest_readl(qts, TPM2_BASE + TPM_CNT), ==, 0);
-    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000);
-    g_assert_cmpuint(qtest_readl(qts, TPM2_BASE + TPM_CNT), ==, 0);   /* stays 0 */
+    uint32_t held = qtest_readl(qts, TPM2_BASE + TPM_CNT);
+    g_assert_cmpuint(held, >, 0);       /* held, NOT zeroed */
+    g_assert_cmpuint(held, >=, b);      /* at least the last running value */
+    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 2000);
+    g_assert_cmpuint(qtest_readl(qts, TPM2_BASE + TPM_CNT), ==, held);  /* frozen */
 
-    /* Re-enable the gate: the clock returns and the counter advances again. */
+    /* Re-set the gate: the clock returns and the counter RESUMES from held, not 0. */
     qtest_writel(qts, CCM_TPM2_DIRECT, GATE_ON);
-    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 1000);
-    g_assert_cmpuint(qtest_readl(qts, TPM2_BASE + TPM_CNT), >, 0);
+    qtest_clock_step(qts, NANOSECONDS_PER_SECOND / 2000);
+    g_assert_cmpuint(qtest_readl(qts, TPM2_BASE + TPM_CNT), >, held);   /* resumed + advanced */
 
     qtest_quit(qts);
 }
