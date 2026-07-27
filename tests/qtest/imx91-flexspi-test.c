@@ -28,8 +28,21 @@
 #define FSPI_IPCR1  0xa4
 #define FSPI_IPCMD  0xb0
 #define FSPI_IPRXFCR 0xb8
+#define FSPI_DLLACR 0xc0
+#define FSPI_DLLBCR 0xc4
+#define FSPI_STS2   0xe8
 #define FSPI_RFDR   0x100
 #define FSPI_LUT    0x200
+
+/* STS2 DLL lock bits, and DLLACR/DLLBCR fields the driver actually writes. */
+#define STS2_ASLVLOCK   (1u << 0)
+#define STS2_AREFLOCK   (1u << 1)
+#define STS2_BSLVLOCK   (1u << 16)
+#define STS2_BREFLOCK   (1u << 17)
+#define STS2_A_LOCK     (STS2_ASLVLOCK | STS2_AREFLOCK)
+#define STS2_B_LOCK     (STS2_BSLVLOCK | STS2_BREFLOCK)
+#define DLLACR_DLLEN    (1u << 0)       /* spi-nxp-fspi.c: FSPI_DLLACR_DLLEN = BIT(0) */
+#define DLLACR_SLVDLY(x) ((x) << 3)
 
 #define LUTKEY_VAL  0x5af05af0
 #define IS25WP064_JEDEC 0x17709d    /* 9d 70 17, packed little-endian */
@@ -105,10 +118,42 @@ static void test_nand_read_id(void)
     qtest_quit(q);
 }
 
+/*
+ * The DLL lock is EARNED, not seeded: spi-nxp-fspi.c enables the DLL (DLLACR/DLLBCR
+ * bit 0 = DLLEN, with SLVDLY) then polls STS2 for the REF/SLV lock bits, warning
+ * "DLL lock failed, please fix it!" and burning a 5 ms timeout if they never come.
+ * So: at reset no lock bit is set; writing DLLEN to DLLACR earns the A-side lock;
+ * writing it to DLLBCR earns the B-side lock.  If the model keys the lock off any
+ * bit other than the one the driver writes (bit 0), the guest's enable never trips
+ * it and the lock bits stay 0 -- which is exactly what this asserts against.
+ */
+static void test_dll_lock(void)
+{
+    QTestState *q = qtest_init("-machine imx91-11x11-evk -m 4G "
+                               "-display none -kernel /dev/null");
+
+    /* Reset: STS2 has the slave-delay selects but NONE of the lock bits. */
+    g_assert_cmphex(rd(q, FSPI_STS2) & (STS2_A_LOCK | STS2_B_LOCK), ==, 0);
+
+    /* Enable the A-side DLL the way the driver does: DLLEN | SLVDLY(0xF). */
+    wr(q, FSPI_DLLACR, DLLACR_DLLEN | DLLACR_SLVDLY(0xF));
+    g_assert_cmphex(rd(q, FSPI_STS2) & STS2_A_LOCK, ==, STS2_A_LOCK);
+    /* B-side has not been enabled yet, so it must still read unlocked. */
+    g_assert_cmphex(rd(q, FSPI_STS2) & STS2_B_LOCK, ==, 0);
+
+    /* Enable the B-side DLL: now both banks report locked (AB_LOCK). */
+    wr(q, FSPI_DLLBCR, DLLACR_DLLEN | DLLACR_SLVDLY(0xF));
+    g_assert_cmphex(rd(q, FSPI_STS2) & (STS2_A_LOCK | STS2_B_LOCK),
+                    ==, STS2_A_LOCK | STS2_B_LOCK);
+
+    qtest_quit(q);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("imx93/flexspi/read-id", test_read_id);
     qtest_add_func("imx91/flexspi/nand-read-id", test_nand_read_id);
+    qtest_add_func("imx91/flexspi/dll-lock", test_dll_lock);
     return g_test_run();
 }

@@ -86,8 +86,14 @@
 #define FSPI_MCR2_RESET     0x200081f7
 #define FSPI_STS2_RESET     0x01000100    /* slave-delay selects; NOT the lock bits */
 
-/* DLL lock status, produced by the DLL -- asserted only once the guest ENABLES it. */
-#define FSPI_DLLCR_DLLEN    (1u << 31)
+/*
+ * DLL lock status, produced by the DLL -- asserted only once the guest ENABLES it.
+ * DLLEN is bit 0 of DLLACR/DLLBCR (spi-nxp-fspi.c: FSPI_DLLACR_DLLEN = BIT(0)); the
+ * driver writes DLLEN|SLVDLY there and then polls STS2 for the lock.  Keying this off
+ * any other bit means the guest's enable never earns the lock -- the driver would burn
+ * its full 5 ms poll and print "DLL lock failed, please fix it!" on every DLL config.
+ */
+#define FSPI_DLLCR_DLLEN    (1u << 0)
 #define FSPI_STS2_ASLVLOCK  (1u << 0)
 #define FSPI_STS2_AREFLOCK  (1u << 1)
 #define FSPI_STS2_BSLVLOCK  (1u << 16)
