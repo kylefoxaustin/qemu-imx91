@@ -23,7 +23,8 @@
 
 #define CHNL_CTRL               0x0000
 #define   CHNL_CTRL_CHNL_EN     0x80000000
-#define CHNL_IMG_CFG            0x000c      /* (height << 16) | width */
+#define CHNL_IMG_CFG            0x000c      /* input size:  (height << 16) | width */
+#define CHNL_SCL_IMG_CFG        0x0098      /* output size: (height << 16) | width */
 #define CHNL_IER                0x0010
 #define   CHNL_IER_FRM_RCVD_EN  0x20000000
 #define CHNL_STS                0x0014
@@ -88,8 +89,13 @@ static void test_capture(void)
     qtest_memwrite(qts, BUF1, zero, FM_LEN);
     qtest_memwrite(qts, BUF2, zero, FM_LEN);
 
-    /* Program geometry, pitch, both buffers and enable the frame interrupt. */
+    /*
+     * Program geometry, pitch, both buffers and enable the frame interrupt.
+     * 1:1 capture, so input (IMG_CFG) and output (SCL_IMG_CFG) are equal -- the
+     * DMA geometry comes from the SCALED output register, as the driver programs it.
+     */
     isi_writel(qts, CHNL_IMG_CFG, (H << 16) | W);
+    isi_writel(qts, CHNL_SCL_IMG_CFG, (H << 16) | W);
     isi_writel(qts, CHNL_OUT_BUF_PITCH, PITCH);
     isi_writel(qts, CHNL_OUT_BUF1_ADDR_Y, (uint32_t)BUF1);
     isi_writel(qts, CHNL_OUT_BUF2_ADDR_Y, (uint32_t)BUF2);
@@ -129,9 +135,60 @@ static void test_capture(void)
     qtest_quit(qts);
 }
 
+/*
+ * Scaled capture: the ISI downscales, so the DMA'd buffer is the OUTPUT size
+ * (CHNL_SCL_IMG_CFG), not the sensor INPUT size (CHNL_IMG_CFG). Program a large
+ * 64x32 input but a small 16x8 output; the model must DMA exactly the 16x8 output
+ * frame and touch nothing past it. A model that (wrongly) took its geometry from
+ * IMG_CFG would scan out 32 input rows and trample memory well beyond the output
+ * frame -- which is exactly what the sentinel past the output catches.
+ */
+#define IN_W        64
+#define IN_H        32
+#define POISON_LEN  4096
+/* Row 16 * pitch = 1024: inside the 64x32 input footprint, past the 16x8 output. */
+#define BEYOND_OFF  1024
+
+static void test_scaled_capture(void)
+{
+    QTestState *qts = qtest_init("-machine imx91-11x11-evk -display none");
+    g_autofree uint8_t *poison = g_malloc(POISON_LEN);
+    uint32_t sts, beyond;
+
+    memset(poison, 0xee, POISON_LEN);
+    qtest_memwrite(qts, BUF1, poison, POISON_LEN);
+
+    /* Input 64x32, output 16x8, output pitch = 16*4 bytes. */
+    isi_writel(qts, CHNL_IMG_CFG, (IN_H << 16) | IN_W);
+    isi_writel(qts, CHNL_SCL_IMG_CFG, (H << 16) | W);
+    isi_writel(qts, CHNL_OUT_BUF_PITCH, PITCH);
+    isi_writel(qts, CHNL_OUT_BUF1_ADDR_Y, (uint32_t)BUF1);
+    isi_writel(qts, CHNL_OUT_BUF2_ADDR_Y, (uint32_t)BUF2);
+    isi_writel(qts, CHNL_IER, CHNL_IER_FRM_RCVD_EN);
+    isi_writel(qts, CHNL_CTRL, CHNL_CTRL_CHNL_EN);
+
+    /* Frame 0 -> BUF1. */
+    qtest_clock_step(qts, STEP_NS);
+    sts = qtest_readl(qts, ISI_BASE + CHNL_STS);
+    g_assert_cmphex(sts & CHNL_STS_FRM_STRD, ==, CHNL_STS_FRM_STRD);
+
+    /* The 16x8 OUTPUT frame landed, exactly as the 1:1 pattern. */
+    check_frame(qts, BUF1, 0);
+
+    /*
+     * Nothing past the output frame was written. Under the input-geometry bug the
+     * model would DMA the 64x32 input and this sentinel would be overwritten.
+     */
+    qtest_memread(qts, BUF1 + BEYOND_OFF, &beyond, sizeof(beyond));
+    g_assert_cmphex(beyond, ==, 0xeeeeeeeeu);
+
+    qtest_quit(qts);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
     qtest_add_func("/imx93/isi/capture", test_capture);
+    qtest_add_func("/imx91/isi/scaled-capture", test_scaled_capture);
     return g_test_run();
 }

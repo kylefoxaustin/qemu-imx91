@@ -184,7 +184,16 @@ static bool imx93_isi_next_frame(IMX93IsiState *s, size_t fsz)
 static void imx93_isi_frame_tick(void *opaque)
 {
     IMX93IsiState *s = opaque;
-    uint32_t cfg = R(s, CHNL_IMG_CFG);
+    /*
+     * The DMA writes the SCALED output, not the sensor input.  The driver programs
+     * CHNL_IMG_CFG = input size and CHNL_SCL_IMG_CFG = output size (imx8-isi-hw.c
+     * 380 vs 180), and CHNL_OUT_BUF_PITCH = the output bytesperline (:430).  So the
+     * buffer geometry is CHNL_SCL_IMG_CFG (same (height<<16)|width layout as IMG_CFG,
+     * GENMASK(28,16)/GENMASK(12,0)); at unity scale it equals CHNL_IMG_CFG, so the 1:1
+     * capture path is unchanged.  Reading IMG_CFG here would DMA input-dimensioned
+     * frames into an output-dimensioned buffer whenever a client negotiates scaling.
+     */
+    uint32_t cfg = R(s, CHNL_SCL_IMG_CFG);
     uint32_t width = cfg & CHNL_IMG_CFG_W_MASK;
     uint32_t height = (cfg >> CHNL_IMG_CFG_H_SHIFT) & CHNL_IMG_CFG_H_MASK;
     uint32_t pitch = R(s, CHNL_OUT_BUF_PITCH) & CHNL_OUT_BUF_PITCH_MASK;
