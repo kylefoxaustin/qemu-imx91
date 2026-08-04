@@ -263,7 +263,7 @@ int main(int argc, char **argv)
     int64_t  next_tx, next_hb;
     uint64_t rx_self = 0, rx_other = 0, beats = 0;
     uint64_t rx_foreign = 0;        /* not my protocol -- MUST NOT be body-checked */
-    int      was_passing = 0;
+    int      was_passing = 0, prev_live = -1;
     int      strict;
     int64_t  legacy_after_ms = 0, t0;
     int      went_legacy = 0;
@@ -570,6 +570,23 @@ int main(int argc, char **argv)
                             int has_body  = (n == FRAME_LEN && has_magic);
                             int enforce   = strict || peers[i].emits || has_magic;
 
+                            if (has_body && !peers[i].emits) {
+                                /*
+                                 * First valid body from this peer -- a PER-PEER
+                                 * verification receipt, printed the instant it lands,
+                                 * INDEPENDENT of the aggregate N/N gate.  The aggregate
+                                 * PASS still requires ALL watched peers, so without this
+                                 * line a run with any absent peer is a black box on
+                                 * partial verifies (the 4-node window where imx95 never
+                                 * showed proved that gap -- our log went silent while
+                                 * mcx/93 could still report "verified 2 of 3").
+                                 */
+                                printf("ENET-LAB3 PEER-OK: et=0x%04X body-verified "
+                                       "(magic + self-ET + 0x5A fill + incarnation "
+                                       "0x%08X) -- first valid body\n",
+                                       et, get32(rx + 24));
+                                fflush(stdout);
+                            }
                             if (has_body) {
                                 peers[i].emits = 1;     /* LATCH.  Never cleared. */
                             }
@@ -843,6 +860,26 @@ int main(int argc, char **argv)
                 fflush(stdout);
                 was_passing = 0;
             }
+            /*
+             * Partial coverage: the full N/N gate can't close, but say WHY -- which
+             * watched peers are live vs absent -- so an incomplete window is legible
+             * instead of silent.  Printed only when the live SET changes, not every
+             * heartbeat.  (Complements the per-peer PEER-OK receipts: PEER-OK says
+             * "this peer verified once"; PARTIAL says "here's who is on the wire now".)
+             */
+            if (live != npeers && live != prev_live) {
+                printf("ENET-LAB3 PARTIAL: t=%lld.%03llds peers=%d/%d live=[",
+                       (long long)(t / 1000), (long long)(t % 1000), live, npeers);
+                for (i = 0; i < npeers; i++) {
+                    int lv = peers[i].last_seen_ms &&
+                             t - peers[i].last_seen_ms <= PEER_TIMEOUT_MS;
+                    printf("%s0x%04X:%s", i ? " " : "", peers[i].ethertype,
+                           lv ? "live" : "ABSENT");
+                }
+                printf("] -- gate needs all %d\n", npeers);
+                fflush(stdout);
+            }
+            prev_live = live;
             next_hb = t + HEARTBEAT_MS;
         }
     }
