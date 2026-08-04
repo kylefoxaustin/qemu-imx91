@@ -85,10 +85,13 @@ Stock **NXP Linux 6.12.49** boots to userspace on the single Cortex-A55, on the
 [Known limitations](#known-limitations)). This table is the condensed capability
 view; the per-IP-block evidence, with the same **Tier / N-A** language, lives in
 [`docs/validation/test-result-matrix.md`](docs/validation/test-result-matrix.md)
-(one source of truth, `test-matrix.yaml`, two renderings). Tiers: **A** data-path
-verified (real data moves, integrity-checked) · **B** driver bring-up (binds,
-registers/IRQ/timing correct) · **N/A** absent on i.MX 91 silicon (never a
-failure).
+(one source of truth, `test-matrix.yaml`, two renderings). Tiers (the shared farm
+vocabulary, so a tier means the same across boards): **A** data-path verified
+(real data moves, integrity-checked) · **B** driver bring-up (binds,
+registers/IRQ/timing correct, compute stubbed) · **C** present but
+proprietary/out-of-scope compute (GPU/VPU/NPU) · **N/A** absent on i.MX 91 silicon
+(never a failure). The entry-tier i.MX 91 has **no tier-C blocks** — its
+proprietary-compute IP (NPU/GPU/VPU) is simply absent, so it lands in N/A, not C.
 
 <!-- BEGIN capability-table (generated from test-matrix.yaml) -->
 | Subsystem | Tier | Evidence |

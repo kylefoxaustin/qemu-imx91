@@ -6,7 +6,7 @@
 
 Board `imx91-11x11-evk` · machine `imx91-11x11-evk` · qtest binary `build/qemu-system-aarch64`.
 
-Tiers: **A** data-path-verified · **B** driver-bring-up · **C** registration · **N/A** absent (never a failure). ⚑ = fidelity caveat, see [`fidelity-audit.md`](fidelity-audit.md).
+Tiers (shared farm vocabulary): **A** data-path-verified · **B** driver-bring-up (binds/registers, compute stubbed) · **C** present but proprietary/out-of-scope compute (GPU/VPU/NPU; none on i.MX 91) · **N/A** absent (never a failure). ⚑ = fidelity caveat, see [`fidelity-audit.md`](fidelity-audit.md).
 
 ## Present IP
 

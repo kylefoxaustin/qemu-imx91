@@ -179,8 +179,10 @@ def main():
     p(f"Board `{spec['board']}` · machine `{spec['qemu_machine']}` · "
       f"qtest binary `{os.path.relpath(qemu, REPO) if qemu.startswith(REPO) else qemu}`.")
     p("")
-    p("Tiers: **A** data-path-verified · **B** driver-bring-up · "
-      "**C** registration · **N/A** absent (never a failure). ⚑ = fidelity "
+    p("Tiers (shared farm vocabulary): **A** data-path-verified · "
+      "**B** driver-bring-up (binds/registers, compute stubbed) · "
+      "**C** present but proprietary/out-of-scope compute (GPU/VPU/NPU; "
+      "none on i.MX 91) · **N/A** absent (never a failure). ⚑ = fidelity "
       "caveat, see [`fidelity-audit.md`](fidelity-audit.md).")
     p("")
     p("## Present IP")
