@@ -22,10 +22,13 @@
 #include "hw/core/qdev-properties-system.h"
 #include "migration/vmstate.h"
 
+static int imx_lpuart_post_load(void *opaque, int version_id);
+
 static const VMStateDescription vmstate_imx_lpuart = {
     .name = TYPE_IMX_LPUART,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = imx_lpuart_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(baud, IMXLPUARTState),
         VMSTATE_UINT32(stat, IMXLPUARTState),
@@ -51,6 +54,20 @@ static void imx_lpuart_update_irq(IMXLPUARTState *s)
         ((s->stat & LPUART_STAT_IDLE) && (s->ctrl & LPUART_CTRL_ILIE));
 
     qemu_set_irq(s->irq, level);
+}
+
+/*
+ * The IRQ line level is a pure function of STAT & CTRL and is not part of the
+ * migration stream, so re-derive it from the loaded register state.  Without
+ * this a pending-but-unacked interrupt (RDRF+RIE, TC+TCIE, ...) is lost across
+ * loadvm and a driver blocked on it never wakes.
+ */
+static int imx_lpuart_post_load(void *opaque, int version_id)
+{
+    IMXLPUARTState *s = opaque;
+
+    imx_lpuart_update_irq(s);
+    return 0;
 }
 
 static void imx_lpuart_reset(IMXLPUARTState *s)
