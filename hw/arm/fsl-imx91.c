@@ -7,7 +7,7 @@
  * camera only), 384 KiB OCRAM, LPDDR4-only. Like the i.MX 93 it has no System
  * Manager - Linux programs CCM/ANATOP/SRC directly.
  *
- * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
+ * Copyright (c) 2026, Kyle Fox <kylefoxaustin.github@gmail.com>
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *

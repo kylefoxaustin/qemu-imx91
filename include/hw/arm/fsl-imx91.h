@@ -1,7 +1,7 @@
 /*
  * NXP i.MX 91 SoC definitions
  *
- * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
+ * Copyright (c) 2026, Kyle Fox <kylefoxaustin.github@gmail.com>
  *
  * Modeled on hw/arm/fsl-imx8mp.h (Bernhard Beschow) and the i.MX 95 port.
  *
@@ -193,7 +193,10 @@ enum FslImx91MemoryRegions {
     FSL_IMX91_LPUART7,
     FSL_IMX91_LPUART8,
 
-    /* Clock / reset / pinmux infrastructure (stubbed as unimplemented) */
+    /*
+     * Clock / reset / pinmux infrastructure.  CCM + ANATOP are modeled (the
+     * functional clock tree); IOMUXC + SRC are unimplemented regions.
+     */
     FSL_IMX91_CCM,
     FSL_IMX91_ANATOP,
     FSL_IMX91_IOMUXC,

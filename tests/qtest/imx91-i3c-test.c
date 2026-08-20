@@ -1,7 +1,7 @@
 /*
  * QTest for the i.MX91 Silvaco I3C master + a legacy I2C target (wm8962).
  *
- * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
+ * Copyright (c) 2026, Kyle Fox <kylefoxaustin.github@gmail.com>
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *

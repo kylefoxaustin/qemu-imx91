@@ -1,7 +1,7 @@
 /*
  * QTest for i.MX91 LPCG clock gating reaching a consumer.
  *
- * Copyright (c) 2026, Kyle Fox <kylefoxaustin@github>
+ * Copyright (c) 2026, Kyle Fox <kylefoxaustin.github@gmail.com>
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *

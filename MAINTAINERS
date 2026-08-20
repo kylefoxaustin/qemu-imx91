@@ -954,7 +954,7 @@ F: tests/functional/aarch64/test_imx8mp_evk.py
 F: tests/qtest/rs5c372-test.c
 
 NXP i.MX93 11x11 EVK / i.MX93
-M: Kyle Fox <13992031+kylefoxaustin@users.noreply.github.com>
+M: Kyle Fox <kylefoxaustin.github@gmail.com>
 L: qemu-arm@nongnu.org
 S: Maintained
 F: hw/arm/imx93-evk.c
@@ -976,7 +976,7 @@ F: docs/system/arm/imx93-evk.rst
 F: tests/qtest/flexcan-test.c
 
 NXP i.MX91 11x11 EVK / i.MX91
-M: Kyle Fox <13992031+kylefoxaustin@users.noreply.github.com>
+M: Kyle Fox <kylefoxaustin.github@gmail.com>
 L: qemu-arm@nongnu.org
 S: Maintained
 F: hw/arm/imx91-evk.c
