@@ -7,9 +7,10 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * v0.0.1 scope: instantiate the SoC, attach DDR, hand control to
- * arm_load_kernel() so -kernel works. No DTB modification, no SD card,
- * no console yet (LPUART model arrives in v0.0.2).
+ * Instantiates the i.MX 91 SoC, attaches LPDDR4, injects the virtio-mmio and
+ * secure-enclave device-tree nodes the guest needs, wires up any -drive if=sd
+ * cards and -machine canbus buses, and hands control to arm_load_kernel() so
+ * -kernel boots to a console on LPUART1.
  */
 
 #include "qemu/osdep.h"
@@ -48,7 +49,7 @@ struct Imx91EvkMachineState {
  * <&gic> and #address-cells/#size-cells = <2>, so a root-level node inherits
  * the GIC and uses 2-cell addresses. interrupts = <SPI N LEVEL_HIGH>.
  */
-static void imx93_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
+static void imx91_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
 {
     for (int i = FSL_IMX91_NUM_VIRTIO_MMIO - 1; i >= 0; i--) {
         hwaddr base = FSL_IMX91_VIRTIO_MMIO_BASE +
@@ -87,7 +88,7 @@ static void imx93_evk_modify_dtb(const struct arm_boot_info *info, void *fdt)
     }
 }
 
-static void imx93_evk_init(MachineState *machine)
+static void imx91_evk_init(MachineState *machine)
 {
     Imx91EvkMachineState *m = IMX91_EVK_MACHINE(machine);
     static struct arm_boot_info boot_info;
@@ -106,7 +107,7 @@ static void imx93_evk_init(MachineState *machine)
         .board_id     = -1,
         .ram_size     = machine->ram_size,
         .psci_conduit = QEMU_PSCI_CONDUIT_SMC,
-        .modify_dtb   = imx93_evk_modify_dtb,
+        .modify_dtb   = imx91_evk_modify_dtb,
     };
 
     s = FSL_IMX91(object_new(TYPE_FSL_IMX91));
@@ -154,7 +155,7 @@ static void imx93_evk_init(MachineState *machine)
     }
 }
 
-static const char *imx93_evk_get_default_cpu_type(const MachineState *ms)
+static const char *imx91_evk_get_default_cpu_type(const MachineState *ms)
 {
     if (kvm_enabled()) {
         return ARM_CPU_TYPE_NAME("host");
@@ -162,16 +163,36 @@ static const char *imx93_evk_get_default_cpu_type(const MachineState *ms)
     return ARM_CPU_TYPE_NAME("cortex-a55");
 }
 
+/*
+ * Constrain -cpu so a stray model is rejected with a clear message rather than
+ * building the wrong core silently -- or, worse, core-dumping: an M-profile
+ * type (e.g. -cpu cortex-m33) aborts in the SoC's A-profile wiring (no cntfrq
+ * property).  Mirrors get_default_cpu_type: the sole valid type is cortex-a55
+ * under TCG, or the host CPU under KVM.
+ */
+static GPtrArray *imx91_evk_get_valid_cpu_types(const MachineState *ms)
+{
+    GPtrArray *vct = g_ptr_array_new_with_free_func(g_free);
+
+    if (kvm_enabled()) {
+        g_ptr_array_add(vct, g_strdup(ARM_CPU_TYPE_NAME("host")));
+    } else {
+        g_ptr_array_add(vct, g_strdup(ARM_CPU_TYPE_NAME("cortex-a55")));
+    }
+    return vct;
+}
+
 static void imx91_11x11_evk_machine_init(MachineClass *mc)
 {
     mc->desc                  = "NXP i.MX 91 11x11 EVK (LPDDR4)";
-    mc->init                  = imx93_evk_init;
+    mc->init                  = imx91_evk_init;
     /* The i.MX 91 is single-core (one Cortex-A55, no M33). */
     mc->default_cpus          = FSL_IMX91_NUM_A55_CPUS;
     mc->max_cpus              = FSL_IMX91_NUM_A55_CPUS;
     mc->default_ram_id        = "imx91-11x11-evk.ram";
     mc->default_ram_size      = 2 * GiB;   /* 11x11 EVK: 2 GiB LPDDR4 */
-    mc->get_default_cpu_type  = imx93_evk_get_default_cpu_type;
+    mc->get_default_cpu_type  = imx91_evk_get_default_cpu_type;
+    mc->get_valid_cpu_types   = imx91_evk_get_valid_cpu_types;
 }
 
 static void imx91_evk_set_flexspi_flash(Object *obj, const char *value,
@@ -183,7 +204,7 @@ static void imx91_evk_set_flexspi_flash(Object *obj, const char *value,
     m->flexspi_flash = g_strdup(value);
 }
 
-static void imx93_evk_machine_instance_init(Object *obj)
+static void imx91_evk_machine_instance_init(Object *obj)
 {
     int i;
 
@@ -213,7 +234,7 @@ static const TypeInfo imx91_11x11_evk_machine_types[] = {
         .name          = TYPE_IMX91_EVK_MACHINE,
         .parent        = TYPE_MACHINE,
         .instance_size = sizeof(Imx91EvkMachineState),
-        .instance_init = imx93_evk_machine_instance_init,
+        .instance_init = imx91_evk_machine_instance_init,
         .class_init    = imx91_11x11_evk_class_init,
         .interfaces    = aarch64_machine_interfaces,
     },

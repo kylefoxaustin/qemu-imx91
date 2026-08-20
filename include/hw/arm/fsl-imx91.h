@@ -9,8 +9,10 @@
  *
  * Unlike the i.MX 95, the i.MX 91 has NO System Manager: Linux programs the
  * CCM / ANATOP / IOMUXC / SRC blocks directly (no SCMI/SM indirection), so
- * those regions must eventually be modeled functionally rather than served
- * by an SM firmware stub. v0.0.1 installs logging stubs for them.
+ * these are modeled here rather than served by an SM firmware indirection.
+ * The CCM / ANATOP clock tree is functional -- each PLL and root clock is
+ * computed from the registers the guest writes -- so clock consumers follow
+ * the tree rather than a fabricated constant.
  *
  * All base addresses and IRQ numbers below are taken from the i.MX 91 Linux
  * device tree (arch/arm64/boot/dts/freescale/imx91.dtsi) and cross-checked
