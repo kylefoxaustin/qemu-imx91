@@ -261,7 +261,7 @@ qtests_aarch64 = \
     ['tpm-tis-device-test', 'tpm-tis-device-swtpm-test'] : []) +                                         \
   (config_all_devices.has_key('CONFIG_FLEXCAN') ? ['flexcan-test'] : []) + \
   (config_all_devices.has_key('CONFIG_FSL_IMX93') ? ['imx93-flexspi-test', 'imx93-pxp-test', 'imx93-isi-test', 'imx93-sai-test', 'imx93-lpi2c-test', 'imx93-flexio-test'] : []) + \
-  (config_all_devices.has_key('CONFIG_FSL_IMX91') ? ['imx91-flexcan-test', 'imx91-lpspi-test', 'imx91-lpi2c-test', 'imx91-isi-test', 'imx91-sai-test', 'imx91-micfil-test', 'imx91-flexspi-test', 'imx91-flexio-test', 'imx91-i3c-test', 'imx91-ddrc-test', 'imx91-xcvr-test', 'imx91-wdog-test', 'imx91-lpcg-test'] : []) + \
+  (config_all_devices.has_key('CONFIG_FSL_IMX91') ? ['imx91-flexcan-test', 'imx91-lpspi-test', 'imx91-lpi2c-test', 'imx91-isi-test', 'imx91-sai-test', 'imx91-micfil-test', 'imx91-flexspi-test', 'imx91-flexio-test', 'imx91-i3c-test', 'imx91-ddrc-test', 'imx91-xcvr-test', 'imx91-wdog-test', 'imx91-lpcg-test', 'imx91-lpuart-migration-test'] : []) + \
   (config_all_devices.has_key('CONFIG_ETHOS_U') ? ['ethos-u-test'] : []) + \
   (config_all_devices.has_key('CONFIG_XLNX_ZYNQMP_ARM') ? ['xlnx-can-test', 'fuzz-xlnx-dp-test'] : []) + \
   (config_all_devices.has_key('CONFIG_XLNX_VERSAL') ? ['xlnx-canfd-test', 'xlnx-versal-trng-test'] : []) + \
